@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning Vue</title>
+    <script src="https://unpkg.com/vue@3.0.2"></script>
+    <style>
+        body{
+            background: #eee;
+            max-width: 960px;
+            margin: 20px auto;
+        }
+        p, h3, ul{
+            margin: 0;
+            padding: 0;
+        }
+        li{
+            list-style: none;
+            background: #fff;
+            margin: 20px auto;
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        li.fav{
+            background: #ff9ed2;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hello, Vue :)</h1>
+
+    <div id="app">
+        <!-- attribute binding, we can also just use :href as a shortcut for v-bind -->
+        <!-- <a v-bind:href="url">best website ever</a> -->
+        <div v-if="showBooks">
+            <ul>
+                <li v-for="book in filteredBooks" @click="toggleFav(book)" :class="{ fav: book.isFav }">
+                    <img :src="book.img" :alt="book.title">
+                    <h3>{{ book.title }}</h3>
+                    <p>{{ book.author }}</p>
+                </li>
+            </ul>
+        </div>
+
+        <button @click="toggleShowBooks">
+            <span v-if="showBooks">Hide Books</span> <!-- This will hide the element and remove it from the DOM -->
+            <span v-else>Show Books</span>
+        </button>
+
+    <script src="app.js"></script>
+</body>
+</html>
