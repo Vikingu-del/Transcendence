@@ -1,0 +1,68 @@
+services:
+  gateway:
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    environment:
+      WAIT_FOR_SERVICES: "false" # skip waiting for backend services
+
+#   backend:
+#     build:
+#       context: ./Backend  # Make sure there's a Dockerfile in ./Backend
+#     volumes:
+#       - ./Backend:/app
+#       - pgdata:/var/lib/postgresql/data
+#     ports:
+#       - "8000:8000"
+#     environment:
+#       - DATABASE_URL=postgres://postgres:password@db:5432/mydatabase
+#     depends_on:
+#       - db
+#     networks:
+#       - back-tier
+
+#   db:
+#     image: postgres:latest  # Uses the official PostgreSQL image, no Dockerfile needed
+#     environment:
+#       POSTGRES_DB: mydatabase
+#       POSTGRES_USER: postgres
+#       POSTGRES_PASSWORD: password
+#     volumes:
+#       - pgdata:/var/lib/postgresql/data
+#     networks:
+#       - back-tier
+
+#   frontend:
+#     build:
+#       context: ./frontend  # Make sure there's a Dockerfile in ./frontend
+#     volumes:
+#       - ./frontend:/app
+#     ports:
+#       - "3000:3000"
+#     depends_on:
+#       - backend
+#     networks:
+#       - front-tier
+#       - back-tier
+#     configs:
+#       - httpd-config
+#     secrets:
+#       - server-certificate
+
+volumes:
+  pgdata:
+    driver: local
+
+# configs:
+#   httpd-config:
+#     external: true
+
+# secrets:
+#   server-certificate:
+#     external: true
+
+# networks:
+#   back-tier:
+#   front-tier:
