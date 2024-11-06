@@ -1,25 +1,29 @@
-# Use the official Python image as a parent image
+# Use the official Python image from the Docker Hub
 FROM python:3.10-slim
 
 # Set environment variables
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
 
-# Set the working directory in the container
+# Set the working directory
 WORKDIR /app
 
-# Copy the requirements file first to leverage Docker cache
-COPY requirements.txt .
+# Copy the requirements file
+COPY config/requirements.txt /app/
+COPY config/entrypoint.sh /usr/local/bin/entrypoint.sh
+# Make the entrypoint script executable
+RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install the dependencies
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
+RUN apt update && apt install -y netcat-openbsd postgresql-client
 
-# Copy the rest of the application code
-COPY . .
+# Copy the project files
+COPY . /app/
 
-# Copy the entrypoint script and make it executable
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Expose the port the app runs on
+EXPOSE 8000
 
-# Set the entrypoint script
-ENTRYPOINT ["/entrypoint.sh"]
+# Run the Django development server
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
