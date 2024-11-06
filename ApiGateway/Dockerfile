@@ -1,19 +1,21 @@
-# Use a base image with package management
-FROM nginx:latest
+# Start with the base Nginx image
+FROM nginx:alpine
 
-# Update package list and install required packages
-RUN apt update && apt upgrade -y
-RUN apt install -y netcat-openbsd gettext-base openssl
+# Set environment variables (you can configure more as needed)
+ENV WAIT_FOR_SERVICES=true
 
-# Copy NGINX configuration file to the container
-COPY config/nginx.template.conf /etc/nginx/nginx.conf
-COPY config/entrypoint.sh /usr/local/bin/
+RUN apk add openssl
 
-# Make entrypoint executable
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Copy your custom Nginx configuration
+COPY config/nginx.conf /etc/nginx/nginx.conf
 
-# Expose the ports for HTTP and HTTPS
+# Copy the entrypoint script
+COPY config/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+# Expose the necessary ports
 EXPOSE 80 443
 
-# Use the entrypoint script to start NGINX with environment variables
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# Make the entrypoint script the container entrypoint
+ENTRYPOINT ["/entrypoint.sh"]
+

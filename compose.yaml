@@ -9,7 +9,7 @@ services:
       VAULT_DEV_ROOT_TOKEN_ID: "root"
       VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
     networks:
-      - backend_network
+      - backtier
 
   myproject:
     build:
@@ -20,7 +20,7 @@ services:
     depends_on:
       - vault
     networks:
-      - backend_network
+      - backtier
 
   gateway:
     build:
@@ -32,9 +32,26 @@ services:
     depends_on:
       - vault
       - myproject
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
     networks:
-      - backend_network
+      - backtier
+
+  frontend:
+    build:
+      context: ./FrontEnd
+      dockerfile: Dockerfile
+    volumes:
+      - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+    networks:
+      - backtier
+      - frontier
+
+volumes:
+  frontend_dist: # Define the shared volume
 
 networks:
-  backend_network:
+  backtier:
+    driver: bridge
+  frontier:
     driver: bridge

@@ -1,8 +1,17 @@
-FROM node:latest
+# Use Node.js image to build the Vue app
+FROM node:latest AS build
 
+# Set the working directory
 WORKDIR /app
-COPY package.json ./
+
+# Install dependencies
+COPY package.json package-lock.json ./
 RUN npm install
+
+# Copy the rest of the app
 COPY . .
 
-CMD ["npm", "run", "serve"]  # Command to start the Vue app
+# Build the Vue app for production
+RUN npm run build
+
+# The `dist/` folder will be available after the build

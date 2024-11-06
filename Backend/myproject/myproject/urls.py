@@ -24,5 +24,6 @@ def home_view(request):
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('secret/', include('core.urls')),
+    path('api/', home_view),
     path('', home_view),
 ]
