@@ -1,0 +1,15 @@
+{% extends "blog/base.html" %}
+{% block content %}
+  <h2>Profile</h2>
+  <form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+    {{ form.as_p }}
+    <button type="submit">Update</button>
+  </form>
+  <h3>Match History</h3>
+  <ul>
+    {% for match in matches %}
+      <li>{{ match.date }}: {{ match.player1.username }} vs {{ match.player2.username }} - Winner: {{ match.winner.username }}</li>
+    {% endfor %}
+  </ul>
+{% endblock %}
