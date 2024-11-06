@@ -1,68 +1,40 @@
 services:
+  vault:
+    image: hashicorp/vault:latest
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200" # Expose the Vault API
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    networks:
+      - backend_network
+
+  myproject:
+    build:
+      context: ./Backend/myproject
+      dockerfile: Dockerfile
+    ports:
+      - 8000:8000
+    depends_on:
+      - vault
+    networks:
+      - backend_network
+
   gateway:
     build:
       context: ./ApiGateway
       dockerfile: Dockerfile
     ports:
-      - "80:80"
-    environment:
-      WAIT_FOR_SERVICES: "false" # skip waiting for backend services
+      - 80:80
+      - 443:443
+    depends_on:
+      - vault
+      - myproject
+    networks:
+      - backend_network
 
-#   backend:
-#     build:
-#       context: ./Backend  # Make sure there's a Dockerfile in ./Backend
-#     volumes:
-#       - ./Backend:/app
-#       - pgdata:/var/lib/postgresql/data
-#     ports:
-#       - "8000:8000"
-#     environment:
-#       - DATABASE_URL=postgres://postgres:password@db:5432/mydatabase
-#     depends_on:
-#       - db
-#     networks:
-#       - back-tier
-
-#   db:
-#     image: postgres:latest  # Uses the official PostgreSQL image, no Dockerfile needed
-#     environment:
-#       POSTGRES_DB: mydatabase
-#       POSTGRES_USER: postgres
-#       POSTGRES_PASSWORD: password
-#     volumes:
-#       - pgdata:/var/lib/postgresql/data
-#     networks:
-#       - back-tier
-
-#   frontend:
-#     build:
-#       context: ./frontend  # Make sure there's a Dockerfile in ./frontend
-#     volumes:
-#       - ./frontend:/app
-#     ports:
-#       - "3000:3000"
-#     depends_on:
-#       - backend
-#     networks:
-#       - front-tier
-#       - back-tier
-#     configs:
-#       - httpd-config
-#     secrets:
-#       - server-certificate
-
-volumes:
-  pgdata:
-    driver: local
-
-# configs:
-#   httpd-config:
-#     external: true
-
-# secrets:
-#   server-certificate:
-#     external: true
-
-# networks:
-#   back-tier:
-#   front-tier:
+networks:
+  backend_network:
+    driver: bridge
