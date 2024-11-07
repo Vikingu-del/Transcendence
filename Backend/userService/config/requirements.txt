@@ -1,6 +1,4 @@
+# requirements.txt
+
 Django>=3.2,<4.0
-psycopg2-binary
-djangorestframework
-django-crispy-forms
-crispy-bootstrap4
-Pillow
+psycopg2>=2.8

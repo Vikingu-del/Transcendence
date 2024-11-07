@@ -1,73 +1,78 @@
 services:
-  # vault:
-  #   image: hashicorp/vault:latest
-  #   cap_add:
-  #     - IPC_LOCK
-  #   ports:
-  #     - "8200:8200" # Expose the Vault API
-  #   environment:
-  #     VAULT_DEV_ROOT_TOKEN_ID: "root"
-  #     VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
-  #   networks:
-  #     - backtier
+  vault:
+    image: hashicorp/vault:latest
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200" # Expose the Vault API
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: "root"
+      VAULT_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    networks:
+      - backtier
 
   user:
     build:
       context: ./Backend/userService
       dockerfile: Dockerfile
     ports:
-      - 8000:8000
+      - "8000:8000"
     volumes:
       - ./Backend/userService:/app
     environment:
-      - DB_NAME=your_database_name
-      - DB_USER=your_database_user
-      - DB_PASSWORD=your_database_password
-      - DB_HOST=user_db
-      - DB_PORT=5432
+      DB_NAME: "postgres"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      DB_HOST: "user_db"
+      DB_PORT: "5432"
     depends_on:
-      # - vault
+      - vault
       - user_db
     networks:
       - backtier
+      - user_network
 
   user_db:
+    build:
+      context: ./Database/user_db
+      dockerfile: Dockerfile
     image: postgres:latest
     environment:
-      - POSTGRES_USER=your_dabase_user
-      - POSTGRES_PASSWORD=your_database_password
-      - POSTGRES_DB=your_database_name
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "postgres"
     ports:
-      - 5432:5432
+      - "5432:5432"
     volumes:
       - user_db_data:/var/lib/postgresql/data
     networks:
       - backtier
+      - user_network
 
-  # gateway:
-  #   build:
-  #     context: ./ApiGateway
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - 80:80
-  #     - 443:443
-  #   depends_on:
-  #     - vault
-  #     - user
-  #   volumes:
-  #     - frontend_dist:/usr/share/nginx/html
-  #   networks:
-  #     - backtier
+  gateway:
+    build:
+      context: ./ApiGateway
+      dockerfile: Dockerfile
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - vault
+      - user
+    volumes:
+      - frontend_dist:/usr/share/nginx/html
+    networks:
+      - backtier
 
-  # frontend:
-  #   build:
-  #     context: ./FrontEnd
-  #     dockerfile: Dockerfile
-  #   volumes:
-  #     - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
-  #   networks:
-  #     - backtier
-  #     - frontier
+  frontend:
+    build:
+      context: ./FrontEnd
+      dockerfile: Dockerfile
+    volumes:
+      - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+    networks:
+      - backtier
+      - frontier
 
 volumes:
   frontend_dist:
@@ -76,5 +81,7 @@ volumes:
 networks:
   backtier:
     driver: bridge
-  # frontier:
-  #   driver: bridge
+  frontier:
+    driver: bridge
+  user_network:
+    driver: bridge
