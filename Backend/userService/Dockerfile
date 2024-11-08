@@ -19,6 +19,12 @@ RUN chmod +x /bin/entrypoint.sh
 # Install the dependencies
 RUN pip install --no-cache-dir -r /requirements.txt
 
+# Install Pillow
+RUN python -m pip install Pillow
+
+# Install PostgreSQL client tools
+RUN apt-get update && apt-get install -y postgresql-client
+
 # Copy the project files
 COPY . .
 

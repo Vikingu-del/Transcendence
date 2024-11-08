@@ -1,4 +1,7 @@
 # requirements.txt
 
-Django>=3.2,<4.0
-psycopg2>=2.8
+Django>=4.2
+psycopg2-binary>=2.8
+djangorestframework
+django-crispy-forms>=2.3
+crispy-bootstrap4>=2024.10

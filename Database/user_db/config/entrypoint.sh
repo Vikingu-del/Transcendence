@@ -1,31 +1,15 @@
 #!/bin/bash
+set -e
 
 # Wait for PostgreSQL to be ready
-echo "Waiting for the PostgreSQL database to be ready..."
-until pg_isready -h localhost -p 5432; do
-  echo "PostgreSQL is not ready - sleeping..."
-  sleep 1
+until pg_isready -h user_db -p 5432 -U "$POSTGRES_USER"; do
+  echo "Waiting for PostgreSQL to be ready..."
+  sleep 2
 done
 
-echo "PostgreSQL is up - continuing..."
-
-# Create the database user and database if they do not exist
+# Run the SQL initialization script
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-  DO \$\$
-  BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '${DB_USER}') THEN
-      CREATE ROLE ${DB_USER} LOGIN PASSWORD '${DB_PASSWORD}';
-    END IF;
-  END
-  \$\$;
-
-  DO \$\$
-  BEGIN
-    IF NOT EXISTS (SELECT FROM pg_database WHERE datname = '${DB_NAME}') THEN
-      CREATE DATABASE ${DB_NAME} OWNER ${DB_USER};
-    END IF;
-  END
-  \$\$;
+    \i /docker-entrypoint-initdb.d/init.sql
 EOSQL
 
 # Run the default entrypoint (to start PostgreSQL)

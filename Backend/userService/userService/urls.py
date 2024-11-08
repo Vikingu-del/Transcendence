@@ -16,12 +16,13 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from django.http import HttpResponse
-
-def home_view(request):
-    return HttpResponse("Welcome to the homepage!")
+from .views import RegisterView, LoginView, ProfileView, AddFriendView, FriendsListView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('user/', home_view),
+    path('register/', RegisterView.as_view(), name='register'),
+    path('login/', LoginView.as_view(), name='login'),
+    path('profile/', ProfileView.as_view(), name='profile'),
+    path('add_friend/<int:friend_id>/', AddFriendView.as_view(), name='add_friend'),
+    path('friends/', FriendsListView.as_view(), name='friends_list'),
 ]
