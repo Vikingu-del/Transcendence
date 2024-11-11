@@ -34,6 +34,8 @@ export default {
         });
         const data = await response.json();
         if (response.ok) {
+          this.$router.push('/profile/');
+          console.log(response);
           this.message = 'Login successful!';
         } else {
           this.message = data.message || 'Login failed!';

@@ -29,3 +29,18 @@ class LoginView(APIView):
             login(request, user)
             return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
         return Response({"message": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+    
+@method_decorator(csrf_exempt, name='dispatch')
+class ProfileView(APIView):
+    def get(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            return Response({"message": "You are authenticated"}, status=status.HTTP_200_OK)
+        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+    
+@method_decorator(csrf_exempt, name='dispatch')
+class LogoutView(APIView):
+    def post(self, request, *args, **kwargs):
+        if request.user.is_authenticated:
+            request.user.auth_token.delete()
+            return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
+        return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
