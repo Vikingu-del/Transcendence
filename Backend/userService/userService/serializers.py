@@ -1,33 +1,17 @@
-from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import UserProfile, Friend, MatchHistory
+from rest_framework import serializers
 
 class UserSerializer(serializers.ModelSerializer):
+    password1 = serializers.CharField(write_only=True)
+
     class Meta:
         model = User
-        fields = ['username', 'email', 'password']
-        extra_kwargs = {'password': {'write_only': True}}
+        fields = ['username', 'email', 'password1']
 
-    def create(self, validated_data):
-        user = User.objects.create_user(
-            username=validated_data['username'],
-            email=validated_data['email'],
-            password=validated_data['password']
-        )
+    def save(self, **kwargs):
+        username = self.validated_data['username']
+        email = self.validated_data['email']
+        password = self.validated_data['password1']
+        user = User.objects.create_user(username=username, email=email, password=password)
+        user.save()
         return user
-class UserProfileSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
-
-    class Meta:
-        model = UserProfile
-        fields = ['user', 'display_name', 'avatar', 'wins', 'losses', 'match_history']
-
-class FriendSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Friend
-        fields = ['user', 'friend']
-
-class MatchHistorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MatchHistory
-        fields = ['user', 'opponent', 'date', 'result']

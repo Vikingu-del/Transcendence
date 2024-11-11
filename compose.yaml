@@ -82,9 +82,9 @@ volumes:
   user_db_data:
 
 networks:
+  user_network:
+    driver: bridge
   backtier:
     driver: bridge
   frontier:
-    driver: bridge
-  user_network:
     driver: bridge
