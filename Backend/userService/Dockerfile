@@ -28,5 +28,8 @@ RUN apt-get update && apt-get install -y postgresql-client
 # Copy the project files
 COPY . .
 
-# Run the Django development server
+# Set the entrypoint to the entrypoint script
 ENTRYPOINT ["entrypoint.sh"]
+
+# Command to run the Django development server
+CMD ["python3", "manage.py", "runserver", "0.0.0.0:8000"]

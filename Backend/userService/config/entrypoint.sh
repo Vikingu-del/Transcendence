@@ -8,13 +8,14 @@ while ! nc -z $DB_HOST 5432; do
   sleep 1
 done
 
-# echo "${POSTGRES_PASSWORD}"
-
 echo "Database is up - continuing..."
 
-# Run database migrations (optional)
+# Run database migrations
+echo "Running makemigrations..."
 python3 manage.py makemigrations
+echo "Running migrate..."
 python3 manage.py migrate
 
 # Start the Django development server
-python3 manage.py runserver 0.0.0.0:8000
+echo "Starting Django server..."
+exec "$@"

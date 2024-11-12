@@ -77,8 +77,8 @@ services:
       - frontier
 
 volumes:
-  frontend_dist:
   user_db_data:
+  frontend_dist:
 
 networks:
   user_network:

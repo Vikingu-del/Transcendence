@@ -7,9 +7,6 @@ COPY config/entrypoint.sh /usr/local/bin/entrypoint.sh
 # Ensure the entrypoint script is executable
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Copy the SQL initialization script
-COPY config/init.sql /docker-entrypoint-initdb.d/
-
 # Expose the PostgreSQL default port
 EXPOSE 5432
 

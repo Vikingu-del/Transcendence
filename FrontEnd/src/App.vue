@@ -1,6 +1,15 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
+import { computed } from 'vue'
+import { useStore } from 'vuex'
+
+const store = useStore()
+const isAuthenticated = computed(() => store.state.isAuthenticated)
+
+function logout() {
+  store.dispatch('logout')
+}
 </script>
 
 <template>
@@ -11,8 +20,10 @@ import HelloWorld from './components/HelloWorld.vue'
       <HelloWorld msg="Transendence" />
       <nav>
         <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/login">Login</RouterLink>
-        <RouterLink to="/register">Register</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
+        <a v-if="isAuthenticated" @click.prevent="logout">Logout</a>
       </nav>
     </div>
   </header>
@@ -55,12 +66,13 @@ nav a {
 nav a:first-of-type {
   border: 0;
 }
+
 @media (min-width: 1024px) {
   header {
     display: flex;
     place-items: center;
     padding-right: calc(var(--section-gap) / 2);
-    }
+  }
     
   .logo {
     margin: 0 2rem 0 0;
@@ -79,6 +91,5 @@ nav a:first-of-type {
     padding: 1rem 0;
     margin-top: 1rem;
   }
-   
-} 
+}
 </style>

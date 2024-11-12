@@ -8,11 +8,15 @@ class UserProfile(models.Model):
     wins = models.IntegerField(default=0)
     losses = models.IntegerField(default=0)
     match_history = models.TextField(blank=True)
+    
+    def __str__(self):
+        return self.display_name
 
 class Friend(models.Model):
     user = models.ForeignKey(User, related_name='friends', on_delete=models.CASCADE)
     friend = models.ForeignKey(User, related_name='friend_of', on_delete=models.CASCADE)
-    unique_together = ('user', 'friend')
+    class Meta:
+        unique_together = ('user', 'friend')
 
 class MatchHistory(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

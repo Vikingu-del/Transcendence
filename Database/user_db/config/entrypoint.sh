@@ -7,10 +7,11 @@ until pg_isready -h user_db -p 5432 -U "$POSTGRES_USER"; do
   sleep 2
 done
 
-# Run the SQL initialization script
-psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL
-    \i /docker-entrypoint-initdb.d/init.sql
-EOSQL
+# Apply database migrations
+echo "Applying database migrations..."
+python manage.py makemigrations
+python manage.py migrate
 
-# Run the default entrypoint (to start PostgreSQL)
-exec docker-entrypoint.sh postgres
+# Start the Django server
+echo "Starting server..."
+exec "$@"
