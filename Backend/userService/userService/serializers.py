@@ -6,12 +6,11 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password1']
+        fields = ['username', 'password1']
 
     def save(self, **kwargs):
         username = self.validated_data['username']
-        email = self.validated_data['email']
         password = self.validated_data['password1']
-        user = User.objects.create_user(username=username, email=email, password=password)
+        user = User.objects.create_user(username=username, password=password)
         user.save()
         return user

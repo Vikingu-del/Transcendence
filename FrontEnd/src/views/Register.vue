@@ -7,10 +7,6 @@
         <input v-model="username" type="text" required />
       </div>
       <div>
-        <label>Email</label>
-        <input v-model="email" type="email" required />
-      </div>
-      <div>
         <label>Password</label>
         <input v-model="password" type="password" required />
       </div>
@@ -25,14 +21,13 @@ export default {
   data() {
     return {
       username: '',
-      email: '',
       password: '',
       message: ''
     };
   },
   methods: {
     async register() {
-      console.log(this.username, this.email, this.password);
+      console.log(this.username, this.password);
       try {
         const response = await fetch('/register/', {
           method: 'POST',
@@ -41,7 +36,6 @@ export default {
           },
           body: JSON.stringify({
             username: this.username,
-            email: this.email,
             password1: this.password
           })
         });

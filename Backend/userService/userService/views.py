@@ -1,4 +1,4 @@
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -39,8 +39,8 @@ class ProfileView(APIView):
     
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
-    def post(self, request, *args, **kwargs):
+    def get(self, request, *args, **kwargs):
         if request.user.is_authenticated:
-            request.user.auth_token.delete()
+            logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
