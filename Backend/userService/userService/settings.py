@@ -84,7 +84,6 @@ WSGI_APPLICATION = 'userService.wsgi.application'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
 # userService/settings.py
-# userService/settings.py
 
 DATABASES = {
     'default': {
