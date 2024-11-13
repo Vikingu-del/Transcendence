@@ -72,6 +72,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+    environment:
+      - NODE_ENV=production
     networks:
       - backtier
       - frontier

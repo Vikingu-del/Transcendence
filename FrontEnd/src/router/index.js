@@ -41,13 +41,13 @@ router.beforeEach((to, from, next) => {
   console.log(`Navigating to ${to.name}, isAuthenticated: ${isAuthenticated}`);
 
   if (to.meta.requiresAuth && !isAuthenticated) {
-    // If not authenticated, redirect to login
+    console.log('Redirecting to login page...');
     next({ name: 'Login' });
   } else if (!to.meta.requiresAuth && isAuthenticated && (to.name === 'Login' || to.name === 'Register')) {
-    // If authenticated, prevent access to login and register pages
+    console.log('Redirecting to home page...');
     next({ name: 'Home' });
   } else {
-    // If access is allowed, proceed to the route
+    console.log('Access granted to route:', to.name);
     next();
   }
 });
