@@ -49,11 +49,46 @@ const store = createStore({
         throw error;
       }
     },
-    logout({ commit }) {
-      commit('setAuthentication', false);
-      commit('clearUserData');
-      router.push({ name: 'Home' });
-    }
+   
+    // Logout Action
+    async logoutAction({ commit }) {
+      try {
+        // Extract the CSRF token from cookies
+        const csrfToken = document.cookie
+          .split('; ')
+          .find(row => row.startsWith('csrftoken'))
+          ?.split('=')[1]; // Extract CSRF token from cookies
+
+        if (!csrfToken) {
+          console.error('CSRF token not found');
+          throw new Error('CSRF token not found');
+        } else {
+          console.log('CSRF Token:', csrfToken);
+        }
+
+        
+        // Perform the logout API request
+        const response = await fetch('/logout/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken, // Corrected variable name
+          }
+        });
+
+        if (response.ok) {
+          commit('setAuthentication', false); // Update the authentication status
+          commit('clearUserData'); // Clear the user data
+          router.push({ name: 'Home' }); // Redirect to the home page after logout
+        } else {
+          console.error('Logout failed:', response.status);
+          throw new Error('Logout failed');
+        }
+      } catch (error) {
+        console.error('Logout error:', error);
+        throw error;
+      }
+    },
   },
 });
 

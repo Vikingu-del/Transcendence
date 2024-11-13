@@ -23,7 +23,7 @@ function logout() {
         <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
         <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
-        <a v-if="isAuthenticated" @click.prevent="logout">Logout</a>
+        <!-- <a v-if="isAuthenticated" @click.prevent="logout">Logout</a> --> <!-- Logout button -->
       </nav>
     </div>
   </header>

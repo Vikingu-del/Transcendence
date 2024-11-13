@@ -57,6 +57,8 @@ MIDDLEWARE = [
 ]
 
 CSRF_TRUSTED_ORIGINS = ['https://localhost']
+CSRF_COOKIE_HTTPONLY = False  # Ensure this is False to allow JavaScript access
+CSRF_COOKIE_SECURE = True     # Use True only if your site is served over HTTPS
 
 ROOT_URLCONF = 'userService.urls'
 
@@ -77,7 +79,6 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'userService.wsgi.application'
-
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
