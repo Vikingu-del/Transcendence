@@ -1,11 +1,25 @@
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    views.py                                           :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
+#    Updated: 2024/11/19 12:10:22 by ipetruni         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 from django.contrib.auth import authenticate, login, logout
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
-from .serializers import UserSerializer
+from .serializers import UserSerializer, UserProfileSerializer
+from .models import Profile
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
+from rest_framework.parsers import MultiPartParser, FormParser
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,6 +37,7 @@ class RegisterView(generics.CreateAPIView):
         logger.debug("Registration errors: %s", serializer.errors)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     def post(self, request, *args, **kwargs):
@@ -34,14 +49,34 @@ class LoginView(APIView):
             login(request, user)
             return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
         return Response({"message": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
-    
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class ProfileView(APIView):
-    def get(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            return Response({"message": "You are authenticated"}, status=status.HTTP_200_OK)
-        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-    
+    parser_classes = [MultiPartParser, FormParser]
+
+    def get(self, request):
+        user_profile = Profile.objects.get(user=request.user)
+        serializer = UserProfileSerializer(user_profile, context={"request": request})
+        return Response(serializer.data)
+
+    def put(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        data = request.data
+
+        if 'avatar_url' in data:
+            user_profile.avatar_url = data['avatar_url']
+        
+        if 'display_name' in data:
+            user_profile.display_name = data['display_name']
+
+        user_profile.save()
+        return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
+
+
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     def post(self, request, *args, **kwargs):
@@ -49,32 +84,3 @@ class LogoutView(APIView):
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
-    
-@method_decorator(csrf_exempt, name='dispatch')
-class FriendView(APIView):
-    def post(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            friend_username = request.data.get("friend_username")
-            try:
-                friend_user = User.objects.get(username=friend_username)
-                Friend.objects.create(user=request.user, friend=friend_user)
-                return Response({"message": "Friend added"}, status=status.HTTP_201_CREATED)
-            except User.DoesNotExist:
-                return Response({"message": "User not found"}, status=status.HTTP_404_NOT_FOUND)
-        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    def get(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            friends = Friend.objects.filter(user=request.user)
-            serializer = FriendSerializer(friends, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-@method_decorator(csrf_exempt, name='dispatch')
-class MatchHistoryView(APIView):
-    def get(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            match_history = MatchHistory.objects.filter(user=request.user)
-            serializer = MatchHistorySerializer(match_history, many=True)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)

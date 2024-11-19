@@ -1,18 +1,20 @@
 <template>
-	<div>
+	<div class="profile-container">
 	  <h2>Profile</h2>
-	  <form @submit.prevent="updateProfile">
-		<input v-model="displayName" placeholder="Display Name" required />
-		<input type="file" @change="onFileChange" />
-		<button type="submit">Update Profile</button>
-	  </form>
-	  <form @submit.prevent="logout">
-		<button type="submit">Logout</button>
-	  </form>
-	  <h2>Match History</h2>
-	  <ul>
-		<li v-for="match in matchHistory" :key="match.id">{{ match }}</li>
-	  </ul>
+	  <div class="profile-section">
+		<img :src="avatarUrl" alt="Profile Picture" class="profile-picture" />
+		<form @submit.prevent="updateProfile" class="profile-form">
+		  <input
+			v-model="displayName"
+			:placeholder="displayNamePlaceholder"
+			class="input-field"
+			required
+		  />
+		  <input type="file" @change="onFileChange" class="file-input" />
+		  <button type="submit" class="btn primary-btn">Update Profile</button>
+		</form>
+	  </div>
+	  <button @click="logout" class="btn secondary-btn">Logout</button>
 	</div>
   </template>
   
@@ -23,84 +25,147 @@
 	data() {
 	  return {
 		displayName: '',
-		avatar: null,
-		matchHistory: [],
-		message: '', // Message to show after logout
-		debugMessage: '' // Debugging message
+		avatarUrl: '',
+		avatarFile: null,
 	  };
 	},
 	async created() {
-	  try {
-		const response = await fetch('/profile/');
-		const data = await response.json();
-		this.displayName = data.display_name;
-		this.matchHistory = data.match_history;
-	  } catch (error) {
-		console.error(error);
-	  }
+	  await this.fetchProfile();
 	},
 	methods: {
-	  ...mapActions(['logoutAction']), // Map the logoutAction from Vuex
-  
-	  // Handles the logout
+	  ...mapActions(['logoutAction']),
+	  async fetchProfile() {
+		try {
+		  const response = await fetch('/profile/');
+		  if (!response.ok) throw new Error('Failed to fetch profile');
+		  const data = await response.json();
+		  this.displayName = data.display_name || '';
+		  this.avatarUrl = data.avatar_url || '';
+		} catch (error) {
+		  console.error('Profile fetch error:', error);
+		  this.avatarUrl = ''; // You can set a fallback here if needed
+		}
+	  },
 	  async logout() {
 		try {
-			const csrfToken = this.getCookie('csrftoken');
-			console.log('Retrieved CSRF Token:', csrfToken); // Debugging line
-			// Continue with logout if the token is found
-			if (csrfToken) {
-				this.logoutAction({ csrftoken: csrfToken })
-				.then(() => this.debugMessage = 'Logout successful!')
-				.catch(error => this.message = 'Logout failed. Please try again.');
-			} else {
-				console.error('CSRF token not found');
-				this.message = 'CSRF token missing. Please refresh and try again.';
-			}
-			
+		  const csrfToken = this.getCookie('csrftoken');
+		  if (csrfToken) {
+			await this.logoutAction({ csrftoken: csrfToken });
+		  } else {
+			alert('CSRF token missing. Please refresh and try again.');
+		  }
 		} catch (error) {
-			this.message = 'Logout failed. Please try again.';
-			this.debugMessage = `Error: ${error.message}`;
+		  alert('Logout failed. Please try again.');
 		}
-		},
-		getCookie(name) {
-		let cookieValue = null;
-			if (document.cookie && document.cookie !== '') {
-				const cookies = document.cookie.split(';');
-				for (let i = 0; i < cookies.length; i++) {
-				const cookie = cookies[i].trim();
-				if (cookie.substring(0, name.length + 1) === (name + '=')) {
-					cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-					break;
-				}
-				}
-			}
-			return cookieValue;
-		},
-	
-	  // Handles the avatar file change
-	  onFileChange(event) {
-		this.avatar = event.target.files[0];
 	  },
-  
-	  // Updates the user's profile
+	  getCookie(name) {
+		let cookieValue = null;
+		if (document.cookie && document.cookie !== '') {
+		  const cookies = document.cookie.split(';');
+		  for (let i = 0; i < cookies.length; i++) {
+			const cookie = cookies[i].trim();
+			if (cookie.substring(0, name.length + 1) === name + '=') {
+			  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+			  break;
+			}
+		  }
+		}
+		return cookieValue;
+	  },
+	  onFileChange(event) {
+		this.avatarFile = event.target.files[0]; // Get the file selected by the user
+		if (this.avatarFile) {
+		  this.avatarUrl = URL.createObjectURL(this.avatarFile); // Preview the image
+		}
+	  },
 	  async updateProfile() {
 		const formData = new FormData();
 		formData.append('display_name', this.displayName);
-		if (this.avatar) {
-		  formData.append('avatar', this.avatar);
+		// If there's a file for avatar, append it to the form data
+		if (this.avatarFile) {
+		  formData.append('avatar', this.avatarFile);
 		}
+  
+		const csrfToken = this.getCookie('csrftoken');
+  
 		try {
-		  const response = await fetch('/api/profile/', {
+		  const response = await fetch('/profile/', {
 			method: 'PUT',
-			body: formData
+			headers: {
+			  'X-CSRFToken': csrfToken,
+			},
+			body: formData,
 		  });
-		  const data = await response.json();
-		  console.log(data);
+		  if (response.ok) {
+			await this.fetchProfile();
+		  } else {
+			alert('Failed to update profile');
+		  }
 		} catch (error) {
 		  console.error(error);
 		}
-	  }
-	}
+	  },
+	},
+	computed: {
+	  displayNamePlaceholder() {
+		return this.displayName ? this.displayName : 'Display Name';
+	  },
+	},
   };
   </script>
   
+  <style scoped>
+  .profile-container {
+	padding: 20px;
+	font-family: Arial, sans-serif;
+  }
+  
+  .profile-section {
+	margin-bottom: 20px;
+  }
+  
+  .profile-picture {
+	width: 150px;
+	height: 150px;
+	border-radius: 50%;
+	border: 2px solid #ddd;
+	margin-bottom: 10px;
+  }
+  
+  .profile-form {
+	display: flex;
+	gap: 10px;
+	margin-top: 10px;
+  }
+  
+  .input-field,
+  .file-input {
+	padding: 10px;
+	border: 1px solid #ccc;
+	border-radius: 5px;
+	font-size: 14px;
+	flex-grow: 1;
+  }
+  
+  .btn {
+	padding: 10px 20px;
+	border: none;
+	border-radius: 5px;
+	font-size: 14px;
+	cursor: pointer;
+  }
+  
+  .primary-btn {
+	background-color: #4caf50;
+	color: white;
+  }
+  
+  .secondary-btn {
+	background-color: #f44336;
+	color: white;
+  }
+  
+  .btn:hover {
+	opacity: 0.8;
+  }
+  </style>

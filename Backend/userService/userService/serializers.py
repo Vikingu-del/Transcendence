@@ -1,6 +1,18 @@
-from django.contrib.auth.models import User
+# **************************************************************************** #
+#                                                                              #
+#                                                         :::      ::::::::    #
+#    serializers.py                                     :+:      :+:    :+:    #
+#                                                     +:+ +:+         +:+      #
+#    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
+#                                                 +#+#+#+#+#+   +#+            #
+#    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
+#    Updated: 2024/11/19 12:24:55 by ipetruni         ###   ########.fr        #
+#                                                                              #
+# **************************************************************************** #
+
 from rest_framework import serializers
-from .models import UserProfile, Friend, MatchHistory
+from django.contrib.auth.models import User
+from .models import Profile
 
 class UserSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(write_only=True)
@@ -12,21 +24,19 @@ class UserSerializer(serializers.ModelSerializer):
     def save(self, **kwargs):
         username = self.validated_data['username']
         password = self.validated_data['password1']
+
         user = User.objects.create_user(username=username, password=password)
-        UserProfile.objects.create(user=user, display_name=username)
+        Profile.objects.create(user=user, display_name="Player", avatar_url="/static/default.png")
         return user
 
+
 class UserProfileSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = UserProfile
-        fields = ['display_name', 'avatar', 'wins', 'losses', 'match_history']
+    avatar_url = serializers.SerializerMethodField()
 
-class FriendSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Friend
-        fields = ['user', 'friend']
+        model = Profile
+        fields = ['display_name', 'avatar_url']
 
-class MatchHistorySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MatchHistory
-        fields = ['user', 'opponent', 'date', 'result']
+    def get_avatar_url(self, obj):
+        request = self.context.get('request')
+        return request.build_absolute_uri(obj.get_avatar_url())
