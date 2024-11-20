@@ -6,11 +6,12 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/20 09:52:11 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/20 13:20:29 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth.models import User
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -32,10 +33,15 @@ class RegisterView(generics.CreateAPIView):
         logger.debug("Received registration data: %s", request.data)
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
+            username = serializer.validated_data['username']
+            if User.objects.filter(username=username).exists():
+                return Response({"error": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
+            
             serializer.save()
             return Response({"message": "Registration successful"}, status=status.HTTP_201_CREATED)
+        
         logger.debug("Registration errors: %s", serializer.errors)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"error": "Registration failed", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @method_decorator(csrf_exempt, name='dispatch')
@@ -44,11 +50,16 @@ class LoginView(APIView):
         username = request.data.get("username")
         password = request.data.get("password")
 
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            return Response({"message": "User does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+
         user = authenticate(request, username=username, password=password)
         if user:
             login(request, user)
             return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
-        return Response({"message": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"message": "Invalid password."}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @method_decorator(csrf_exempt, name='dispatch')

@@ -13,6 +13,9 @@
       <button type="submit" class="submit-btn">Register</button>
     </form>
     <p v-if="message" class="message">{{ message }}</p>
+    <ul v-if="errors.length" class="errors">
+      <li v-for="error in errors" :key="error">{{ error }}</li>
+    </ul>
   </div>
 </template>
 
@@ -22,7 +25,8 @@ export default {
     return {
       username: '',
       password: '',
-      message: ''
+      message: '',
+      errors: []
     };
   },
   methods: {
@@ -44,16 +48,20 @@ export default {
           const data = await response.json();
           if (response.ok) {
             this.message = 'Registration successful!';
+            this.errors = [];
             this.$router.push('/login');
           } else {
-            this.message = data.message || 'Registration failed!';
+            this.message = data.error || 'Registration failed!';
+            this.errors = data.details ? Object.values(data.details).flat() : [];
           }
         } else {
           this.message = 'Unexpected response from server.';
+          this.errors = [];
           console.error('Non-JSON response:', await response.text());
         }
       } catch (error) {
         this.message = 'An error occurred. Please try again.';
+        this.errors = [];
         console.error(error);
       }
     }
@@ -67,7 +75,6 @@ export default {
   max-width: 400px;
   margin: 0 auto;
   padding: 20px;
-  background: #000000;
   border-radius: 8px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -114,5 +121,16 @@ button.submit-btn:hover {
   color: #f44336;
   text-align: center;
   margin-top: 10px;
+}
+
+.errors {
+  color: #f44336;
+  list-style-type: none;
+  padding: 0;
+  text-align: center;
+}
+
+.errors li {
+  margin-top: 5px;
 }
 </style>

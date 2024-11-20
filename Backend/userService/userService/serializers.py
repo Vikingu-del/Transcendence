@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/20 10:35:59 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/20 12:57:42 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -26,7 +26,16 @@ class UserSerializer(serializers.ModelSerializer):
         password = self.validated_data['password1']
 
         user = User.objects.create_user(username=username, password=password)
-        Profile.objects.create(user=user, display_name="Player", avatar=None)
+        
+        base_display_name = "Player"
+        display_name = base_display_name
+        counter = 1
+
+        while Profile.objects.filter(display_name=display_name).exists():
+            display_name = f"{base_display_name}{counter}"
+            counter += 1
+
+        Profile.objects.create(user=user, display_name=display_name, avatar=None)
         return user
 
 

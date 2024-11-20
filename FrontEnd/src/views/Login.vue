@@ -35,15 +35,22 @@ export default {
     async login() {
       try {
         const csrfToken = this.getCookie('csrftoken');
-        await this.loginAction({
+        const response = await this.loginAction({
           username: this.username,
           password: this.password,
           csrftoken: csrfToken
         });
-        this.debugMessage = 'Login successful!';
+
+        if (response.message === 'Login successful') {
+          this.debugMessage = 'Login successful!';
+          this.message = '';
+        } else {
+          this.message = response.message;
+          this.debugMessage = '';
+        }
       } catch (error) {
-        this.message = 'Login failed. Please try again.';
-        this.debugMessage = `Error: ${error.message}`;
+        this.message = response.message; /// to do 
+        // this.debugMessage = `Error: ${error.message}`;
       }
     },
 
@@ -71,9 +78,6 @@ export default {
   max-width: 400px;
   margin: 0 auto;
   padding: 20px;
-  background: #000000;
-  border-radius: 8px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 h2 {

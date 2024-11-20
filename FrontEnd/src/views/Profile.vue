@@ -1,25 +1,27 @@
 <template>
   <div class="profile-container">
-    <h2>Profile</h2>
-    <div class="profile-section">
-      <img :src="avatarUrl" alt="User Avatar" />
-      <form @submit.prevent="updateProfile" class="profile-form">
-        <input
-          v-model="displayName"
-          :placeholder="displayNamePlaceholder"
-          class="input-field"
-          required
-        />
-        <input type="file" @change="onFileChange" class="file-input" />
-        <button type="submit" class="btn primary-btn">Update Profile</button>
-      </form>
+    <div class="profile-card">
+      <h2>Profile</h2>
+      <div class="profile-section">
+        <img :src="avatarUrl" alt="User Avatar" class="profile-picture" />
+        <form @submit.prevent="updateProfile" class="profile-form">
+          <input
+            v-model="displayName"
+            :placeholder="displayNamePlaceholder"
+            class="input-field"
+            required
+          />
+          <input type="file" @change="onFileChange" class="file-input" />
+          <button type="submit" class="btn primary-btn">Update Profile</button>
+        </form>
+      </div>
+      <button @click="logout" class="btn secondary-btn">Logout</button>
     </div>
-    <button @click="logout" class="btn secondary-btn">Logout</button>
-  </div>
-  <div>
+    <div class="debug-info">
       <h2>Debug Info</h2>
       <h1>{{ displayName }}</h1>
       <h1>{{ avatarUrl }}</h1>
+    </div>
   </div>
 </template>
 
@@ -123,8 +125,19 @@ export default {
 
 <style scoped>
 .profile-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   padding: 20px;
   font-family: Arial, sans-serif;
+}
+
+.profile-card {
+  padding: 20px;
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
+  margin-bottom: 20px;
 }
 
 .profile-section {
@@ -135,12 +148,13 @@ export default {
   width: 150px;
   height: 150px;
   border-radius: 50%;
-  border: 2px solid #ddd;
+  border: 2px solid #4caf50;
   margin-bottom: 10px;
 }
 
 .profile-form {
   display: flex;
+  flex-direction: column;
   gap: 10px;
   margin-top: 10px;
 }
@@ -148,15 +162,15 @@ export default {
 .input-field,
 .file-input {
   padding: 10px;
-  border: 1px solid #ccc;
+  border: 1px solid #4caf50;
   border-radius: 5px;
   font-size: 14px;
-  flex-grow: 1;
+  width: 100%;
 }
 
 .btn {
   padding: 10px 20px;
-  border: none;
+  border: 1px solid #4caf50;
   border-radius: 5px;
   font-size: 14px;
   cursor: pointer;
@@ -174,5 +188,11 @@ export default {
 
 .btn:hover {
   opacity: 0.8;
+}
+
+.debug-info {
+  width: 100%;
+  max-width: 400px;
+  text-align: center;
 }
 </style>
