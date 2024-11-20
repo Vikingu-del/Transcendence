@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/19 12:24:55 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/20 10:35:59 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -26,17 +26,20 @@ class UserSerializer(serializers.ModelSerializer):
         password = self.validated_data['password1']
 
         user = User.objects.create_user(username=username, password=password)
-        Profile.objects.create(user=user, display_name="Player", avatar_url="/static/default.png")
+        Profile.objects.create(user=user, display_name="Player", avatar=None)
         return user
 
 
 class UserProfileSerializer(serializers.ModelSerializer):
-    avatar_url = serializers.SerializerMethodField()
+    avatar = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
-        fields = ['display_name', 'avatar_url']
+        fields = ['display_name', 'avatar']
 
-    def get_avatar_url(self, obj):
+    def get_avatar(self, obj):
         request = self.context.get('request')
-        return request.build_absolute_uri(obj.get_avatar_url())
+        if obj.avatar and obj.avatar.url:
+            return f"{request.scheme}://{request.get_host()}:{request.get_port()}{obj.avatar.url}"
+        return f"{request.scheme}://{request.get_host()}:{request.get_port()}/media/static/default.png"
+

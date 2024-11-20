@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/19 12:10:22 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/20 09:52:11 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -67,8 +67,8 @@ class ProfileView(APIView):
         user_profile = request.user.profile
         data = request.data
 
-        if 'avatar_url' in data:
-            user_profile.avatar_url = data['avatar_url']
+        if 'avatar' in data:
+            user_profile.avatar = data['avatar']
         
         if 'display_name' in data:
             user_profile.display_name = data['display_name']

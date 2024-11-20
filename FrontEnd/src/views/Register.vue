@@ -1,18 +1,18 @@
 <template>
-  <div class="container mt-5">
+  <div class="form-container">
     <h2>Register</h2>
     <form @submit.prevent="register">
-      <div>
-        <label>Username</label>
-        <input v-model="username" type="text" required />
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input id="username" v-model="username" type="text" placeholder="Enter username" required />
       </div>
-      <div>
-        <label>Password</label>
-        <input v-model="password" type="password" required />
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input id="password" v-model="password" type="password" placeholder="Enter password" required />
       </div>
-      <button type="submit">Register</button>
+      <button type="submit" class="submit-btn">Register</button>
     </form>
-    <p v-if="message">{{ message }}</p>
+    <p v-if="message" class="message">{{ message }}</p>
   </div>
 </template>
 
@@ -27,7 +27,6 @@ export default {
   },
   methods: {
     async register() {
-      console.log(this.username, this.password);
       try {
         const response = await fetch('/register/', {
           method: 'POST',
@@ -40,7 +39,6 @@ export default {
           })
         });
 
-        // Check if response is JSON
         const contentType = response.headers.get('content-type');
         if (contentType && contentType.includes('application/json')) {
           const data = await response.json();
@@ -62,3 +60,59 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+.form-container {
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+  padding: 20px;
+  background: #000000;
+  border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+h2 {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+label {
+  font-weight: bold;
+  display: block;
+  margin-bottom: 5px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  font-size: 16px;
+  border-radius: 5px;
+  border: 1px solid #ccc;
+}
+
+button.submit-btn {
+  width: 100%;
+  padding: 10px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+button.submit-btn:hover {
+  background-color: #45a049;
+}
+
+.message {
+  color: #f44336;
+  text-align: center;
+  margin-top: 10px;
+}
+</style>

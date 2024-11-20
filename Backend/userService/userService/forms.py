@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:23 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/19 12:09:30 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/20 09:52:11 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -37,5 +37,5 @@ class LoginForm(forms.Form):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = Profile
-        fields = ['display_name', 'avatar_url']
+        fields = ['display_name', 'avatar']
     
