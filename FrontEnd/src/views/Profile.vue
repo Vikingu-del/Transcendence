@@ -43,16 +43,26 @@ export default {
     ...mapActions(['logoutAction']),
     async fetchProfile() {
       try {
-        const response = await fetch('/profile/');
+        const csrfToken = this.getCookie('csrftoken');
+        const response = await fetch('/profile/', {
+          headers: {
+            'X-CSRFToken': csrfToken,
+          },
+        });
+        console.log('Response status:', response.status);
         if (response.ok) {
           const data = await response.json();
+          console.log('Profile data:', data);
           this.displayName = data.display_name;
           this.avatarUrl = data.avatar;
         } else {
+          const errorText = await response.text();
+          console.error('Fetch failed:', errorText);
           alert('Failed to fetch profile');
         }
       } catch (error) {
         console.error('Error fetching profile:', error);
+        alert('Error fetching profile');
       }
     },
     async logout() {

@@ -39,7 +39,8 @@ export default {
           },
           body: JSON.stringify({
             username: this.username,
-            password1: this.password
+            password1: this.password,
+            password2: this.password
           })
         });
 

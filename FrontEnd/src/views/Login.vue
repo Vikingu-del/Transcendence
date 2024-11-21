@@ -45,12 +45,17 @@ export default {
           this.debugMessage = 'Login successful!';
           this.message = '';
         } else {
-          this.message = response.message;
+          this.message = response.message || 'Something went wrong.';
           this.debugMessage = '';
         }
       } catch (error) {
-        this.message = response.message; /// to do 
-        // this.debugMessage = `Error: ${error.message}`;
+        if (error.response && error.response.data && error.response.data.message) {
+          this.message = error.response.data.message; // Display backend error message
+          this.debugMessage = `Error: ${error.response.status} - ${error.response.statusText}`;
+        } else {
+          this.message = 'An unexpected error occurred.';
+          this.debugMessage = `Error: ${error.message}`;
+        }
       }
     },
 

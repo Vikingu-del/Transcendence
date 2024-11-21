@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/20 13:20:29 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/21 13:28:24 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -50,16 +50,29 @@ class LoginView(APIView):
         username = request.data.get("username")
         password = request.data.get("password")
 
+        if not username or not password:
+            return Response(
+                {"message": "Username and password are required."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
         try:
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return Response({"message": "User does not exist."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"message": "User does not exist."},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         user = authenticate(request, username=username, password=password)
         if user:
             login(request, user)
             return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
-        return Response({"message": "Invalid password."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        return Response(
+            {"message": "Invalid username or password."},
+            status=status.HTTP_401_UNAUTHORIZED
+        )
 
 
 @method_decorator(csrf_exempt, name='dispatch')
