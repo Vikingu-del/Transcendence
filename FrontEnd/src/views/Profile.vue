@@ -18,22 +18,13 @@
       <button @click="logout" class="btn secondary-btn">Logout</button>
     </div>
     <div>
-      <h2>Friends</h2>
-      <input
-        v-model="searchQuery"
-        @input="searchProfiles"
-        type="text"
-        placeholder="Search friends"
-        class="input-field"
-      />
-      <ul>
-        <li v-for="friend in searchResults" :key="friend.id">
-          {{ friend.display_name }}
-          <button @click="addFriend(friend.id)">Add Friend</button>
+      <input v-model="searchQuery" @input="searchProfiles" placeholder="Search profiles...">
+      <ul class="search-results">
+        <li v-for="profile in searchResults" :key="profile.id" class="profile-item">
+          <img :src="profile.avatar" alt="Avatar" class="profile-avatar" />
+          <span class="profile-name">{{ profile.display_name }}</span>
         </li>
       </ul>
-      <p v-if="searchQuery && searchResults.length === 0">No matches found.</p>
-      <p v-if="searchQuery && searchResults.length > 0">{{ searchResults.length }} user(s) found.</p>
     </div>
   </div>
 </template>
@@ -88,12 +79,14 @@ export default {
         return;
       }
       try {
-        const response = await fetch(`/search_profiles/?q=${this.searchQuery}`);
+        const response = await fetch(`profile/search_profiles/?q=${this.searchQuery}`);
         if (response.ok) {
           const data = await response.json();
+          console.log('Response data:', data);
           this.searchResults = data;
         } else {
-          console.error('Failed to search profiles');
+          const errorText = await response.text();
+          console.error('Fetch failed:', errorText);
         }
       } catch (error) {
         console.error('Error searching profiles:', error);
@@ -257,9 +250,25 @@ export default {
   opacity: 0.8;
 }
 
-.debug-info {
-  width: 100%;
-  max-width: 400px;
-  text-align: center;
+.search-results {
+  list-style: none;
+  padding: 0;
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.profile-avatar {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+.profile-name {
+  font-size: 16px;
 }
 </style>

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/25 17:22:32 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/25 18:59:06 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -103,9 +103,8 @@ class ProfileView(APIView):
         return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
 
 class SearchProfilesView(generics.ListAPIView):
-    """
-    View to search user profiles based on a query parameter.
-    """
+    serializer_class = UserProfileSerializer
+
     def get_queryset(self):
         search_query = self.request.query_params.get('q', '')
         return Profile.objects.filter(display_name__icontains=search_query)

@@ -24,7 +24,7 @@ urlpatterns = [
     path('login/', LoginView.as_view(), name='login'),
     path('profile/', ProfileView.as_view(), name='profile'),
     path('logout/', LogoutView.as_view(), name='logout'),
-    path('search_profiles/', SearchProfilesView.as_view(), name='search_profiles'),
+    path('profile/search_profiles/', SearchProfilesView.as_view(), name='search_profiles'),
     path('add_friend/', AddFriendView.as_view(), name='add_friend'),
     path('remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
 ]
