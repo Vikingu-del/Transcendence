@@ -10,6 +10,10 @@
         <label for="password">Password</label>
         <input id="password" v-model="password" type="password" placeholder="Enter password" required />
       </div>
+      <div class="form-group">
+        <label for="passwordConfirm">Confirm Password</label>
+        <input id="passwordConfirm" v-model="passwordConfirm" type="password" placeholder="Confirm password" required />
+      </div>
       <button type="submit" class="submit-btn">Register</button>
     </form>
     <p v-if="message" class="message">{{ message }}</p>
@@ -25,12 +29,19 @@ export default {
     return {
       username: '',
       password: '',
+      passwordConfirm: '',
       message: '',
       errors: []
     };
   },
   methods: {
     async register() {
+      if (this.password !== this.passwordConfirm) {
+        this.message = 'Passwords do not match!';
+        this.errors = [];
+        return;
+      }
+
       try {
         const response = await fetch('/register/', {
           method: 'POST',
@@ -40,7 +51,7 @@ export default {
           body: JSON.stringify({
             username: this.username,
             password1: this.password,
-            password2: this.password
+            password2: this.passwordConfirm
           })
         });
 

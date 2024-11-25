@@ -17,10 +17,23 @@
       </div>
       <button @click="logout" class="btn secondary-btn">Logout</button>
     </div>
-    <div class="debug-info">
-      <h2>Debug Info</h2>
-      <h1>{{ displayName }}</h1>
-      <h1>{{ avatarUrl }}</h1>
+    <div>
+      <h2>Friends</h2>
+      <input
+        v-model="searchQuery"
+        @input="searchProfiles"
+        type="text"
+        placeholder="Search friends"
+        class="input-field"
+      />
+      <ul>
+        <li v-for="friend in searchResults" :key="friend.id">
+          {{ friend.display_name }}
+          <button @click="addFriend(friend.id)">Add Friend</button>
+        </li>
+      </ul>
+      <p v-if="searchQuery && searchResults.length === 0">No matches found.</p>
+      <p v-if="searchQuery && searchResults.length > 0">{{ searchResults.length }} user(s) found.</p>
     </div>
   </div>
 </template>
@@ -34,6 +47,9 @@ export default {
       displayName: '',
       avatarUrl: '',
       avatarFile: null,
+      friends: [],
+      searchQuery: '',
+      searchResults: [],
     };
   },
   async created() {
@@ -55,6 +71,7 @@ export default {
           console.log('Profile data:', data);
           this.displayName = data.display_name;
           this.avatarUrl = data.avatar;
+          this.friends = data.friends;
         } else {
           const errorText = await response.text();
           console.error('Fetch failed:', errorText);
@@ -63,6 +80,43 @@ export default {
       } catch (error) {
         console.error('Error fetching profile:', error);
         alert('Error fetching profile');
+      }
+    },
+    async searchProfiles() {
+      if (this.searchQuery.trim() === '') {
+        this.searchResults = [];
+        return;
+      }
+      try {
+        const response = await fetch(`/search_profiles/?q=${this.searchQuery}`);
+        if (response.ok) {
+          const data = await response.json();
+          this.searchResults = data;
+        } else {
+          console.error('Failed to search profiles');
+        }
+      } catch (error) {
+        console.error('Error searching profiles:', error);
+      }
+    },
+    async addFriend(friendId) {
+      try {
+        const response = await fetch('/add_friend/', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': this.getCookie('csrftoken'),
+          },
+          body: JSON.stringify({ friend_profile_id: friendId }),
+        });
+        if (response.ok) {
+          alert('Friend added successfully');
+          this.fetchProfile(); // Refresh friends list
+        } else {
+          console.error('Failed to add friend');
+        }
+      } catch (error) {
+        console.error('Error adding friend:', error);
       }
     },
     async logout() {
@@ -128,6 +182,9 @@ export default {
   computed: {
     displayNamePlaceholder() {
       return this.displayName ? this.displayName : 'Display Name';
+    },
+    filteredFriends() {
+      return this.searchResults.length > 0 ? this.searchResults : this.friends;
     },
   },
 };

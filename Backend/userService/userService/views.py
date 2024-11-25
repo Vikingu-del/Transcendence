@@ -6,24 +6,27 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/21 13:28:24 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/25 17:22:32 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
-from rest_framework import status
+from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer
-from .models import Profile
+from .models import Profile, Friendship
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
+
+
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 @method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
@@ -74,7 +77,6 @@ class LoginView(APIView):
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-
 @method_decorator(csrf_exempt, name='dispatch')
 class ProfileView(APIView):
     parser_classes = [MultiPartParser, FormParser]
@@ -100,6 +102,43 @@ class ProfileView(APIView):
         user_profile.save()
         return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
 
+class SearchProfilesView(generics.ListAPIView):
+    """
+    View to search user profiles based on a query parameter.
+    """
+    def get_queryset(self):
+        search_query = self.request.query_params.get('q', '')
+        return Profile.objects.filter(display_name__icontains=search_query)
+
+class AddFriendView(APIView):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        friend_profile_id = request.data.get('friend_profile_id')
+
+        try:
+            friend_profile = Profile.objects.get(id=friend_profile_id)
+            Friendship.objects.create(from_profile=user_profile, to_profile=friend_profile)
+            return Response({"message": "Friend added successfully"}, status=status.HTTP_200_OK)
+        except Profile.DoesNotExist:
+            return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class RemoveFriendView(APIView):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        friend_profile_id = request.data.get('friend_profile_id')
+
+        try:
+            friend_profile = Profile.objects.get(id=friend_profile_id)
+            Friendship.objects.filter(from_profile=user_profile, to_profile=friend_profile).delete()
+            return Response({"message": "Friend removed successfully"}, status=status.HTTP_200_OK)
+        except Profile.DoesNotExist:
+            return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
