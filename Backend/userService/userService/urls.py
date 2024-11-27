@@ -17,7 +17,7 @@ Including another URLconf
 from django.urls import path
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView, AddFriendView, RemoveFriendView
+from .views import RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView, AddFriendView, RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, IncomingFriendRequestsView
 
 urlpatterns = [
     path('register/', RegisterView.as_view(), name='register'),
@@ -25,8 +25,11 @@ urlpatterns = [
     path('profile/', ProfileView.as_view(), name='profile'),
     path('logout/', LogoutView.as_view(), name='logout'),
     path('profile/search_profiles/', SearchProfilesView.as_view(), name='search_profiles'),
-    path('add_friend/', AddFriendView.as_view(), name='add_friend'),
-    path('remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
+    path('profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
+    path('profile/accept_friend_request/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
+    path('profile/decline_friend_request/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
+    path('profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
+    path('profile/incoming_friend_requests/', IncomingFriendRequestsView.as_view(), name='incoming_friend_requests'),
 ]
 
 if settings.DEBUG:

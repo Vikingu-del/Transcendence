@@ -26,6 +26,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'userService',  # userService app
     'rest_framework',  # django_rest_framework
+	'channels',  # django_channels
     'crispy_forms',
     'crispy_bootstrap4',
 ]
@@ -65,6 +66,13 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'userService.wsgi.application'
+ASGI_APPLICATION = 'userService.asgi.application'
+
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases

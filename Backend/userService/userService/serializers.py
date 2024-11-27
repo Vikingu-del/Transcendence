@@ -6,13 +6,14 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/21 14:20:09 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/27 14:18:42 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Profile
+from .models import Profile, Friendship
+from django.db.models import Q
 import random
 
 class UserSerializer(serializers.ModelSerializer):
@@ -45,11 +46,12 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
-    friends = serializers.SerializerMethodField()
+    is_friend = serializers.SerializerMethodField()
+    friend_request_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
-        fields = ['display_name', 'avatar', 'friends']
+        fields = ['id','display_name', 'avatar', 'is_friend', 'friend_request_status']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -57,6 +59,17 @@ class UserProfileSerializer(serializers.ModelSerializer):
             return f"{request.scheme}://{request.get_host()}:{request.get_port()}{obj.avatar.url}"
         return f"{request.scheme}://{request.get_host()}:{request.get_port()}/media/static/default.png"
 
-    def get_friends(self, obj):
-        friends = obj.friends.all()
-        return UserProfileSerializer(friends, many=True, context=self.context).data
+    def get_is_friend(self, obj):
+        user = self.context['request'].user
+        return Friendship.objects.filter(
+            (Q(from_profile=user.profile) & Q(to_profile=obj) & Q(status='accepted')) |
+            (Q(from_profile=obj) & Q(to_profile=user.profile) & Q(status='accepted'))
+        ).exists()
+
+    def get_friend_request_status(self, obj):
+        user = self.context['request'].user
+        friendship = Friendship.objects.filter(
+            (Q(from_profile=user.profile) & Q(to_profile=obj)) |
+            (Q(from_profile=obj) & Q(to_profile=user.profile))
+        ).first()
+        return friendship.status if friendship else None

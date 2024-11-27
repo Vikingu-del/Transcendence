@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/25 18:59:06 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/27 15:16:51 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -21,6 +21,8 @@ from .models import Profile, Friendship
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 import logging
@@ -119,10 +121,66 @@ class AddFriendView(APIView):
 
         try:
             friend_profile = Profile.objects.get(id=friend_profile_id)
-            Friendship.objects.create(from_profile=user_profile, to_profile=friend_profile)
-            return Response({"message": "Friend added successfully"}, status=status.HTTP_200_OK)
+            if Friendship.objects.filter(from_profile=user_profile, to_profile=friend_profile).exists():
+                return Response({"message": "Friend request already sent"}, status=status.HTTP_400_BAD_REQUEST)
+            Friendship.objects.create(from_profile=user_profile, to_profile=friend_profile, status='pending')
+
+            # Send notification
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{friend_profile.user.id}",
+                {
+                    "type": "send_notification",
+                    "message": {"type": "friend_request", "from": user_profile.display_name}
+                }
+            )
+
+            return Response({"message": "Friend request sent successfully"}, status=status.HTTP_200_OK)
         except Profile.DoesNotExist:
             return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class IncomingFriendRequestsView(APIView):
+    def get(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        incoming_requests = Friendship.objects.filter(to_profile=user_profile, status='pending')
+        serializer = UserProfileSerializer([req.from_profile for req in incoming_requests], many=True, context={"request": request})
+        return Response(serializer.data)
+
+class DeclineFriendRequestView(APIView):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        friend_profile_id = request.data.get('friend_profile_id')
+
+        try:
+            friend_profile = Profile.objects.get(id=friend_profile_id)
+            friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
+            friendship.delete()
+            return Response({"message": "Friend request declined"}, status=status.HTTP_200_OK)
+        except (Profile.DoesNotExist, Friendship.DoesNotExist):
+            return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
+
+class AcceptFriendRequestView(APIView):
+    def post(self, request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+        user_profile = request.user.profile
+        friend_profile_id = request.data.get('friend_profile_id')
+
+        try:
+            friend_profile = Profile.objects.get(id=friend_profile_id)
+            friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
+            friendship.status = 'accepted'
+            friendship.save()
+            return Response({"message": "Friend request accepted"}, status=status.HTTP_200_OK)
+        except (Profile.DoesNotExist, Friendship.DoesNotExist):
+            return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class RemoveFriendView(APIView):
     def post(self, request, *args, **kwargs):
