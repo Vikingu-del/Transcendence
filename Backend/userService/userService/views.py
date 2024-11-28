@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/27 15:16:51 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/28 17:44:18 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -21,9 +21,9 @@ from .models import Profile, Friendship
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
+from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
 
 import logging
 
@@ -85,8 +85,11 @@ class ProfileView(APIView):
 
     def get(self, request):
         user_profile = Profile.objects.get(user=request.user)
-        serializer = UserProfileSerializer(user_profile, context={"request": request})
-        return Response(serializer.data)
+        friends = user_profile.get_friends()
+        friends_data = UserProfileSerializer(friends, many=True, context={"request": request}).data
+        profile_data = UserProfileSerializer(user_profile, context={"request": request}).data
+        profile_data['friends'] = friends_data
+        return Response(profile_data)
 
     def put(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -178,6 +181,17 @@ class AcceptFriendRequestView(APIView):
             friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
             friendship.status = 'accepted'
             friendship.save()
+
+            # Send notification to the friend
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{friend_profile.user.id}",
+                {
+                    "type": "send_notification",
+                    "message": {"type": "friend_accepted", "from": user_profile.display_name}
+                }
+            )
+
             return Response({"message": "Friend request accepted"}, status=status.HTTP_200_OK)
         except (Profile.DoesNotExist, Friendship.DoesNotExist):
             return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
@@ -192,7 +206,21 @@ class RemoveFriendView(APIView):
 
         try:
             friend_profile = Profile.objects.get(id=friend_profile_id)
-            Friendship.objects.filter(from_profile=user_profile, to_profile=friend_profile).delete()
+            Friendship.objects.filter(
+                (Q(from_profile=user_profile) & Q(to_profile=friend_profile)) |
+                (Q(from_profile=friend_profile) & Q(to_profile=user_profile))
+            ).delete()
+
+            # Send notification to the friend
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{friend_profile.user.id}",
+                {
+                    "type": "send_notification",
+                    "message": {"type": "friend_removed", "from": user_profile.display_name}
+                }
+            )
+
             return Response({"message": "Friend removed successfully"}, status=status.HTTP_200_OK)
         except Profile.DoesNotExist:
             return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)

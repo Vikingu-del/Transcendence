@@ -26,8 +26,13 @@
         <div v-for="profile in searchResults" :key="profile.id">
           <p>{{ profile.display_name }}</p>
           <div v-if="profile.friend_request_status === 'pending'">
-            <button @click="acceptFriendRequest(profile.id)">Accept Friend Request</button>
-            <button @click="declineFriendRequest(profile.id)">Decline Friend Request</button>
+            <div v-if="profile.requested_by_current_user">
+              <p>Request Pending</p>
+            </div>
+            <div v-else>
+              <button @click="acceptFriendRequest(profile.id)">Accept Friend Request</button>
+              <button @click="declineFriendRequest(profile.id)">Decline Friend Request</button>
+            </div>
           </div>
           <div v-else-if="profile.is_friend">
             <button @click="removeFriend(profile.id)">Remove Friend</button>
@@ -55,6 +60,7 @@
         <li v-for="friend in friends" :key="friend.id" class="profile-item">
           <img :src="friend.avatar" alt="Avatar" class="profile-avatar" />
           <span class="profile-name">{{ friend.display_name }}</span>
+          <button @click="removeFriend(friend.id)">Remove Friend</button>
         </li>
       </ul>
     </div>
@@ -133,6 +139,8 @@ export default {
         this.notifications.push(data);
         if (data.type === 'friend_request') {
           this.fetchIncomingFriendRequests();
+        } else if (data.type === 'friend_accepted' || data.type === 'friend_removed') {
+          this.fetchProfile(); // Refresh friends list
         }
       };
     },
@@ -186,8 +194,8 @@ export default {
         });
         if (response.ok) {
           alert('Friend request accepted successfully');
-          this.searchProfiles();
           this.fetchIncomingFriendRequests();
+          this.fetchProfile(); // Refresh friends list
         } else {
           console.error('Failed to accept friend request');
         }
@@ -207,7 +215,6 @@ export default {
         });
         if (response.ok) {
           alert('Friend request declined successfully');
-          this.searchProfiles();
           this.fetchIncomingFriendRequests();
         } else {
           console.error('Failed to decline friend request');
@@ -218,7 +225,7 @@ export default {
     },
     async removeFriend(friendId) {
       try {
-        const response = await fetch(`/profile/remove_friend/${friendId}`, {
+        const response = await fetch('/profile/remove_friend/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -228,7 +235,7 @@ export default {
         });
         if (response.ok) {
           alert('Friend removed successfully');
-          this.fetchProfile();
+          this.fetchProfile(); // Refresh friends list
         } else {
           console.error('Failed to remove friend');
         }

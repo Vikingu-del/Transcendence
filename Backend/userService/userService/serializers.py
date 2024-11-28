@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/27 14:18:42 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/11/27 16:19:49 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -48,10 +48,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     is_friend = serializers.SerializerMethodField()
     friend_request_status = serializers.SerializerMethodField()
+    requested_by_current_user = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Profile
-        fields = ['id','display_name', 'avatar', 'is_friend', 'friend_request_status']
+        fields = ['id', 'display_name', 'avatar', 'is_friend', 'friend_request_status', 'requested_by_current_user']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -73,3 +75,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
             (Q(from_profile=obj) & Q(to_profile=user.profile))
         ).first()
         return friendship.status if friendship else None
+
+    def get_requested_by_current_user(self, obj):
+        user = self.context['request'].user
+        return Friendship.objects.filter(from_profile=user.profile, to_profile=obj, status='pending').exists()
