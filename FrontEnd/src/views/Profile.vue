@@ -94,9 +94,10 @@ export default {
     async fetchProfile() {
       try {
         const csrfToken = this.getCookie('csrftoken');
-        const response = await fetch('/profile/', {
+        const response = await fetch('/api/profile/', {
           headers: {
             'X-CSRFToken': csrfToken,
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
         });
         if (response.ok) {
@@ -117,9 +118,10 @@ export default {
     },
     async fetchIncomingFriendRequests() {
       try {
-        const response = await fetch('/profile/incoming_friend_requests/', {
+        const response = await fetch('/api/profile/incoming_friend_requests/', {
           headers: {
             'X-CSRFToken': this.getCookie('csrftoken'),
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
         });
         if (response.ok) {
@@ -133,7 +135,8 @@ export default {
       }
     },
     connectWebSocket() {
-      const socket = new WebSocket(`ws://${window.location.host}/ws/notifications/`);
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const socket = new WebSocket(`${protocol}//${window.location.host}/ws/profile/notifications/`);
       socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         this.notifications.push(data);
@@ -150,7 +153,11 @@ export default {
         return;
       }
       try {
-        const response = await fetch(`/profile/search_profiles/?q=${this.searchQuery}`);
+        const response = await fetch(`/api/profile/search_profiles/?q=${this.searchQuery}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+          }
+        });
         if (response.ok) {
           const data = await response.json();
           this.searchResults = data.filter(profile => profile.id !== this.currentUserId);
@@ -164,11 +171,12 @@ export default {
     },
     async sendFriendRequest(friendId) {
       try {
-        const response = await fetch('/profile/add_friend/', {
+        const response = await fetch('/api/profile/add_friend/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': this.getCookie('csrftoken'),
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -184,11 +192,12 @@ export default {
     },
     async acceptFriendRequest(friendId) {
       try {
-        const response = await fetch('/profile/accept_friend_request/', {
+        const response = await fetch('/api/profile/accept_friend_request/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': this.getCookie('csrftoken'),
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -205,11 +214,12 @@ export default {
     },
     async declineFriendRequest(friendId) {
       try {
-        const response = await fetch('/profile/decline_friend_request/', {
+        const response = await fetch('/api/profile/decline_friend_request/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': this.getCookie('csrftoken'),
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -225,11 +235,12 @@ export default {
     },
     async removeFriend(friendId) {
       try {
-        const response = await fetch('/profile/remove_friend/', {
+        const response = await fetch('/api/profile/remove_friend/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': this.getCookie('csrftoken'),
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -248,6 +259,7 @@ export default {
         const csrfToken = this.getCookie('csrftoken');
         if (csrfToken) {
           await this.logoutAction({ csrftoken: csrfToken });
+          localStorage.removeItem('authToken'); // Clear the token on logout
         } else {
           alert('CSRF token missing. Please refresh and try again.');
         }
@@ -259,7 +271,7 @@ export default {
       let cookieValue = null;
       if (document.cookie && document.cookie !== '') {
         const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
+        for (let i = 0; cookies.length > i; i++) {
           const cookie = cookies[i].trim();
           if (cookie.substring(0, name.length + 1) === name + '=') {
             cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
@@ -285,10 +297,11 @@ export default {
       const csrfToken = this.getCookie('csrftoken');
 
       try {
-        const response = await fetch('/profile/', {
+        const response = await fetch('/api/profile/', {
           method: 'PUT',
           headers: {
             'X-CSRFToken': csrfToken,
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           },
           body: formData,
         });

@@ -4,7 +4,7 @@ import router from './router'; // Import the router
 
 const store = createStore({
   state: {
-    isAuthenticated: false, // This should be updated based on actual authentication status
+    isAuthenticated: !!localStorage.getItem('authToken'), // Initialize from localStorage
     user: null, // Store the user data if needed
   },
   mutations: {
@@ -23,7 +23,7 @@ const store = createStore({
     async loginAction({ commit }, { username, password, csrftoken }) {
       try {
         // Perform the login API request
-        const response = await fetch('/login/', {
+        const response = await fetch('/api/login/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -37,6 +37,7 @@ const store = createStore({
 
         if (response.ok) {
           const data = await response.json();
+          localStorage.setItem('authToken', data.token); // Store the token in localStorage
           commit('setAuthentication', true);
           commit('setUser', data.user); // Assuming the response contains user data
           router.push({ name: 'Profile' }); // Redirect to the profile page after successful login
@@ -66,9 +67,8 @@ const store = createStore({
           console.log('CSRF Token:', csrfToken);
         }
 
-        
         // Perform the logout API request
-        const response = await fetch('/logout/', {
+        const response = await fetch('/api/logout/', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -77,6 +77,7 @@ const store = createStore({
         });
 
         if (response.ok) {
+          localStorage.removeItem('authToken'); // Remove the token from localStorage
           commit('setAuthentication', false); // Update the authentication status
           commit('clearUserData'); // Clear the user data
           router.push({ name: 'Home' }); // Redirect to the home page after logout

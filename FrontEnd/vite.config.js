@@ -1,33 +1,25 @@
-import { fileURLToPath, URL } from 'node:url'
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from 'vite';
+import vue from '@vitejs/plugin-vue';
+import path from 'path';
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [
-    vue(),
-  ],
+  plugins: [vue()],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      '@': path.resolve(__dirname, 'src'),
+    },
   },
   server: {
     proxy: {
-      // Proxy all requests to `/user` and other paths to the user service
-      '/user': 'http://localhost:8000',
-      '/register': 'http://localhost:8000/register/',
-      '/login': 'http://localhost:8000/login/',
-      '/profile': 'http://localhost:8000/profile/',
-      '/logout': 'http://localhost:8000/logout/',
-      '/friends': 'http://localhost:8000/friends/',
-      '/match-history': 'http://localhost:8000/match-history/',
-      '/search_profiles': {
+      '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/search_profiles/, '/search_profiles')
+        rewrite: (path) => path.replace(/^\/api/, '')
       },
-      '/vault': 'http://localhost:8200',
+      '/vault': {
+        target: 'http://localhost:8200',
+        changeOrigin: true,
+      },
     }
   }
-})
+});
