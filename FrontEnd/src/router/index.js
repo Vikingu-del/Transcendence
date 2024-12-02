@@ -3,7 +3,7 @@ import Home from '../views/Home.vue';
 import Login from '../views/Login.vue';
 import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
-import store from '../store'; // Ensure this path is correct
+import store from '../store';
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
