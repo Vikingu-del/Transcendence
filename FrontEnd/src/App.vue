@@ -1,10 +1,11 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 
 const store = useStore()
+const router = useRouter()
 const isAuthenticated = computed(() => store.state.isAuthenticated)
 
 function logout() {
@@ -13,7 +14,23 @@ function logout() {
 
 // Check authentication state on app load
 onMounted(() => {
-  store.commit('setAuthentication', !!localStorage.getItem('authToken'))
+  let authToken = localStorage.getItem('authToken')
+  console.log('Auth Token:', authToken) // Debugging log
+
+  // Clear invalid tokens
+  if (!authToken || authToken === 'undefined' || authToken === 'null') {
+    localStorage.removeItem('authToken')
+    authToken = null
+  }
+
+  const isAuthenticated = Boolean(authToken)
+  store.commit('setAuthentication', isAuthenticated)
+  console.log('Is Authenticated:', isAuthenticated) // Debugging log
+
+  // // Redirect to login if not authenticated
+  // if (!isAuthenticated) {
+  //   router.push('/')
+  // }
 })
 </script>
 
