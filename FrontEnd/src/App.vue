@@ -1,7 +1,7 @@
 <script setup>
 import { RouterLink, RouterView } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
 
 const store = useStore()
@@ -10,6 +10,11 @@ const isAuthenticated = computed(() => store.state.isAuthenticated)
 function logout() {
   store.dispatch('logoutAction')
 }
+
+// Check authentication state on app load
+onMounted(() => {
+  store.commit('setAuthentication', !!localStorage.getItem('authToken'))
+})
 </script>
 
 <template>
@@ -23,7 +28,6 @@ function logout() {
         <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
         <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
-        <button v-if="isAuthenticated" @click="logout">Logout</button>
       </nav>
     </div>
   </header>
