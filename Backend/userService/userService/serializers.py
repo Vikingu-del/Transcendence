@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/03 16:14:54 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/12/05 18:05:00 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -53,7 +53,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['id', 'display_name', 'avatar', 'is_friend', 'friend_request_status', 'requested_by_current_user']
+        fields = ['id', 'display_name', 'avatar', 'is_friend',
+                 'friend_request_status', 'requested_by_current_user',
+                 'is_online']
 
     def get_avatar(self, obj):
         request = self.context.get('request')

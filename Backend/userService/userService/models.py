@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:43 by ipetruni          #+#    #+#              #
-#    Updated: 2024/11/27 17:25:28 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/12/05 15:33:47 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -18,6 +18,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     display_name = models.CharField(max_length=100)
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    is_online = models.BooleanField(default=False)
 
     def get_friends(self):
         friendships = Friendship.objects.filter(

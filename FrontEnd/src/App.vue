@@ -26,11 +26,6 @@ onMounted(() => {
   const isAuthenticated = Boolean(authToken)
   store.commit('setAuthentication', isAuthenticated)
   console.log('Is Authenticated:', isAuthenticated) // Debugging log
-
-  // // Redirect to login if not authenticated
-  // if (!isAuthenticated) {
-  //   router.push('/')
-  // }
 })
 </script>
 

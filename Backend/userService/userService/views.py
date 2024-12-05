@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/02 17:13:05 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/12/05 18:54:48 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -21,6 +21,8 @@ from .models import Profile, Friendship
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import permission_classes
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -114,49 +116,63 @@ class SearchProfilesView(generics.ListAPIView):
         search_query = self.request.query_params.get('q', '')
         return Profile.objects.filter(display_name__icontains=search_query)
 
+@permission_classes([IsAuthenticated])
 class AddFriendView(APIView):
-    def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+    def post(self, request):
+        from_profile = request.user.profile
+        to_profile_id = request.data.get('friend_profile_id')  # Adjust key as per frontend
 
-        user_profile = request.user.profile
-        friend_profile_id = request.data.get('friend_profile_id')
+        if not to_profile_id:
+            return Response({'error': 'Friend profile ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            friend_profile = Profile.objects.get(id=friend_profile_id)
-            if Friendship.objects.filter(from_profile=user_profile, to_profile=friend_profile).exists():
-                return Response({"message": "Friend request already sent"}, status=status.HTTP_400_BAD_REQUEST)
-            Friendship.objects.create(from_profile=user_profile, to_profile=friend_profile, status='pending')
-
-            # Send notification
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"user_{friend_profile.user.id}",
-                {
-                    "type": "send_notification",
-                    "message": {"type": "friend_request", "from": user_profile.display_name}
-                }
-            )
-
-            return Response({"message": "Friend request sent successfully"}, status=status.HTTP_200_OK)
+            to_profile = Profile.objects.get(id=to_profile_id)
         except Profile.DoesNotExist:
-            return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
+        # Check if friendship already exists or if there's a pending request
+        existing_friendship = Friendship.objects.filter(
+            Q(from_profile=from_profile, to_profile=to_profile) |
+            Q(from_profile=to_profile, to_profile=from_profile)
+        ).first()
+
+        if existing_friendship:
+            if existing_friendship.status == 'accepted':
+                return Response({'message': 'You are already friends'}, status=status.HTTP_200_OK)
+            elif existing_friendship.status == 'pending':
+                return Response({'message': 'Friend request already sent or received'}, status=status.HTTP_200_OK)
+
+        # Create a new friendship request
+        Friendship.objects.create(from_profile=from_profile, to_profile=to_profile, status='pending')
+
+        # Send a WebSocket notification to the recipient
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{to_profile.user.id}",
+            {
+                'type': 'send_notification',
+                'message': {
+                    'type': 'friend_request',
+                    'from_user_id': from_profile.user.id,
+                    'from_user_name': from_profile.display_name,
+                    'from_user_avatar': from_profile.avatar.url if from_profile.avatar else '',
+                },
+            }
+        )
+
+        return Response({'message': 'Friend request sent successfully'}, status=status.HTTP_201_CREATED)
+
+@permission_classes([IsAuthenticated])
 class IncomingFriendRequestsView(APIView):
     def get(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
         user_profile = request.user.profile
         incoming_requests = Friendship.objects.filter(to_profile=user_profile, status='pending')
         serializer = UserProfileSerializer([req.from_profile for req in incoming_requests], many=True, context={"request": request})
         return Response(serializer.data)
 
+@permission_classes([IsAuthenticated])
 class DeclineFriendRequestView(APIView):
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
         user_profile = request.user.profile
         friend_profile_id = request.data.get('friend_profile_id')
 
@@ -164,71 +180,125 @@ class DeclineFriendRequestView(APIView):
             friend_profile = Profile.objects.get(id=friend_profile_id)
             friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
             friendship.delete()
-            return Response({"message": "Friend request declined"}, status=status.HTTP_200_OK)
-        except (Profile.DoesNotExist, Friendship.DoesNotExist):
-            return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
 
-class AcceptFriendRequestView(APIView):
-    def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-        user_profile = request.user.profile
-        friend_profile_id = request.data.get('friend_profile_id')
-
-        try:
-            friend_profile = Profile.objects.get(id=friend_profile_id)
-            friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
-            friendship.status = 'accepted'
-            friendship.save()
-
-            # Send notification to the friend
+            # Send a WebSocket notification to the sender
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f"user_{friend_profile.user.id}",
                 {
-                    "type": "send_notification",
-                    "message": {"type": "friend_accepted", "from": user_profile.display_name}
+                    'type': 'send_notification',
+                    'message': {
+                        'type': 'friend_request_declined',
+                        'user_id': user_profile.user.id,
+                        'user_name': user_profile.display_name,
+                        'user_avatar': user_profile.avatar.url if user_profile.avatar else '',
+                    },
                 }
             )
 
-            return Response({"message": "Friend request accepted"}, status=status.HTTP_200_OK)
+            return Response({"message": "Friend request declined"}, status=status.HTTP_200_OK)
         except (Profile.DoesNotExist, Friendship.DoesNotExist):
             return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
+        
+@permission_classes([IsAuthenticated])
+class AcceptFriendRequestView(APIView):
+    def post(self, request):
+        to_profile = request.user.profile
+        from_user_id = request.data.get('from_user_id')
 
+        if not from_user_id:
+            return Response({'error': 'From user ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            from_profile = Profile.objects.get(user__id=from_user_id)
+        except Profile.DoesNotExist:
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        friendship = Friendship.objects.filter(from_profile=from_profile, to_profile=to_profile, status='pending').first()
+
+        if not friendship:
+            return Response({'error': 'Friend request not found'}, status=status.HTTP_400_BAD_REQUEST)
+
+        friendship.status = 'accepted'
+        friendship.save()
+
+        # Send a WebSocket notification to the requester
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{from_profile.user.id}",
+            {
+                'type': 'send_notification',
+                'message': {
+                    'type': 'friend_request_accepted',
+                    'user_id': to_profile.user.id,
+                    'user_name': to_profile.display_name,
+                    'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
+                },
+            }
+        )
+
+        return Response({'message': 'Friend request accepted'}, status=status.HTTP_200_OK)
+
+@permission_classes([IsAuthenticated])
 class RemoveFriendView(APIView):
     def post(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
         user_profile = request.user.profile
         friend_profile_id = request.data.get('friend_profile_id')
 
         try:
             friend_profile = Profile.objects.get(id=friend_profile_id)
-            Friendship.objects.filter(
-                (Q(from_profile=user_profile) & Q(to_profile=friend_profile)) |
-                (Q(from_profile=friend_profile) & Q(to_profile=user_profile))
-            ).delete()
+            friendship = Friendship.objects.filter(
+                (Q(from_profile=user_profile, to_profile=friend_profile) |
+                 Q(from_profile=friend_profile, to_profile=user_profile)),
+                status='accepted'
+            ).first()
 
-            # Send notification to the friend
+            if not friendship:
+                return Response({"message": "Friendship not found"}, status=status.HTTP_404_NOT_FOUND)
+
+            friendship.delete()
+
+            # Send a WebSocket notification to the friend
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f"user_{friend_profile.user.id}",
                 {
-                    "type": "send_notification",
-                    "message": {"type": "friend_removed", "from": user_profile.display_name}
+                    'type': 'send_notification',
+                    'message': {
+                        'type': 'friend_removed',
+                        'user_id': user_profile.user.id,
+                        'user_name': user_profile.display_name,
+                        'user_avatar': user_profile.avatar.url if user_profile.avatar else '',
+                    },
                 }
             )
 
             return Response({"message": "Friend removed successfully"}, status=status.HTTP_200_OK)
         except Profile.DoesNotExist:
-            return Response({"message": "Friend profile not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"message": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
 @method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
+            user_profile = request.user.profile
+            user_profile.is_online = False
+            user_profile.save()
+
+            # Notify friends that the user is offline
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{user_profile.user.id}",
+                {
+                    'type': 'send_notification',
+                    'message': {
+                        'type': 'friend_status',
+                        'user_id': user_profile.user.id,
+                        'status': 'offline',
+                    },
+                }
+            )
+
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
         return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
