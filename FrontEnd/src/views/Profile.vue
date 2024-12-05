@@ -171,6 +171,8 @@ export default {
           const friend = this.friends.find(f => f.id === friendId);
           if (friend) {
             friend.is_online = (status === 'online');
+          } else {
+            friend.is_online = (status === 'offline');
           }
         } else if (data.type === 'friend_request_accepted') {
           // Update the friends list
@@ -187,6 +189,7 @@ export default {
         console.log('WebSocket connection closed');
       };
     },
+
 
     // Search for profiles
     async searchProfiles() {
@@ -344,6 +347,11 @@ export default {
         }
       } catch (error) {
         alert('Logout failed. Please try again.');
+      } finally {
+        // Close the WebSocket connection
+        if (this.socket) {
+          this.socket.close();
+        }
       }
     },
     getCookie(name) {

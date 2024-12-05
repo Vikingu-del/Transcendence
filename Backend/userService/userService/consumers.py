@@ -49,6 +49,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def set_user_offline(self):
+        # Update the is_online field without loading the entire profile
         Profile.objects.filter(user_id=self.user.id).update(is_online=False)
 
     async def notify_friends(self, status):
