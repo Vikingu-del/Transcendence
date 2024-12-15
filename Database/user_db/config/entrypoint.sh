@@ -1,13 +1,7 @@
 #!/bin/bash
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for the PostgreSQL database to be ready..."
-until pg_isready -h localhost -p 5432; do
-  echo "PostgreSQL is not ready - sleeping..."
-  sleep 1
-done
-
-echo "PostgreSQL is up - continuing..."
+# Check if the user and database already exist and create them if they do not
+echo "Checking if user and database exist..."
 
 # Create the database user and database if they do not exist
 psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" <<-EOSQL

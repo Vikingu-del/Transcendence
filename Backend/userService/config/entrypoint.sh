@@ -3,8 +3,8 @@
 # Wait until PostgreSQL is ready
 echo "Waiting for the database to be ready..."
 
-while ! nc -z $DB_HOST 5432; do
-  echo "Database is still unavailable - sleeping"
+while ! nc -z $DB_HOST $DB_PORT; do
+  echo "Database with host $DB_HOST in port $DB_PORT is still unavailable - sleeping"
   sleep 1
 done
 

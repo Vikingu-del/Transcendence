@@ -13,6 +13,8 @@ if [ "${WAIT_FOR_SERVICES}" == "true" ]; then
 else
     echo "Skipping wait for backend services."
 fi
+echo "Current host is: ${CURRENT_HOST}"
+envsubst '$CURRENT_HOST' < /nginx.conf.template > /etc/nginx/nginx.conf
 
 # Create a directory for SSL certificates if not already present
 mkdir -p /etc/nginx/ssl
