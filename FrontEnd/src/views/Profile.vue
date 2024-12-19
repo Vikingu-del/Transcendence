@@ -8,12 +8,14 @@
         <form @submit.prevent="updateProfile" class="profile-form">
           <input
             v-model="displayName"
+            @input="checkDisplayName"
             :placeholder="displayNamePlaceholder"
             class="input-field"
             required
           />
+          <span v-if="displayNameError" class="error-message">{{ displayNameError }}</span>
           <input type="file" @change="onFileChange" class="file-input" />
-          <button type="submit" class="btn primary-btn">Update Profile</button>
+          <button type="submit" class="btn primary-btn" :disabled="isUpdateDisabled">Update Profile</button>
         </form>
       </div>
       <button @click="logout" class="btn secondary-btn">Logout</button>
@@ -89,10 +91,12 @@ export default {
       friends: [],
       searchQuery: '',
       searchResults: [],
-      incomingFriendRequests: [], // Initialize as an empty array
+      incomingFriendRequests: [],
       currentUserId: null,
       notifications: [],
       socket: null, // WebSocket connection
+      displayNameError: '',
+      isUpdateDisabled: false,
     };
   },
   async created() {
@@ -188,6 +192,34 @@ export default {
       this.socket.onclose = () => {
         console.log('WebSocket connection closed');
       };
+    },
+
+    async checkDisplayName() {
+      if (this.displayName.trim() === '') {
+        this.displayNameError = '';
+        this.isUpdateDisabled = false;
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/check_display_name/?display_name=${encodeURIComponent(this.displayName)}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          },
+        });
+        if (response.ok) {
+          this.displayNameError = '';
+          this.isUpdateDisabled = false;
+        } else {
+          const errorData = await response.json();
+          this.displayNameError = errorData.message;
+          this.isUpdateDisabled = true;
+        }
+      } catch (error) {
+        console.error('Error checking display name:', error);
+        this.displayNameError = 'Error checking display name';
+        this.isUpdateDisabled = true;
+      }
     },
 
 
@@ -388,6 +420,7 @@ export default {
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'X-CSRFToken': this.getCookie('csrftoken'), // Include CSRF token
           },
           body: formData,
         });
@@ -395,7 +428,8 @@ export default {
           await this.fetchProfile();
           alert('Profile updated successfully');
         } else {
-          alert('Failed to update profile');
+          const errorData = await response.json();
+          alert(`Failed to update profile: ${errorData.message}`);
         }
       } catch (error) {
         console.error('Error updating profile:', error);
@@ -458,6 +492,12 @@ export default {
   width: 100%;
 }
 
+.error-message {
+  color: red;
+  font-size: 12px;
+  margin-top: 5px;
+}
+
 .btn {
   padding: 10px 20px;
   border: none;
@@ -469,6 +509,11 @@ export default {
 .primary-btn {
   background-color: #4caf50;
   color: white;
+}
+
+.primary-btn:disabled {
+  background-color: #cccccc; /* Change this to the desired color for the disabled state */
+  cursor: not-allowed;
 }
 
 .secondary-btn {

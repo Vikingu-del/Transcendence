@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/05 19:26:52 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/12/19 13:33:36 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -15,6 +15,7 @@ from django.contrib.auth.models import User
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.decorators import api_view
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer
 from .models import Profile, Friendship
@@ -100,14 +101,29 @@ class ProfileView(APIView):
         user_profile = request.user.profile
         data = request.data
 
+        if 'display_name' in data:
+            display_name = data['display_name']
+
+            if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
+                return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
+            user_profile.display_name = display_name
+            
         if 'avatar' in data:
             user_profile.avatar = data['avatar']
-        
-        if 'display_name' in data:
-            user_profile.display_name = data['display_name']
 
         user_profile.save()
         return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def check_display_name(request):
+    display_name = request.query_params.get('display_name', None)
+    if display_name is None:
+        return Response({"message": "Display name is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
+        return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
+
+    return Response({"message": "Display name is available"}, status=status.HTTP_200_OK)
 
 class SearchProfilesView(generics.ListAPIView):
     serializer_class = UserProfileSerializer
