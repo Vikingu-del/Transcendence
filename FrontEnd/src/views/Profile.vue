@@ -4,7 +4,14 @@
     <div class="profile-card">
       <h2>Profile</h2>
       <div class="profile-section">
-        <img :src="avatarUrl" alt="User Avatar" class="profile-picture" />
+        <div class="avatar-container">
+          <img :src="avatarUrl" alt="User Avatar" class="profile-picture" />
+          <div class="avatar-actions">
+            <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
+            <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
+            <button v-if="!isDefaultAvatar" @click="deleteAvatar" class="btn secondary-btn">Delete Avatar</button>
+          </div>
+        </div>
         <form @submit.prevent="updateProfile" class="profile-form">
           <input
             v-model="displayName"
@@ -14,8 +21,9 @@
             required
           />
           <span v-if="displayNameError" class="error-message">{{ displayNameError }}</span>
-          <input type="file" @change="onFileChange" class="file-input" />
-          <button type="submit" class="btn primary-btn" :disabled="isUpdateDisabled">Update Profile</button>
+           <button type="submit" class="btn primary-btn" :disabled="isUpdateDisabled" :class="{ 'enabled-btn': !isUpdateDisabled }">
+            Update Profile
+          </button>
         </form>
       </div>
       <button @click="logout" class="btn secondary-btn">Logout</button>
@@ -96,7 +104,9 @@ export default {
       notifications: [],
       socket: null, // WebSocket connection
       displayNameError: '',
-      isUpdateDisabled: false,
+      isUpdateDisabled: true,
+      originalDisplayName: '',
+      originalAvatarUrl: '',
     };
   },
   async created() {
@@ -119,6 +129,8 @@ export default {
           const data = await response.json();
           this.displayName = data.display_name;
           this.avatarUrl = data.avatar;
+          this.originalDisplayName = data.display_name;
+          this.originalAvatarUrl = data.avatar;
           this.friends = data.friends;
           this.currentUserId = data.id;
         } else {
@@ -197,7 +209,7 @@ export default {
     async checkDisplayName() {
       if (this.displayName.trim() === '') {
         this.displayNameError = '';
-        this.isUpdateDisabled = false;
+        this.isUpdateDisabled = true;
         return;
       }
 
@@ -209,7 +221,7 @@ export default {
         });
         if (response.ok) {
           this.displayNameError = '';
-          this.isUpdateDisabled = false;
+          this.isUpdateDisabled = this.displayName === this.originalDisplayName && this.avatarUrl === this.originalAvatarUrl;
         } else {
           const errorData = await response.json();
           this.displayNameError = errorData.message;
@@ -355,6 +367,56 @@ export default {
         console.error('Error removing friend:', error);
       }
     },
+    // Delete the user's avatar
+    async deleteAvatar() {
+      try {
+        const response = await fetch('/api/profile/delete_avatar/', {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'X-CSRFToken': this.getCookie('csrftoken'), // Include CSRF token
+          },
+        });
+        if (response.ok) {
+          await this.fetchProfile(); // Refresh the profile after deleting the avatar
+          alert('Avatar deleted successfully');
+        } else {
+          alert('Failed to delete avatar');
+        }
+      } catch (error) {
+        console.error('Error deleting avatar:', error);
+      }
+    },
+
+    // Update the user's profile
+    async updateProfile() {
+      const formData = new FormData();
+      formData.append('display_name', this.displayName);
+      if (this.avatarFile) {
+        formData.append('avatar', this.avatarFile);
+      }
+
+      try {
+        const response = await fetch('/api/profile/', {
+          method: 'PUT',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+            'X-CSRFToken': this.getCookie('csrftoken'), // Include CSRF token
+          },
+          body: formData,
+        });
+        if (response.ok) {
+          await this.fetchProfile();
+          this.isUpdateDisabled = true; // Disable the update button after successful update
+          alert('Profile updated successfully');
+        } else {
+          const errorData = await response.json();
+          alert(`Failed to update profile: ${errorData.message}`);
+        }
+      } catch (error) {
+        console.error('Error updating profile:', error);
+      }
+    },
 
     // Logout
     async logout() {
@@ -406,35 +468,6 @@ export default {
         this.avatarUrl = URL.createObjectURL(this.avatarFile);
       }
     },
-
-    // Update the user's profile
-    async updateProfile() {
-      const formData = new FormData();
-      formData.append('display_name', this.displayName);
-      if (this.avatarFile) {
-        formData.append('avatar', this.avatarFile);
-      }
-
-      try {
-        const response = await fetch('/api/profile/', {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-            'X-CSRFToken': this.getCookie('csrftoken'), // Include CSRF token
-          },
-          body: formData,
-        });
-        if (response.ok) {
-          await this.fetchProfile();
-          alert('Profile updated successfully');
-        } else {
-          const errorData = await response.json();
-          alert(`Failed to update profile: ${errorData.message}`);
-        }
-      } catch (error) {
-        console.error('Error updating profile:', error);
-      }
-    },
   },
   computed: {
     displayNamePlaceholder() {
@@ -442,6 +475,17 @@ export default {
     },
     filteredFriends() {
       return this.searchResults.length > 0 ? this.searchResults : this.friends;
+    },
+    isDefaultAvatar() {
+      return this.avatarUrl === 'http://localhost:8000/media/default.png';
+    },
+  },
+  watch: {
+    displayName(newVal, oldVal) {
+      this.isUpdateDisabled = newVal === this.originalDisplayName && this.avatarUrl === this.originalAvatarUrl;
+    },
+    avatarUrl(newVal, oldVal) {
+      this.isUpdateDisabled = newVal === this.originalAvatarUrl && this.displayName === this.originalDisplayName;
     },
   },
 };
@@ -468,12 +512,28 @@ export default {
   margin-bottom: 20px;
 }
 
+.avatar-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
 .profile-picture {
   width: 150px;
   height: 150px;
   border-radius: 50%;
   border: 2px solid #4caf50;
   margin-bottom: 10px;
+}
+
+.avatar-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.file-input {
+  display: none;
 }
 
 .profile-form {
@@ -509,11 +569,25 @@ export default {
 .primary-btn {
   background-color: #4caf50;
   color: white;
+  transition: transform 0.3s ease; /* Add transition for smooth animation */
 }
 
 .primary-btn:disabled {
-  background-color: #cccccc; /* Change this to the desired color for the disabled state */
+  background-color: #5b5b5b;
   cursor: not-allowed;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.1);
+  }
+}
+
+.enabled-btn {
+  animation: pulse 1s infinite; /* Apply the pulse animation */
 }
 
 .secondary-btn {

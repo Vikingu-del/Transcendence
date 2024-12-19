@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/19 13:33:36 by ipetruni         ###   ########.fr        #
+#    Updated: 2024/12/19 15:23:06 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -113,6 +113,17 @@ class ProfileView(APIView):
 
         user_profile.save()
         return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
+
+@api_view(['DELETE'])
+def delete_avatar(request):
+    if not request.user.is_authenticated:
+        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
+
+    user_profile = request.user.profile
+    user_profile.avatar.delete(save=False)  # Delete the current avatar file
+    user_profile.avatar = None  # Set the avatar field to None
+    user_profile.save()
+    return Response({"message": "Avatar deleted successfully", "avatar": None}, status=status.HTTP_200_OK)
 
 @api_view(['GET'])
 def check_display_name(request):
