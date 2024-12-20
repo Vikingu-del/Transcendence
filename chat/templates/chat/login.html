@@ -1,0 +1,18 @@
+<h2>Log In</h2>
+
+<style>
+    p{
+      display: block;
+      color: navy;
+    }
+</style>
+{% if messages %}
+{% for msg in messages %}
+<p id="hideMe">{{ msg }}</p>
+{% endfor %}
+{% endif%}
+<form method="post">
+    {% csrf_token %}
+    {{ form }}
+    <button type="submit">Log In</button>
+</form>
