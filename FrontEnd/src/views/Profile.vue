@@ -81,7 +81,7 @@
           <span class="status" :class="{ online: friend.is_online, offline: !friend.is_online }">
             {{ friend.is_online ? 'Online' : 'Offline' }}
           </span>
-          <button @click="startChat(friend.display_name)" class="btn primary-btn">Start Chat</button>
+          <button v-if="activeChat !== friend.display_name" @click="startChat(friend.display_name)" class="btn primary-btn">Chat</button>
           <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove Friend</button>
         </li>
       </ul>
@@ -126,7 +126,8 @@ export default {
       messages: [],
       newMessage: '',
       socket: null,
-      chatSocket: null
+      chatSocket: null,
+      activeChat: null,
     };
   },
   async created() {
@@ -168,7 +169,7 @@ export default {
       console.log('Starting chat with:', displayName);
       this.receiverUsername = displayName;
       this.showChat = true;
-
+      this.activeChat = displayName;
       try {
         const response = await fetch(`/api/profile/chat/${displayName}/`, {
           headers: {
@@ -188,14 +189,6 @@ export default {
       } catch (error) {
         console.error('Error starting chat:', error);
         alert('Error starting chat');
-      }
-    },
-
-    closeChat() {
-      this.showChat = false;
-      this.receiverUsername = '';
-      if (this.chatSocket) {
-        this.chatSocket.close();
       }
     },
 
@@ -269,8 +262,13 @@ export default {
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       this.chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${this.receiverUsername}/`);
       this.chatSocket.onmessage = (event) => {
-        const message = JSON.parse(event.data);
-        this.messages.push(message);
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat_message') {
+          this.messages.push({
+            sender: data.sender,
+            content: data.message,
+          });
+        }
       };
       this.chatSocket.onclose = () => {
         console.log('Chat WebSocket connection closed');
@@ -278,22 +276,10 @@ export default {
     },
 
     sendMessage() {
-      if (this.chatSocket && this.newMessage.trim() !== '') {
-        const message = {
-          sender: this.currentUserId,
-          content: this.newMessage,
-        };
-        this.chatSocket.send(JSON.stringify(message));
-        this.newMessage = '';
-      }
-    },
-
-    sendMessage() {
       if (this.newMessage.trim() !== '') {
         const messageData = {
-          sender: 'You', // Replace with the actual sender's name
+          type: 'chat_message',
           message: this.newMessage,
-          receiver: this.receiverUsername
         };
 
         // Send the message to the server
@@ -301,13 +287,21 @@ export default {
 
         // Add the new message to the messages array
         this.messages.push({
-          id: Date.now(),
           sender: 'You', // Replace with the actual sender's name
-          content: this.newMessage
+          content: this.newMessage,
         });
 
         // Clear the input field
         this.newMessage = '';
+      }
+    },
+
+    closeChat() {
+      this.showChat = false;
+      this.receiverUsername = '';
+      this.activeChat = null; // Reset the active chat
+      if (this.chatSocket) {
+        this.chatSocket.close();
       }
     },
 
