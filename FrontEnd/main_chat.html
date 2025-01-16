@@ -1,0 +1,62 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with {{ receiver.username }}</title>
+</head>
+<body>
+
+<h4>Chat with {{ receiver.username }} <a href="{% url 'home' %}">back</a></h4>
+{% for user in users %}
+    {% if user.username != 'admin' %}
+    <p id="{{ user.username }}_status">
+        {{ user.username }}
+        <a href="{% url 'chat' username=user.username %}" data-username="{{ user.username }}">chat</a> |
+        <a href="#">block</a>
+        <small><span id="{{ user.username }}_tag"></span></small>
+    </p>
+    {% endif %}
+{% endfor %}
+<!-- Chat messages -->
+<table id="chat-table">
+    <tbody id="chat-body">
+        {% for message in messages %}
+        <tr>
+            <td>
+                {% if message.sender == request.user.username %}
+                <p>{{ request.user.username }}: {{ message.message }}</p>
+                {% else %}
+                <p>{{ receiver.username }}: {{ message.message }}</p>
+                {% endif %}
+            </td>
+            <td>
+                <small>{{ message.timestamp|time:'H:i' }}</small>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<!-- Message Input and Submit -->
+<div id="chatBox"></div>
+<input type="text" id="messageInput" placeholder="Type your message here..." />
+<button onclick="sendMessage()">Send</button>
+
+<!-- JSON data for JavaScript -->
+<script id="json-messager-id" type="application/json">{{ user_json|safe }}</script>
+<script id="json-receiver-id" type="application/json">{{ receiver_json|safe }}</script>
+<script id="json-messager-username" type="application/json">{{ username_json|safe }}</script>
+<script id="json-receiver-username" type="application/json">{{ receiver_username_json|safe }}</script>
+<script src="{% static 'chat/chat.js' %}"></script>
+
+<!-- Main JavaScript -->
+<script>
+    var currentUsername = "{{ user.username }}";  // Now the username is available in JavaScript
+    console.log(currentUsername);
+</script>
+<script src="{% static 'chat/online.js' %}"></script>
+
+</body>
+</html>

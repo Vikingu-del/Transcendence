@@ -29,6 +29,7 @@
       <button @click="logout" class="btn secondary-btn">Logout</button>
     </div>   
 
+
     <!-- Search Profiles Section -->
     <div>
       <input v-model="searchQuery" @input="searchProfiles" placeholder="Search profiles..." />
@@ -80,9 +81,22 @@
           <span class="status" :class="{ online: friend.is_online, offline: !friend.is_online }">
             {{ friend.is_online ? 'Online' : 'Offline' }}
           </span>
+          <button @click="startChat(profile.username)" class="btn primary-btn">Start Chat</button>
           <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove Friend</button>
         </li>
       </ul>
+    </div>
+
+    <!-- Chat Section -->
+    <div class="chat-container" v-if="showChat">
+      <h2>Chat with {{ receiverUsername }}</h2>
+      <div class="chat-box">
+        <div v-for="message in messages" :key="message.id" class="chat-message">
+          <span class="chat-username">{{ message.sender }}</span>: {{ message.content }}
+        </div>
+      </div>
+      <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Type a message..." />
+      <button @click="sendMessage">Send</button>
     </div>
   </div>
 </template>
@@ -102,11 +116,15 @@ export default {
       incomingFriendRequests: [],
       currentUserId: null,
       notifications: [],
-      socket: null, // WebSocket connection
       displayNameError: '',
       isUpdateDisabled: true,
       originalDisplayName: '',
       originalAvatarUrl: '',
+      messages: [],
+      newMessage: '',
+      socket: null,
+      showChat: false,
+      receiverUsername: '',
     };
   },
   async created() {
@@ -142,6 +160,12 @@ export default {
         console.error('Error fetching profile:', error);
         alert('Error fetching profile');
       }
+    },
+
+    startChat(username) {
+      this.receiverUsername = username;
+      this.showChat = true;
+      this.connectChatWebSocket();
     },
 
     // Fetch incoming friend requests
@@ -204,6 +228,29 @@ export default {
       this.socket.onclose = () => {
         console.log('WebSocket connection closed');
       };
+    },
+
+    connectChatWebSocket() {
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${this.receiverUsername}/`);
+      this.socket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        this.messages.push(message);
+      };
+      this.socket.onclose = () => {
+        console.log('WebSocket connection closed');
+      };
+    },
+
+    sendMessage() {
+      if (this.newMessage.trim() !== '') {
+        const message = {
+          sender: this.$store.state.currentUser.username,
+          content: this.newMessage,
+        };
+        this.socket.send(JSON.stringify(message));
+        this.newMessage = '';
+      }
     },
 
     async checkDisplayName() {
@@ -642,4 +689,30 @@ nav {
 nav .btn {
   margin: 1em 0;
 }
+
+.chat-container {
+  margin-top: 20px;
+}
+
+.chat-box {
+  border: 1px solid #ccc;
+  padding: 10px;
+  height: 200px;
+  overflow-y: scroll;
+}
+
+.chat-message {
+  margin-bottom: 10px;
+}
+
+.chat-username {
+  font-weight: bold;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  box-sizing: border-box;
+}
+
 </style>

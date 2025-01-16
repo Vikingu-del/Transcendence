@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:43 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/05 15:33:47 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/14 15:51:18 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -40,3 +40,20 @@ class Friendship(models.Model):
 
     class Meta:
         unique_together = ('from_profile', 'to_profile')
+
+class ChatModel(models.Model):
+    sender = models.CharField(max_length=100, default=None)
+    message = models.TextField(null=True, blank=True)
+    thread_name = models.CharField(null=True, blank=True, max_length=50)
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return (f"({self.thread_name}) {self.sender}: {self.message}")
+    
+class ChatNotification(models.Model):
+    chat = models.ForeignKey(to=ChatModel, on_delete=models.CASCADE)
+    user = models.ForeignKey(to=User, on_delete=models.CASCADE)
+    is_seen = models.BooleanField(default=False)
+
+    def __str__(self):
+        return self.user.username

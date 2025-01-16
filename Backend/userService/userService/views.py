@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2024/12/19 15:23:06 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/14 16:38:18 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -18,7 +18,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer
-from .models import Profile, Friendship
+from .models import Profile, Friendship, ChatModel, ChatNotification
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
@@ -27,7 +27,13 @@ from rest_framework.decorators import permission_classes
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-
+from django.contrib.messages.api import *  # NOQA
+from django.contrib.messages.constants import *  # NOQA
+from django.contrib.messages.storage.base import Message  # NOQA
+import json
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.shortcuts import render
 import logging
 
 logger = logging.getLogger(__name__)
@@ -328,4 +334,32 @@ class LogoutView(APIView):
 
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-        return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
+            return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
+
+@api_view(['GET'])
+def chatView(request, username):
+    user = request.user
+    receiver = get_object_or_404(User, username=username)
+    
+    # Check if the users are friends
+    if not Friendship.objects.filter(user=user, friend=receiver).exists():
+        return JsonResponse({'error': 'You are not friends with this user.'}, status=403)
+    
+    if user.id < receiver.id:
+        thread_name = f'chat_{user.username}-{receiver.username}'
+    else:
+        thread_name = f'chat_{receiver.username}-{user.username}'
+    
+    messages = ChatModel.objects.filter(thread_name=thread_name)
+    users = User.objects.exclude(username=request.user.username).values('id', 'username')
+    context = {
+        'users': users,
+        'user': user,
+        'receiver': receiver,
+        'messages': messages,
+        'user_json': json.dumps(user.id),
+        'receiver_json': json.dumps(receiver.id),
+        'username_json': json.dumps(user.username),
+        'receiver_username_json': json.dumps(receiver.username)
+    }
+    return render(request, 'chat/main_chat.html', context)
