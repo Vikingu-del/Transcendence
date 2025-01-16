@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/14 16:38:18 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/16 16:23:27 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -336,30 +336,41 @@ class LogoutView(APIView):
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
             return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
 
-@api_view(['GET'])
-def chatView(request, username):
-    user = request.user
-    receiver = get_object_or_404(User, username=username)
-    
-    # Check if the users are friends
-    if not Friendship.objects.filter(user=user, friend=receiver).exists():
-        return JsonResponse({'error': 'You are not friends with this user.'}, status=403)
-    
-    if user.id < receiver.id:
-        thread_name = f'chat_{user.username}-{receiver.username}'
-    else:
-        thread_name = f'chat_{receiver.username}-{user.username}'
-    
-    messages = ChatModel.objects.filter(thread_name=thread_name)
-    users = User.objects.exclude(username=request.user.username).values('id', 'username')
-    context = {
-        'users': users,
-        'user': user,
-        'receiver': receiver,
-        'messages': messages,
-        'user_json': json.dumps(user.id),
-        'receiver_json': json.dumps(receiver.id),
-        'username_json': json.dumps(user.username),
-        'receiver_username_json': json.dumps(receiver.username)
-    }
-    return render(request, 'chat/main_chat.html', context)
+@method_decorator(csrf_exempt, name='dispatch')
+class ChatView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, display_name):
+        user = request.user
+        user_profile = get_object_or_404(Profile, user=user)
+        receiver_profile = get_object_or_404(Profile, display_name=display_name)
+        receiver = receiver_profile.user
+        
+        # Check if the users are friends
+        if not Friendship.objects.filter(from_profile=user_profile, to_profile=receiver_profile, status='accepted').exists() and not Friendship.objects.filter(from_profile=receiver_profile, to_profile=user_profile, status='accepted').exists():
+            return JsonResponse({'error': 'You are not friends with this user.'}, status=403)
+        
+        if user.id < receiver.id:
+            thread_name = f'chat_{user.username}-{receiver.username}'
+        else:
+            thread_name = f'chat_{receiver.username}-{user.username}'
+        
+        messages = ChatModel.objects.filter(thread_name=thread_name)
+        users = User.objects.exclude(username=request.user.username).values('id', 'username')
+        context = {
+            'users': list(users),
+            'user': {
+                'id': user.id,
+                'username': user.username,
+            },
+            'receiver': {
+                'id': receiver.id,
+                'username': receiver.username,
+            },
+            'messages': list(messages.values('id', 'sender', 'message', 'timestamp')),
+            'user_json': json.dumps(user.id),
+            'receiver_json': json.dumps(receiver.id),
+            'username_json': json.dumps(user.username),
+            'receiver_username_json': json.dumps(receiver.username)
+        }
+        return Response(context)

@@ -1,7 +1,8 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import Profile  # Import Profile model
+from .models import Profile, ChatModel, ChatNotification # Import necessary models
+from django.contrib.auth.models import User  # Import User model
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -24,6 +25,21 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             # Notify friends about online status
             await self.notify_friends('online')
 
+            # Add the user to the "online_users" group
+            await self.channel_layer.group_add("online_users", self.channel_name)
+
+            # Send the list of online users to the newly connected user
+            await self.send_online_users_list()
+
+            # Notify other users of this user's login
+            await self.channel_layer.group_send(
+                "online_users",
+                {
+                    "type": "user_login",
+                    "username": self.user.username,
+                },
+            )
+
     async def disconnect(self, close_code):
         # Set user as offline
         await self.set_user_offline()
@@ -36,11 +52,50 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             self.channel_name
         )
 
+        if self.user.is_authenticated:
+            # Remove the user from the "online_users" group
+            await self.channel_layer.group_discard("online_users", self.channel_name)
+
+            # Notify other users of this user's logout
+            await self.channel_layer.group_send(
+                "online_users",
+                {
+                    "type": "user_logout",
+                    "username": self.user.username,
+                },
+            )
+
     async def receive(self, text_data):
-        pass
+        data = json.loads(text_data)
+        if 'message' in data:
+            message = data['message']
+            username = data['username']
+            receiver = data['receiver']
+
+            await self.save_message(username, self.group_name, message, receiver)
+
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': 'chat_message',
+                    'message': message,
+                    'username': username,
+                }
+            )
+        else:
+            pass
 
     async def send_notification(self, event):
         await self.send(text_data=json.dumps(event["message"]))
+
+    async def chat_message(self, event):
+        message = event['message']
+        username = event['username']
+
+        await self.send(text_data=json.dumps({
+            'message': message,
+            'username': username
+        }))
 
     @database_sync_to_async
     def set_user_online(self):
@@ -84,3 +139,31 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             'from_user_id': event['from_user_id'],
             'from_user_name': event['from_user_name'],
         }))
+
+    async def send_online_users_list(self):
+        # Retrieve the online users and send to the connected client
+        online_users = await self.get_online_users()
+        await self.send(text_data=json.dumps({"type": "online_users_list", "users": online_users}))
+
+    @database_sync_to_async
+    def get_online_users(self):
+        # Query all currently authenticated users
+        current_username = self.scope["user"].username
+        user_list = Profile.objects.filter(is_online=True).exclude(user__username=current_username)
+
+        return [x.user.username for x in user_list]
+
+    async def user_login(self, event):
+        await self.send(text_data=json.dumps({"type": "user_login", "username": event["username"]}))
+
+    async def user_logout(self, event):
+        await self.send(text_data=json.dumps({"type": "user_logout", "username": event["username"]}))
+
+    @database_sync_to_async
+    def save_message(self, username, thread_name, message, receiver):
+        chat_obj = ChatModel.objects.create(
+            sender=username, message=message, thread_name=thread_name)
+        other_user_id = self.scope['url_route']['kwargs']['id']
+        get_user = User.objects.get(id=other_user_id)
+        if receiver == get_user.username:
+            ChatNotification.objects.create(chat=chat_obj, user=get_user)

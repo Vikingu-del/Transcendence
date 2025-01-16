@@ -18,7 +18,7 @@ Including another URLconf
 from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView, AddFriendView, RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, IncomingFriendRequestsView, check_display_name, delete_avatar, chatView
+from .views import RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView, AddFriendView, RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, IncomingFriendRequestsView, ChatView, check_display_name, delete_avatar
 
 urlpatterns = [
     path('api/register/', RegisterView.as_view(), name='register'),
@@ -33,7 +33,7 @@ urlpatterns = [
     path('api/profile/decline_friend_request/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
     path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
     path('api/profile/incoming_friend_requests/', IncomingFriendRequestsView.as_view(), name='incoming_friend_requests'),
-    path('api/profile/chat/<str:username>/', chatView, name='chat'),
+    path('api/profile/chat/<str:display_name>/', ChatView.as_view(), name='chat'),
 ]
 
 if settings.DEBUG:

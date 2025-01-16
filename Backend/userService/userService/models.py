@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:43 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/14 15:51:18 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/16 13:21:51 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -48,7 +48,7 @@ class ChatModel(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return (f"({self.thread_name}) {self.sender}: {self.message}")
+        return f"({self.thread_name}) {self.sender}: {self.message}"
     
 class ChatNotification(models.Model):
     chat = models.ForeignKey(to=ChatModel, on_delete=models.CASCADE)

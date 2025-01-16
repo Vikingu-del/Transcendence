@@ -81,7 +81,7 @@
           <span class="status" :class="{ online: friend.is_online, offline: !friend.is_online }">
             {{ friend.is_online ? 'Online' : 'Offline' }}
           </span>
-          <button @click="startChat(profile.username)" class="btn primary-btn">Start Chat</button>
+          <button @click="startChat(friend.display_name)" class="btn primary-btn">Start Chat</button>
           <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove Friend</button>
         </li>
       </ul>
@@ -90,6 +90,7 @@
     <!-- Chat Section -->
     <div class="chat-container" v-if="showChat">
       <h2>Chat with {{ receiverUsername }}</h2>
+      <button @click="closeChat" class="btn secondary-btn">Close</button> <!-- Close button -->
       <div class="chat-box">
         <div v-for="message in messages" :key="message.id" class="chat-message">
           <span class="chat-username">{{ message.sender }}</span>: {{ message.content }}
@@ -120,11 +121,12 @@ export default {
       isUpdateDisabled: true,
       originalDisplayName: '',
       originalAvatarUrl: '',
+      showChat: false,
+      receiverUsername: '',
       messages: [],
       newMessage: '',
       socket: null,
-      showChat: false,
-      receiverUsername: '',
+      chatSocket: null
     };
   },
   async created() {
@@ -162,10 +164,39 @@ export default {
       }
     },
 
-    startChat(username) {
-      this.receiverUsername = username;
+    async startChat(displayName) {
+      console.log('Starting chat with:', displayName);
+      this.receiverUsername = displayName;
       this.showChat = true;
-      this.connectChatWebSocket();
+
+      try {
+        const response = await fetch(`/api/profile/chat/${displayName}/`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          this.messages = data.messages;
+          this.connectChatWebSocket();
+        } else {
+          const errorText = await response.text();
+          console.error('Fetch failed:', errorText);
+          alert('Failed to start chat');
+        }
+      } catch (error) {
+        console.error('Error starting chat:', error);
+        alert('Error starting chat');
+      }
+    },
+
+    closeChat() {
+      this.showChat = false;
+      this.receiverUsername = '';
+      if (this.chatSocket) {
+        this.chatSocket.close();
+      }
     },
 
     // Fetch incoming friend requests
@@ -231,24 +262,51 @@ export default {
     },
 
     connectChatWebSocket() {
+      if (!this.receiverUsername) {
+        console.error('Receiver username is not set');
+        return;
+      }
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      this.socket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${this.receiverUsername}/`);
-      this.socket.onmessage = (event) => {
+      this.chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${this.receiverUsername}/`);
+      this.chatSocket.onmessage = (event) => {
         const message = JSON.parse(event.data);
         this.messages.push(message);
       };
-      this.socket.onclose = () => {
-        console.log('WebSocket connection closed');
+      this.chatSocket.onclose = () => {
+        console.log('Chat WebSocket connection closed');
       };
     },
 
     sendMessage() {
-      if (this.newMessage.trim() !== '') {
+      if (this.chatSocket && this.newMessage.trim() !== '') {
         const message = {
-          sender: this.$store.state.currentUser.username,
+          sender: this.currentUserId,
           content: this.newMessage,
         };
-        this.socket.send(JSON.stringify(message));
+        this.chatSocket.send(JSON.stringify(message));
+        this.newMessage = '';
+      }
+    },
+
+    sendMessage() {
+      if (this.newMessage.trim() !== '') {
+        const messageData = {
+          sender: 'You', // Replace with the actual sender's name
+          message: this.newMessage,
+          receiver: this.receiverUsername
+        };
+
+        // Send the message to the server
+        this.chatSocket.send(JSON.stringify(messageData));
+
+        // Add the new message to the messages array
+        this.messages.push({
+          id: Date.now(),
+          sender: 'You', // Replace with the actual sender's name
+          content: this.newMessage
+        });
+
+        // Clear the input field
         this.newMessage = '';
       }
     },
