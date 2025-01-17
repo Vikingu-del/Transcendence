@@ -1,8 +1,11 @@
 import json
+import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from .models import Profile, ChatModel, ChatNotification
 from django.contrib.auth.models import User
+
+logger = logging.getLogger(__name__)
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -86,9 +89,36 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             'from_user_name': event['from_user_name'],
         }))
 
-    async def handle_chat_message(self, text_data_json):
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        self.room_name = self.scope['url_route']['kwargs']['room_name']
+        self.room_group_name = f'chat_{self.room_name}'
+
+        logger.debug(f"Connecting to room: {self.room_group_name}")
+
+        # Join room group
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+    async def disconnect(self, close_code):
+        logger.debug(f"Disconnecting from room: {self.room_group_name}")
+
+        # Leave room group
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    async def receive(self, text_data):
+        text_data_json = json.loads(text_data)
         message = text_data_json['message']
         sender = self.scope['user'].username
+
+        logger.debug(f"Received message: {message} from sender: {sender}")
 
         # Save message to the database
         await self.save_message(sender, self.room_group_name, message)
@@ -107,9 +137,15 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         message = event['message']
         sender = event['sender']
 
+        logger.debug(f"Sending message: {message} from sender: {sender}")
+
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             'message': message,
             'sender': sender
         }))
+
+    @database_sync_to_async
+    def save_message(self, sender, thread_name, message):
+        ChatModel.objects.create(sender=sender, thread_name=thread_name, message=message)

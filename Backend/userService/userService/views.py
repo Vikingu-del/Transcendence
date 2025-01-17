@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/16 17:30:35 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/17 13:31:26 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -347,16 +347,19 @@ class ChatView(APIView):
         receiver = receiver_profile.user
         
         # Check if the users are friends
-        if not Friendship.objects.filter(from_profile=user_profile, to_profile=receiver_profile, status='accepted').exists() and not Friendship.objects.filter(from_profile=receiver_profile, to_profile=user_profile, status='accepted').exists():
+        if not Friendship.objects.filter(
+            (Q(from_profile=user_profile, to_profile=receiver_profile) | 
+             Q(from_profile=receiver_profile, to_profile=user_profile)) & 
+            Q(status='accepted')
+        ).exists():
             return JsonResponse({'error': 'You are not friends with this user.'}, status=403)
         
-        if user.id < receiver.id:
-            thread_name = f'chat_{user.username}-{receiver.username}'
-        else:
-            thread_name = f'chat_{receiver.username}-{user.username}'
+        # Generate the room name based on the user IDs to ensure consistency
+        room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
         
-        messages = ChatModel.objects.filter(thread_name=thread_name)
+        messages = ChatModel.objects.filter(thread_name=room_name).values('id', 'sender', 'message', 'timestamp')
         users = User.objects.exclude(username=request.user.username).values('id', 'username')
+        
         context = {
             'users': list(users),
             'user': {
@@ -367,10 +370,25 @@ class ChatView(APIView):
                 'id': receiver.id,
                 'username': receiver.username,
             },
-            'messages': list(messages.values('id', 'sender', 'message', 'timestamp')),
-            'user_json': json.dumps(user.id),
-            'receiver_json': json.dumps(receiver.id),
-            'username_json': json.dumps(user.username),
-            'receiver_username_json': json.dumps(receiver.username)
+            'messages': list(messages),
+            'room_name': room_name
         }
         return Response(context)
+    
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def start_chat(request, display_name):
+    user = request.user
+    receiver_profile = get_object_or_404(Profile, display_name=display_name)
+    receiver = receiver_profile.user
+
+    # Generate the room name based on the user IDs to ensure consistency
+    room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
+
+    # Fetch previous messages
+    messages = ChatModel.objects.filter(thread_name=room_name).values('sender', 'message', 'timestamp')
+
+    return JsonResponse({
+        'room_name': room_name,
+        'messages': list(messages)
+    })
