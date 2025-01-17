@@ -92,7 +92,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.room_group_name = f'chat_{self.room_name}'
+        self.room_group_name = f'{self.room_name}'
 
         logger.debug(f"Connecting to room: {self.room_group_name}")
 
@@ -130,22 +130,53 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'chat_message',
                 'message': message,
                 'sender': sender.username,
+                'sender_display_name': sender.get_full_name(),  # Include sender's display name
             }
         )
 
     async def chat_message(self, event):
         message = event['message']
         sender = event['sender']
+        sender_display_name = event['sender_display_name']  # Get sender's display name
 
-        logger.debug(f"Sending message: {message} from sender: {sender}")
+        logger.debug(f"Sending message: {message} from sender: {sender} ({sender_display_name})")
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({
             'type': 'chat_message',
             'message': message,
-            'sender': sender
+            'sender': sender,
+            'sender_display_name': sender_display_name,  # Include sender's display name
         }))
-
+        
     @database_sync_to_async
     def save_message(self, sender, thread_name, message):
-        ChatModel.objects.create(sender=sender, thread_name=thread_name, message=message)
+        logger.debug(f"Saving message to thread: {thread_name}")
+
+        # Validate and parse thread_name
+        try:
+            parts = thread_name.split('_')
+            if len(parts) != 3:
+                raise ValueError("Invalid thread_name format. Expected format: 'thread_user1ID_user2ID'")
+            
+            _, user1_id, user2_id = parts
+            user1_id = int(user1_id)
+            user2_id = int(user2_id)
+        except ValueError as e:
+            logger.error(f"Error parsing thread_name '{thread_name}': {e}")
+            return
+
+        # Determine the receiver
+        try:
+            receiver_id = user2_id if sender.id == user1_id else user1_id
+            receiver = User.objects.get(id=receiver_id)
+        except User.DoesNotExist:
+            logger.error(f"Receiver with ID {receiver_id} does not exist.")
+            return
+
+        # Save the message
+        try:
+            ChatModel.objects.create(sender=sender, receiver=receiver, thread_name=thread_name, message=message)
+            logger.debug(f"Message saved successfully in thread: {thread_name}")
+        except Exception as e:
+            logger.error(f"Error saving message to database: {e}")

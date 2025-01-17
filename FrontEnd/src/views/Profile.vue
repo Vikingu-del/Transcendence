@@ -91,7 +91,7 @@
     <div v-if="showChat">
       <!-- Chat messages -->
       <div v-for="message in messages" :key="message.timestamp + message.sender">
-        <strong>{{ message.sender }}:</strong> {{ message.content }}
+        <strong>{{ message.sender_display_name }}:</strong> {{ message.content }}
       </div>
 
       <!-- Input for new message -->
@@ -206,38 +206,40 @@ export default {
         return;
       }
 
-      if (this.chatSocket) {
+      // Close existing connection if it's active or reconnecting
+      if (this.chatSocket && this.chatSocket.readyState <= WebSocket.CLOSING) {
         this.chatSocket.close();
         console.log('Previous WebSocket connection closed');
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      this.chatSocket = new WebSocket(
-        `${protocol}//${window.location.host}/ws/chat/${roomName}/`
-      );
+      this.chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomName}/`);
 
       this.chatSocket.onopen = () => {
         console.log('Chat WebSocket connection established');
       };
 
       this.chatSocket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'chat_message') {
-          this.messages.push({
-            sender: data.sender,
-            content: data.message,
-            timestamp: data.timestamp,
-          });
+        try {
+          const data = JSON.parse(event.data);
+          if (data.type === 'chat_message') {
+            this.messages.push({
+              sender_display_name: data.sender_display_name,
+              content: data.message,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        } catch (error) {
+          console.error('Error parsing WebSocket message:', error);
         }
       };
 
       this.chatSocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
+        console.error('WebSocket encountered an error:', error);
       };
 
       this.chatSocket.onclose = (event) => {
-        console.log('Chat WebSocket connection closed', event);
-        this.chatSocket = null;
+        console.log('WebSocket connection closed:', event.reason || 'No reason provided');
       };
     },
 

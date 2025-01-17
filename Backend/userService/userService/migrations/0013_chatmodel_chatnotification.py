@@ -16,11 +16,12 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name='ChatModel',
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('sender', models.CharField(default=None, max_length=100)),
-                ('message', models.TextField(blank=True, null=True)),
-                ('thread_name', models.CharField(blank=True, max_length=50, null=True)),
+                ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
+                ('message', models.TextField()),
                 ('timestamp', models.DateTimeField(auto_now_add=True)),
+                ('thread_name', models.CharField(max_length=255)),
+                ('receiver', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='received_messages', to='auth.User')),
+                ('sender', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='sent_messages', to='auth.User')),
             ],
         ),
         migrations.CreateModel(

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/17 13:57:29 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/17 16:21:56 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -357,19 +357,9 @@ class ChatView(APIView):
         # Generate the room name based on the user IDs to ensure consistency
         room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
         
-        messages = ChatModel.objects.filter(thread_name=room_name).values('id', 'sender', 'message', 'timestamp')
-        users = User.objects.exclude(username=request.user.username).values('id', 'username')
+        messages = ChatModel.objects.filter(thread_name=room_name).values('sender__username', 'message', 'timestamp')
         
         context = {
-            'users': list(users),
-            'user': {
-                'id': user.id,
-                'username': user.username,
-            },
-            'receiver': {
-                'id': receiver.id,
-                'username': receiver.username,
-            },
             'messages': list(messages),
             'room_name': room_name
         }
@@ -386,7 +376,7 @@ def start_chat(request, display_name):
     room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
 
     # Fetch previous messages
-    messages = ChatModel.objects.filter(thread_name=room_name).values('sender', 'message', 'timestamp')
+    messages = ChatModel.objects.filter(thread_name=room_name).values('sender__username', 'message', 'timestamp')
 
     return JsonResponse({
         'room_name': room_name,

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:43 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/16 13:21:51 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/17 15:35:15 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -42,13 +42,14 @@ class Friendship(models.Model):
         unique_together = ('from_profile', 'to_profile')
 
 class ChatModel(models.Model):
-    sender = models.CharField(max_length=100, default=None)
-    message = models.TextField(null=True, blank=True)
-    thread_name = models.CharField(null=True, blank=True, max_length=50)
+    sender = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_messages')
+    receiver = models.ForeignKey(User, on_delete=models.CASCADE, related_name='received_messages')
+    message = models.TextField()
     timestamp = models.DateTimeField(auto_now_add=True)
+    thread_name = models.CharField(max_length=255)
 
     def __str__(self):
-        return f"({self.thread_name}) {self.sender}: {self.message}"
+        return f"{self.sender} to {self.receiver}: {self.message[:50]}"
     
 class ChatNotification(models.Model):
     chat = models.ForeignKey(to=ChatModel, on_delete=models.CASCADE)
