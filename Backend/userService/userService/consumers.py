@@ -116,9 +116,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         text_data_json = json.loads(text_data)
         message = text_data_json['message']
-        sender = self.scope['user'].username
+        sender = self.scope['user']
 
-        logger.debug(f"Received message: {message} from sender: {sender}")
+        logger.debug(f"Received message: {message} from sender: {sender.username}")
 
         # Save message to the database
         await self.save_message(sender, self.room_group_name, message)
@@ -129,7 +129,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             {
                 'type': 'chat_message',
                 'message': message,
-                'sender': sender,
+                'sender': sender.username,
             }
         )
 

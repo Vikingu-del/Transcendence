@@ -90,7 +90,7 @@
     <!-- Chat Section -->
     <div v-if="showChat">
       <!-- Chat messages -->
-      <div v-for="message in messages" :key="message.timestamp">
+      <div v-for="message in messages" :key="message.timestamp + message.sender">
         <strong>{{ message.sender }}:</strong> {{ message.content }}
       </div>
 
@@ -174,14 +174,19 @@ export default {
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
           },
         });
 
         if (response.ok) {
           const data = await response.json();
-          // Ensure room_name is retrieved from the response
           const roomName = data.room_name;
           if (roomName) {
+            this.messages = data.messages.map(msg => ({
+              sender: msg.sender,
+              content: msg.message,
+              timestamp: msg.timestamp,
+            }));
             this.connectChatWebSocket(roomName);
           } else {
             console.error('Room name is not set in the response');
@@ -201,7 +206,6 @@ export default {
         return;
       }
 
-      // If there's already an existing WebSocket connection, close it
       if (this.chatSocket) {
         this.chatSocket.close();
         console.log('Previous WebSocket connection closed');
@@ -222,6 +226,7 @@ export default {
           this.messages.push({
             sender: data.sender,
             content: data.message,
+            timestamp: data.timestamp,
           });
         }
       };
@@ -232,12 +237,17 @@ export default {
 
       this.chatSocket.onclose = (event) => {
         console.log('Chat WebSocket connection closed', event);
-        this.chatSocket = null; // Reset the chatSocket to null when closed
+        this.chatSocket = null;
       };
     },
 
     sendMessage() {
       if (this.newMessage.trim() !== '') {
+        if (!this.chatSocket) {
+          console.error('Chat WebSocket connection is not established');
+          return;
+        }
+
         const messageData = {
           message: this.newMessage,
         };
@@ -245,8 +255,9 @@ export default {
         this.chatSocket.send(JSON.stringify(messageData));
 
         this.messages.push({
-          sender: this.currentUserId,
+          sender: this.displayName, // Use displayName instead of currentUserId
           content: this.newMessage,
+          timestamp: new Date().toISOString(), // Add timestamp for unique key
         });
 
         this.newMessage = '';
