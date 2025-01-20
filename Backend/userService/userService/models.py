@@ -38,10 +38,10 @@ class ChatModel(models.Model):
     def __str__(self):
         return f"{self.sender}: {self.message[:50]}"
     
-class ChatNotification(models.Model):
-    chat = models.ForeignKey(to=ChatModel, on_delete=models.CASCADE)
-    user = models.ForeignKey(to=User, on_delete=models.CASCADE)
-    is_seen = models.BooleanField(default=False)
+# class ChatNotification(models.Model):
+#     chat = models.ForeignKey(to=ChatModel, on_delete=models.CASCADE)
+#     user = models.ForeignKey(to=User, on_delete=models.CASCADE)
+#     is_seen = models.BooleanField(default=False)
 
-    def __str__(self):
-        return self.user.username
+#     def __str__(self):
+#         return self.user.username

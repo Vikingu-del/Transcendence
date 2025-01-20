@@ -96,8 +96,8 @@
         <tbody id="chat-body">
           <tr v-for="message in messages" :key="message.timestamp + message.sender">
             <td>
-              <p v-if="message.sender === displayName">{{ displayName }}: {{ message.content }}</p>
-              <p v-else>{{ receiverUsername }}: {{ message.content }}</p>
+              <p v-if="message.sender === displayName">{{ displayName }}: {{ message.message }}</p>
+              <p v-else>{{ receiverUsername }}: {{ message.message }}</p>
             </td>
             <td>
               <small>{{ new Date(message.timestamp).toLocaleTimeString() }}</small>
@@ -229,10 +229,10 @@ export default {
       this.chatSocket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
-          if (data.type === 'chat_message') {
+          if (data.message && data.username) {
             this.messages.push({
-              sender_display_name: data.username,
-              content: data.message,
+              sender: data.username,
+              message: data.message,
               timestamp: new Date().toISOString(),
             });
           }
@@ -267,7 +267,7 @@ export default {
 
         this.messages.push({
           sender: this.displayName,
-          content: this.newMessage,
+          message: this.newMessage,
           timestamp: new Date().toISOString(),
         });
 

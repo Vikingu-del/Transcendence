@@ -2,7 +2,7 @@ import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import Profile, ChatModel, ChatNotification
+from .models import Profile, ChatModel
 from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         query_string = self.scope['query_string'].decode()
         query_params = dict(qc.split('=') for qc in query_string.split('&'))
         other_user_id = query_params.get('friend_id')
+        self.other_user_id = other_user_id
         
         if other_user_id is None:
             logger.error("other_user_id is None")
@@ -130,9 +131,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
         message = data['message']
         username = data['username']
         receiver = data['receiver']
-
+        receiver_id = int(self.other_user_id)
+        sender_id = int(self.scope['user'].id)  # Get sender's ID
+        print(message)
+        if sender_id < receiver_id:
+            thread_name = f'chat_{sender_id}-{receiver_id}'
+        else:
+            thread_name = f'chat_{receiver_id}-{sender_id}'
+    
         # Save the message to the database
-        await self.save_message(username, self.room_group_name, message, receiver)
+        await self.save_message(username, thread_name, message, receiver)
 
         # Send the message to all clients in the room
         await self.channel_layer.group_send(
@@ -141,17 +149,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 'type': 'chat_message',
                 'message': message,
                 'username': username,
+                'sender_id': sender_id,  # Include sender's ID
             }
         )
 
     async def chat_message(self, event):
-        message = event['message']
-        username = event['username']
-
-        await self.send(text_data=json.dumps({
-            'message': message,
-            'username': username
-        }))
+        # Only send if current user is not the sender
+        if self.scope['user'].id != event['sender_id']:
+            await self.send(text_data=json.dumps({
+                'message': event['message'],
+                'username': event['username']
+            }))
 
     @database_sync_to_async
     def save_message(self, username, thread_name, message, receiver):
@@ -163,6 +171,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
         other_user_id = self.scope['query_string'].decode().split('=')[1]
         get_user = User.objects.get(id=other_user_id)
         
-        # Handle notification creation if the receiver is the user we're sending to
-        if receiver == get_user.username:
-            ChatNotification.objects.create(chat=chat_obj, user=get_user)
+        # # Handle notification creation if the receiver is the user we're sending to
+        # if receiver == get_user.username:
+        #     ChatNotification.objects.create(chat=chat_obj, user=get_user)
