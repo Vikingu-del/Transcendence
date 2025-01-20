@@ -165,51 +165,35 @@ export default {
     },
 
     async startChat(displayName) {
-      console.log('Starting chat with:', displayName);
-      this.receiverUsername = displayName;
-      this.showChat = true;
-      this.activeChat = displayName;
-      try {
-        const response = await fetch(`/api/profile/chat/${displayName}/`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-          },
-        });
+        console.log('Starting chat with:', displayName);
+        this.receiverUsername = displayName;
+        this.showChat = true;
+        this.activeChat = displayName;
+        try {
+            const response = await fetch(`/api/profile/chat/${displayName}/`, {
+                headers: {
+                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+                },
+            });
 
-        if (response.ok) {
-          const data = await response.json();
-          const roomName = data.room_name;
-          if (roomName) {
-            this.messages = data.messages.map(msg => ({
-              sender: msg.sender,
-              content: msg.message,
-              timestamp: msg.timestamp,
-            }));
-            this.connectChatWebSocket(roomName);
-          } else {
-            console.error('Room name is not set in the response');
-          }
-        } else {
-          console.error('Failed to start chat');
+            if (response.ok) {
+                const data = await response.json();
+                this.messages = data.messages;
+                this.connectChatWebSocket(data.thread_name);
+            } else {
+                console.error('Error starting chat:', response.statusText);
+                alert('Error starting chat');
+            }
+        } catch (error) {
+            console.error('Error starting chat:', error);
+            alert('Error starting chat');
         }
-      } catch (error) {
-        console.error('Error starting chat:', error);
-        alert('Error starting chat');
-      }
     },
 
     connectChatWebSocket(roomName) {
       if (!roomName) {
         console.error('Room name is not set');
         return;
-      }
-
-      // Close existing connection if it's active or reconnecting
-      if (this.chatSocket && this.chatSocket.readyState <= WebSocket.CLOSING) {
-        this.chatSocket.close();
-        console.log('Previous WebSocket connection closed');
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -224,7 +208,7 @@ export default {
           const data = JSON.parse(event.data);
           if (data.type === 'chat_message') {
             this.messages.push({
-              sender_display_name: data.sender_display_name,
+              sender_display_name: data.username,
               content: data.message,
               timestamp: new Date().toISOString(),
             });

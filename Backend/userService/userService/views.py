@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/17 16:21:56 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/20 16:41:41 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -30,10 +30,12 @@ from asgiref.sync import async_to_sync
 from django.contrib.messages.api import *  # NOQA
 from django.contrib.messages.constants import *  # NOQA
 from django.contrib.messages.storage.base import Message  # NOQA
+from django.views.generic import DetailView 
 import json
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
+from django.contrib.auth import get_user_model
 import logging
 
 logger = logging.getLogger(__name__)
@@ -336,49 +338,33 @@ class LogoutView(APIView):
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
             return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
 
-@method_decorator(csrf_exempt, name='dispatch')
-class ChatView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, display_name):
-        user = request.user
-        user_profile = get_object_or_404(Profile, user=user)
-        receiver_profile = get_object_or_404(Profile, display_name=display_name)
-        receiver = receiver_profile.user
-        
-        # Check if the users are friends
-        if not Friendship.objects.filter(
-            (Q(from_profile=user_profile, to_profile=receiver_profile) | 
-             Q(from_profile=receiver_profile, to_profile=user_profile)) & 
-            Q(status='accepted')
-        ).exists():
-            return JsonResponse({'error': 'You are not friends with this user.'}, status=403)
-        
-        # Generate the room name based on the user IDs to ensure consistency
-        room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
-        
-        messages = ChatModel.objects.filter(thread_name=room_name).values('sender__username', 'message', 'timestamp')
-        
-        context = {
-            'messages': list(messages),
-            'room_name': room_name
-        }
-        return Response(context)
+class ChatView(DetailView):
+    template_name = 'chat/main_chat.html'
+    context_object_name = 'receiver'
     
-@api_view(['GET'])
-@permission_classes([IsAuthenticated])
-def start_chat(request, display_name):
-    user = request.user
-    receiver_profile = get_object_or_404(Profile, display_name=display_name)
-    receiver = receiver_profile.user
-
-    # Generate the room name based on the user IDs to ensure consistency
-    room_name = f'chat_{min(user.id, receiver.id)}_{max(user.id, receiver.id)}'
-
-    # Fetch previous messages
-    messages = ChatModel.objects.filter(thread_name=room_name).values('sender__username', 'message', 'timestamp')
-
-    return JsonResponse({
-        'room_name': room_name,
-        'messages': list(messages)
-    })
+    def get_object(self):
+        return get_object_or_404(User, username=self.kwargs['username'])
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        user = self.request.user
+        receiver = self.get_object()
+        
+        if user.id < receiver.id:
+            thread_name = f'chat_{user.id}-{receiver.id}'
+        else:
+            thread_name = f'chat_{receiver.id}-{user.id}'
+        
+        messages = ChatModel.objects.filter(thread_name=thread_name)
+        users = User.objects.exclude(username=user.username)
+        
+        context.update({
+            'users': users,
+            'user': user,
+            'messages': messages,
+            'user_json': json.dumps(user.id),
+            'receiver_json': json.dumps(receiver.id),
+            'username_json': json.dumps(user.username),
+            'receiver_username_json': json.dumps(receiver.username)
+        })
+        return context

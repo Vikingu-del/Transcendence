@@ -91,12 +91,20 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_name = self.scope['url_route']['kwargs']['room_name']
-        self.room_group_name = f'{self.room_name}'
+        my_id = self.scope['user'].id
+        other_user_id = self.scope['url_route']['kwargs'].get('id')
+        
+        if other_user_id is None:
+            logger.error("other_user_id is None")
+            await self.close()
+            return
 
-        logger.debug(f"Connecting to room: {self.room_group_name}")
+        if int(my_id) < int(other_user_id):
+            self.room_name = f'{my_id}-{other_user_id}'
+        else:
+            self.room_name = f'{other_user_id}-{my_id}'
+        self.room_group_name = f'chat_{self.room_name}'
 
-        # Join room group
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -104,79 +112,43 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
-    async def disconnect(self, close_code):
-        logger.debug(f"Disconnecting from room: {self.room_group_name}")
+    async def receive(self, text_data=None, bytes_data=None):
+        data = json.loads(text_data)
+        message = data['message']
+        username = data['username']
+        receiver = data['receiver']
 
-        # Leave room group
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
+        await self.save_message(username, self.room_group_name, message, receiver)
 
-    async def receive(self, text_data):
-        text_data_json = json.loads(text_data)
-        message = text_data_json['message']
-        sender = self.scope['user']
-
-        logger.debug(f"Received message: {message} from sender: {sender.username}")
-
-        # Save message to the database
-        await self.save_message(sender, self.room_group_name, message)
-
-        # Send message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
             {
                 'type': 'chat_message',
                 'message': message,
-                'sender': sender.username,
-                'sender_display_name': sender.get_full_name(),  # Include sender's display name
+                'username': username,
             }
         )
 
     async def chat_message(self, event):
         message = event['message']
-        sender = event['sender']
-        sender_display_name = event['sender_display_name']  # Get sender's display name
+        username = event['username']
 
-        logger.debug(f"Sending message: {message} from sender: {sender} ({sender_display_name})")
-
-        # Send message to WebSocket
         await self.send(text_data=json.dumps({
-            'type': 'chat_message',
             'message': message,
-            'sender': sender,
-            'sender_display_name': sender_display_name,  # Include sender's display name
+            'username': username
         }))
-        
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
     @database_sync_to_async
-    def save_message(self, sender, thread_name, message):
-        logger.debug(f"Saving message to thread: {thread_name}")
-
-        # Validate and parse thread_name
-        try:
-            parts = thread_name.split('_')
-            if len(parts) != 3:
-                raise ValueError("Invalid thread_name format. Expected format: 'thread_user1ID_user2ID'")
-            
-            _, user1_id, user2_id = parts
-            user1_id = int(user1_id)
-            user2_id = int(user2_id)
-        except ValueError as e:
-            logger.error(f"Error parsing thread_name '{thread_name}': {e}")
-            return
-
-        # Determine the receiver
-        try:
-            receiver_id = user2_id if sender.id == user1_id else user1_id
-            receiver = User.objects.get(id=receiver_id)
-        except User.DoesNotExist:
-            logger.error(f"Receiver with ID {receiver_id} does not exist.")
-            return
-
-        # Save the message
-        try:
-            ChatModel.objects.create(sender=sender, receiver=receiver, thread_name=thread_name, message=message)
-            logger.debug(f"Message saved successfully in thread: {thread_name}")
-        except Exception as e:
-            logger.error(f"Error saving message to database: {e}")
+    def save_message(self, username, thread_name, message, receiver):
+        chat_obj = ChatModel.objects.create(
+            sender=username, message=message, thread_name=thread_name)
+        other_user_id = self.scope['url_route']['kwargs']['id']
+        get_user = User.objects.get(id=other_user_id)
+        if receiver == get_user.username:
+            ChatNotification.objects.create(chat=chat_obj, user=get_user)
