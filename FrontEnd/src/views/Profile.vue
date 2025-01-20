@@ -81,21 +81,34 @@
           <span class="status" :class="{ online: friend.is_online, offline: !friend.is_online }">
             {{ friend.is_online ? 'Online' : 'Offline' }}
           </span>
-          <button v-if="activeChat !== friend.display_name" @click="startChat(friend.display_name)" class="btn primary-btn">Chat</button>
+          <button v-if="activeChat !== friend.display_name" @click="startChat(friend)" class="btn primary-btn">Chat</button>
           <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove Friend</button>
         </li>
       </ul>
     </div>
 
     <!-- Chat Section -->
-    <div v-if="showChat">
-      <!-- Chat messages -->
-      <div v-for="message in messages" :key="message.timestamp + message.sender">
-        <strong>{{ message.sender_display_name }}:</strong> {{ message.content }}
-      </div>
+    <div v-if="showChat" class="chat-container">
+      <h4>Chat with {{ receiverUsername }} <button @click="closeChat">Back</button></h4>
 
-      <!-- Input for new message -->
-      <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Type a message...">
+      <!-- Chat messages -->
+      <table id="chat-table">
+        <tbody id="chat-body">
+          <tr v-for="message in messages" :key="message.timestamp + message.sender">
+            <td>
+              <p v-if="message.sender === displayName">{{ displayName }}: {{ message.content }}</p>
+              <p v-else>{{ receiverUsername }}: {{ message.content }}</p>
+            </td>
+            <td>
+              <small>{{ new Date(message.timestamp).toLocaleTimeString() }}</small>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Message Input and Submit -->
+      <div id="chatBox"></div>
+      <input type="text" v-model="newMessage" placeholder="Type your message here..." @keyup.enter="sendMessage" />
       <button @click="sendMessage">Send</button>
     </div>
   </div>
@@ -120,11 +133,10 @@ export default {
       isUpdateDisabled: true,
       originalDisplayName: '',
       originalAvatarUrl: '',
-      showChat: false,
       receiverUsername: '',
+      showChat: false,
       messages: [],
       newMessage: '',
-      socket: null,
       chatSocket: null,
       activeChat: null,
     };
@@ -164,30 +176,41 @@ export default {
       }
     },
 
-    async startChat(displayName) {
-        console.log('Starting chat with:', displayName);
-        this.receiverUsername = displayName;
-        this.showChat = true;
-        this.activeChat = displayName;
-        try {
-            const response = await fetch(`/api/profile/chat/${displayName}/`, {
-                headers: {
-                    'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
-                },
-            });
+    async startChat(friend) {
+      console.log('Starting chat with:', friend.display_name);
+      this.receiverUsername = friend.display_name;
+      this.showChat = true;
+      this.activeChat = friend.display_name;
 
-            if (response.ok) {
-                const data = await response.json();
-                this.messages = data.messages;
-                this.connectChatWebSocket(data.thread_name);
-            } else {
-                console.error('Error starting chat:', response.statusText);
-                alert('Error starting chat');
-            }
-        } catch (error) {
-            console.error('Error starting chat:', error);
-            alert('Error starting chat');
+      try {
+        const token = localStorage.getItem('authToken');
+        if (!token) {
+          console.error('Auth token is missing');
+          alert('Auth token is missing');
+          return;
         }
+
+        // Fetch chat data
+        const response = await fetch(`/api/profile/chat/${friend.id}/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          this.messages = data.messages;
+
+          // Connect to WebSocket
+          this.connectChatWebSocket(data.thread_name);
+        } else {
+          console.error('Error starting chat:', response.statusText);
+          alert('Error starting chat');
+        }
+      } catch (error) {
+        console.error('Error starting chat:', error);
+        alert('Error starting chat');
+      }
     },
 
     connectChatWebSocket(roomName) {
@@ -236,14 +259,16 @@ export default {
 
         const messageData = {
           message: this.newMessage,
+          username: this.displayName,
+          receiver: this.receiverUsername,
         };
 
         this.chatSocket.send(JSON.stringify(messageData));
 
         this.messages.push({
-          sender: this.displayName, // Use displayName instead of currentUserId
+          sender: this.displayName,
           content: this.newMessage,
-          timestamp: new Date().toISOString(), // Add timestamp for unique key
+          timestamp: new Date().toISOString(),
         });
 
         this.newMessage = '';
@@ -253,12 +278,12 @@ export default {
     closeChat() {
       this.showChat = false;
       this.receiverUsername = '';
-      this.activeChat = null; // Reset the active chat
+      this.activeChat = null;
       if (this.chatSocket) {
         this.chatSocket.close();
       }
     },
-
+    
     // Fetch incoming friend requests
     async fetchIncomingFriendRequests() {
       try {

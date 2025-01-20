@@ -105,6 +105,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
             self.room_name = f'{other_user_id}-{my_id}'
         self.room_group_name = f'chat_{self.room_name}'
 
+        logger.info(f'Connecting to room {self.room_group_name}')
+
         await self.channel_layer.group_add(
             self.room_group_name,
             self.channel_name
@@ -112,14 +114,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         await self.accept()
 
+    async def disconnect(self, code):
+        if hasattr(self, 'room_group_name'):
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+        else:
+            logger.warning("room_group_name not set, skipping group discard.")
+
     async def receive(self, text_data=None, bytes_data=None):
         data = json.loads(text_data)
         message = data['message']
         username = data['username']
         receiver = data['receiver']
 
+        # Save the message to the database
         await self.save_message(username, self.room_group_name, message, receiver)
 
+        # Send the message to all clients in the room
         await self.channel_layer.group_send(
             self.room_group_name,
             {
@@ -138,17 +151,16 @@ class ChatConsumer(AsyncWebsocketConsumer):
             'username': username
         }))
 
-    async def disconnect(self, code):
-        await self.channel_layer.group_discard(
-            self.room_group_name,
-            self.channel_name
-        )
-
     @database_sync_to_async
     def save_message(self, username, thread_name, message, receiver):
+        # Save message to the database
         chat_obj = ChatModel.objects.create(
             sender=username, message=message, thread_name=thread_name)
+        
+        # Ensure other_user_id is available
         other_user_id = self.scope['url_route']['kwargs']['id']
         get_user = User.objects.get(id=other_user_id)
+        
+        # Handle notification creation if the receiver is the user we're sending to
         if receiver == get_user.username:
             ChatNotification.objects.create(chat=chat_obj, user=get_user)

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/20 16:41:41 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/20 17:55:41 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -37,7 +37,7 @@ from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.contrib.auth import get_user_model
 import logging
-
+from django.views import View
 logger = logging.getLogger(__name__)
 
 
@@ -338,33 +338,41 @@ class LogoutView(APIView):
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
             return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
 
-class ChatView(DetailView):
-    template_name = 'chat/main_chat.html'
-    context_object_name = 'receiver'
-    
-    def get_object(self):
-        return get_object_or_404(User, username=self.kwargs['username'])
-    
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        user = self.request.user
-        receiver = self.get_object()
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views import View
+from django.contrib.auth.models import User
+from .models import ChatModel
+import json
+
+class ChatView(View):
+    def get(self, request, *args, **kwargs):
+        user = request.user
         
+        # Получаем друга по ID
+        receiver = get_object_or_404(User, id=self.kwargs['id'])
+        
+        # Формируем thread_name
         if user.id < receiver.id:
             thread_name = f'chat_{user.id}-{receiver.id}'
         else:
             thread_name = f'chat_{receiver.id}-{user.id}'
         
+        # Получаем сообщения из модели
         messages = ChatModel.objects.filter(thread_name=thread_name)
-        users = User.objects.exclude(username=user.username)
         
-        context.update({
-            'users': users,
-            'user': user,
-            'messages': messages,
+        # Исключаем текущего пользователя из списка пользователей
+        users = User.objects.exclude(id=user.id)
+        
+        # Формируем данные для ответа
+        data = {
+            'users': list(users.values('id', 'username')),
+            'user': user.username,
+            'messages': list(messages.values('sender', 'message', 'timestamp')),
+            'thread_name': thread_name,
             'user_json': json.dumps(user.id),
             'receiver_json': json.dumps(receiver.id),
             'username_json': json.dumps(user.username),
             'receiver_username_json': json.dumps(receiver.username)
-        })
-        return context
+        }
+        return JsonResponse(data)
