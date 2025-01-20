@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/20 17:55:41 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/20 18:17:55 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -348,8 +348,6 @@ import json
 class ChatView(View):
     def get(self, request, *args, **kwargs):
         user = request.user
-        
-        # Получаем друга по ID
         receiver = get_object_or_404(User, id=self.kwargs['id'])
         
         # Формируем thread_name

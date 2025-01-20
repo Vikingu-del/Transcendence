@@ -202,7 +202,7 @@ export default {
           this.messages = data.messages;
 
           // Connect to WebSocket
-          this.connectChatWebSocket(data.thread_name);
+          this.connectChatWebSocket(friend.id);
         } else {
           console.error('Error starting chat:', response.statusText);
           alert('Error starting chat');
@@ -213,14 +213,14 @@ export default {
       }
     },
 
-    connectChatWebSocket(roomName) {
-      if (!roomName) {
-        console.error('Room name is not set');
+    connectChatWebSocket(friendId) {
+      if (!friendId) {
+        console.error('Friend ID is not set');
         return;
       }
 
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      this.chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/${roomName}/`);
+      this.chatSocket = new WebSocket(`${protocol}//${window.location.host}/ws/chat/?friend_id=${friendId}`);
 
       this.chatSocket.onopen = () => {
         console.log('Chat WebSocket connection established');

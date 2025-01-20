@@ -33,7 +33,7 @@ urlpatterns = [
     path('api/profile/decline_friend_request/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
     path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
     path('api/profile/incoming_friend_requests/', IncomingFriendRequestsView.as_view(), name='incoming_friend_requests'),
-    path('api/profile/chat/<int:id>/', ChatView.as_view(), name='chat'),
+    path('api/profile/chat/<int:id>/', ChatView.as_view(), name='chat_view'),
 ]
 
 if settings.DEBUG:

@@ -92,7 +92,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         my_id = self.scope['user'].id
-        other_user_id = self.scope['url_route']['kwargs'].get('id')
+        query_string = self.scope['query_string'].decode()
+        query_params = dict(qc.split('=') for qc in query_string.split('&'))
+        other_user_id = query_params.get('friend_id')
         
         if other_user_id is None:
             logger.error("other_user_id is None")
@@ -158,7 +160,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
             sender=username, message=message, thread_name=thread_name)
         
         # Ensure other_user_id is available
-        other_user_id = self.scope['url_route']['kwargs']['id']
+        other_user_id = self.scope['query_string'].decode().split('=')[1]
         get_user = User.objects.get(id=other_user_id)
         
         # Handle notification creation if the receiver is the user we're sending to
