@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/20 20:12:11 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/22 14:46:52 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -14,13 +14,12 @@ from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.models import User
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer
 from .models import Profile, Friendship, ChatModel
-from django.utils.decorators import method_decorator
-from django.views.decorators.csrf import csrf_exempt
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
@@ -38,10 +37,17 @@ from django.shortcuts import render
 from django.contrib.auth import get_user_model
 import logging
 from django.views import View
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404
+from django.views import View
+from django.contrib.auth.models import User
+from .models import ChatModel
+import json
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
+
 logger = logging.getLogger(__name__)
 
-
-@method_decorator(csrf_exempt, name='dispatch')
 class RegisterView(generics.CreateAPIView):
     serializer_class = UserSerializer
 
@@ -60,11 +66,12 @@ class RegisterView(generics.CreateAPIView):
         return Response({"error": "Registration failed", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LoginView(APIView):
     def post(self, request, *args, **kwargs):
+        print("Raw request data:", request.body)
         username = request.data.get("username")
         password = request.data.get("password")
+        print(f"Username: {username}, Password length: {len(password) if password else 0}")
 
         if not username or not password:
             return Response(
@@ -72,36 +79,59 @@ class LoginView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
-            return Response(
-                {"message": "User does not exist."},
-                status=status.HTTP_404_NOT_FOUND
-            )
-
         user = authenticate(request, username=username, password=password)
+        print('Request received:', request.data)
+        
         if user:
-            login(request, user)
-            return Response({"message": "Login successful"}, status=status.HTTP_200_OK)
+            # Get or create token using correct import
+            token, created = Token.objects.get_or_create(user=user)
+            
+            user_data = {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+            }
+            
+            return Response({
+                'token': token.key,
+                'user': user_data
+            }, status=status.HTTP_200_OK)
         
         return Response(
             {"message": "Invalid username or password."},
             status=status.HTTP_401_UNAUTHORIZED
         )
 
-@method_decorator(csrf_exempt, name='dispatch')
 class ProfileView(APIView):
-    parser_classes = [MultiPartParser, FormParser]
+    authentication_classes = [TokenAuthentication]  # First: Validates authToken
+    permission_classes = [IsAuthenticated]         # Then: Checks if identified user has access
 
     def get(self, request):
-        user_profile = Profile.objects.get(user=request.user)
-        friends = user_profile.get_friends()
-        friends_data = UserProfileSerializer(friends, many=True, context={"request": request}).data
-        profile_data = UserProfileSerializer(user_profile, context={"request": request}).data
-        profile_data['friends'] = friends_data
-        return Response(profile_data)
-
+        try:
+            logger.debug(f"Fetching profile for user: {request.user.username}")
+            
+            # Use get_object_or_404 instead of direct get()
+            user_profile = get_object_or_404(Profile, user=request.user)
+            
+            # Fetch friends
+            friends = user_profile.get_friends()
+            
+            # Serialize data
+            serializer_context = {"request": request}
+            friends_data = UserProfileSerializer(friends, many=True, context=serializer_context).data
+            profile_data = UserProfileSerializer(user_profile, context=serializer_context).data
+            profile_data['friends'] = friends_data
+            
+            logger.debug(f"Successfully retrieved profile for user: {request.user.username}")
+            return Response(profile_data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            logger.error(f"Error fetching profile: {str(e)}")
+            return Response(
+                {"error": "Failed to retrieve profile"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
     def put(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -312,7 +342,6 @@ class RemoveFriendView(APIView):
         except Profile.DoesNotExist:
             return Response({"message": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
-@method_decorator(csrf_exempt, name='dispatch')
 class LogoutView(APIView):
     def post(self, request, *args, **kwargs):
         if request.user.is_authenticated:
@@ -337,13 +366,6 @@ class LogoutView(APIView):
             logout(request)
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
             return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
-
-from django.http import JsonResponse
-from django.shortcuts import get_object_or_404
-from django.views import View
-from django.contrib.auth.models import User
-from .models import ChatModel
-import json
 
 class ChatView(View):
     def get(self, request, *args, **kwargs):

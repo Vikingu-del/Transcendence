@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/17 17:29:56 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/22 15:07:07 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -46,22 +46,20 @@ class UserSerializer(serializers.ModelSerializer):
 
 class UserProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
-    is_friend = serializers.SerializerMethodField()
     friend_request_status = serializers.SerializerMethodField()
     requested_by_current_user = serializers.SerializerMethodField()
 
 
     class Meta:
         model = Profile
-        fields = ['id', 'display_name', 'avatar', 'is_friend',
-                 'friend_request_status', 'requested_by_current_user',
-                 'is_online']
+        fields = ['id', 'display_name', 'avatar', 'is_online',
+                 'friend_request_status', 'requested_by_current_user']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
         if obj.avatar and obj.avatar.url:
             return f"{request.scheme}://{request.get_host()}:{request.get_port()}{obj.avatar.url}"
-        return f"{request.scheme}://{request.get_host()}:{request.get_port()}/media/default.png"
+        return f"{request.scheme}://{request.get_host()}/media/default.png"
 
     def get_is_friend(self, obj):
         user = self.context['request'].user

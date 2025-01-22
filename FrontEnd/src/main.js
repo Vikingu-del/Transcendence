@@ -1,21 +1,26 @@
-// main.js
 import './assets/main.css'
 import { createApp } from 'vue'
 import router from './router'
 import App from './App.vue'
-import store from './store' // Import the correct store.js
+import store from './store'
 import axios from 'axios'
 
+// Create app instance
 const app = createApp(App)
 
-// Configure Axios to use the base URL of your Nginx gateway
-axios.defaults.baseURL = 'https://localhost/'; // This tells Axios to send all requests to Nginx, which will proxy them to the backend
-axios.defaults.headers['Content-Type'] = 'application/json';
+// Configure Axios
+axios.defaults.baseURL = 'https://localhost/'
+axios.defaults.headers['Content-Type'] = 'application/json'
+app.config.globalProperties.$axios = axios
 
-// Add Axios to the global app instance so you can use it throughout your components
-app.config.globalProperties.$axios = axios;
-
+// Setup app with plugins
 app.use(router)
-app.use(store) // Use the correct store
+app.use(store)
 
-app.mount('#app')
+// Initialize auth before mounting
+store.dispatch('initializeAuth').then(() => {
+  app.mount('#app')
+}).catch(error => {
+  console.error('Auth initialization failed:', error)
+  app.mount('#app')
+})

@@ -22,6 +22,9 @@ RUN pip install --no-cache-dir -r /requirements.txt
 # Install Pillow
 RUN python -m pip install Pillow
 
+# Install corsheaders
+RUN pip install django-cors-headers
+
 # Install PostgreSQL client tools
 RUN apt-get update && apt-get install -y postgresql-client
 

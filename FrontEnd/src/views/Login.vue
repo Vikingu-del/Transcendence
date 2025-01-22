@@ -10,10 +10,11 @@
         <label for="password">Password</label>
         <input id="password" v-model="password" type="password" placeholder="Enter password" required />
       </div>
-      <button type="submit" class="submit-btn">Login</button>
+      <button type="submit" class="submit-btn" :disabled="loading">
+        {{ loading ? 'Logging in...' : 'Login' }}
+      </button>
     </form>
-    <p v-if="message" class="message">{{ message }}</p>
-    <p v-if="debugMessage" class="debug-message">{{ debugMessage }}</p>
+    <p v-if="error" class="message error">{{ error }}</p>
   </div>
 </template>
 
@@ -25,53 +26,33 @@ export default {
     return {
       username: '',
       password: '',
-      message: '',
-      debugMessage: ''
+      error: '',
+      loading: false
     };
   },
   methods: {
     ...mapActions(['loginAction']),
 
     async login() {
+      this.loading = true;
+      this.error = '';
+      
       try {
-        const csrfToken = this.getCookie('csrftoken');
-        const response = await this.loginAction({
+        await this.loginAction({
           username: this.username,
-          password: this.password,
-          csrftoken: csrfToken
+          password: this.password
         });
-
-        if (response.message === 'Login successful') {
-          this.debugMessage = 'Login successful!';
-          this.message = '';
-        } else {
-          this.message = response.message || 'Something went wrong.';
-          this.debugMessage = '';
-        }
+        
+        // Login successful - redirect handled in store
       } catch (error) {
-        if (error.response && error.response.data && error.response.data.message) {
-          this.message = error.response.data.message; // Display backend error message
-          this.debugMessage = `Error: ${error.response.status} - ${error.response.statusText}`;
+        if (error.response?.data?.message) {
+          this.error = error.response.data.message;
         } else {
-          this.message = 'An unexpected error occurred.';
-          this.debugMessage = `Error: ${error.message}`;
+          this.error = 'Login failed. Please try again.';
         }
+      } finally {
+        this.loading = true;
       }
-    },
-
-    getCookie(name) {
-      let cookieValue = null;
-      if (document.cookie && document.cookie !== '') {
-        const cookies = document.cookie.split(';');
-        for (let i = 0; i < cookies.length; i++) {
-          const cookie = cookies[i].trim();
-          if (cookie.substring(0, name.length + 1) === (name + '=')) {
-            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-            break;
-          }
-        }
-      }
-      return cookieValue;
     }
   }
 };
@@ -131,5 +112,16 @@ button.submit-btn:hover {
 
 .debug-message {
   color: #ff9800;
+}
+
+.error {
+  color: #f44336;
+  text-align: center;
+  margin-top: 10px;
+}
+
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
 }
 </style>

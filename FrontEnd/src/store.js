@@ -1,96 +1,122 @@
-// store.js
 import { createStore } from 'vuex';
-import router from './router'; // Import the router
+import router from './router';
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: 'http://localhost:8000'
+});
 
 const store = createStore({
   state: {
-    isAuthenticated: !!localStorage.getItem('authToken'), // Initialize from localStorage
-    user: null, // Store the user data if needed
+    token: localStorage.getItem('authToken') || null,
+    isAuthenticated: false,
+    user: null,
   },
+
   mutations: {
-    setAuthentication(state, status) {
-      console.log('Setting authentication status to:', status);
-      state.isAuthenticated = status;
+    setToken(state, token) {
+      state.token = token;
+      state.isAuthenticated = !!token;
+      if (token) {
+        localStorage.setItem('authToken', token);
+        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      } else {
+        localStorage.removeItem('authToken');
+        delete api.defaults.headers.common['Authorization'];
+      }
     },
+
     setUser(state, user) {
       state.user = user;
     },
-    clearUserData(state) {
+
+    clearAuth(state) {
+      state.token = null;
       state.user = null;
+      state.isAuthenticated = false;
+      localStorage.removeItem('authToken');
+      delete api.defaults.headers.common['Authorization'];
     }
   },
-  actions: {
-    async loginAction({ commit }, { username, password, csrftoken }) {
-      try {
-        // Perform the login API request
-        const response = await fetch('/api/login/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrftoken, // Add CSRF token to headers
-          },
-          body: JSON.stringify({
-            username,
-            password,
-          })
-        });
 
-        if (response.ok) {
-          const data = await response.json();
-          localStorage.setItem('authToken', data.token); // Store the token in localStorage
-          commit('setAuthentication', true);
-          commit('setUser', data.user); // Assuming the response contains user data
-          router.push({ name: 'Profile' }); // Redirect to the profile page after successful login
-        } else {
-          console.error('Login failed:', response.status);
-          throw new Error('Invalid credentials');
-        }
+  actions: {
+    async loginAction({ commit }, { username, password }) {
+      try {
+        console.log('Attempting login with username:', username);
+        const response = await api.post('/api/login/', {
+          username,
+          password
+        });
+        
+        const { token, user } = response.data;
+        commit('setToken', token);
+        commit('setUser', user);
+        
+        await router.push({ name: 'Profile' });
+        return response.data;
       } catch (error) {
-        console.error('Login error:', error);
-        throw error;
+        console.error('Login error:', error.response?.status);
+        console.error('Error details:', error.response?.data);
+        commit('clearAuth');
+        throw error.response?.data || { message: 'Login failed' };
       }
     },
-   
-    // Logout Action
+
     async logoutAction({ commit }) {
       try {
-        // Extract the CSRF token from cookies
-        const csrfToken = document.cookie
-          .split('; ')
-          .find(row => row.startsWith('csrftoken'))
-          ?.split('=')[1]; // Extract CSRF token from cookies
-
-        if (!csrfToken) {
-          console.error('CSRF token not found');
-          throw new Error('CSRF token not found');
-        } else {
-          console.log('CSRF Token:', csrfToken);
-        }
-
-        // Perform the logout API request
-        const response = await fetch('/api/logout/', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken, // Corrected variable name
-          }
-        });
-
-        if (response.ok) {
-          localStorage.removeItem('authToken'); // Remove the token from localStorage
-          commit('setAuthentication', false); // Update the authentication status
-          commit('clearUserData'); // Clear the user data
-          router.push({ name: 'Home' }); // Redirect to the home page after logout
-        } else {
-          console.error('Logout failed:', response.status);
-          throw new Error('Logout failed');
-        }
+        await api.post('/api/logout/');
       } catch (error) {
-        console.error('Logout error:', error);
-        throw error;
+        console.error('Logout failed:', error);
+      } finally {
+        commit('clearAuth');
+        await router.push({ name: 'Login' });
       }
     },
+
+    
+    async initializeAuth({ commit }) {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        commit('clearAuth');
+        return false;
+      }
+      
+      try {
+        api.defaults.headers.common['Authorization'] = `Token ${token}`;
+        commit('setToken', token);
+        return true;
+      } catch (error) {
+        commit('clearAuth');
+        return false;
+      }
+    }
+    
   },
+
+  getters: {
+    isAuthenticated: state => state.isAuthenticated,
+    currentUser: state => state.user,
+    getToken: state => state.token
+  }
 });
+
+api.interceptors.request.use(config => {
+  const token = store.state.token;
+  if (token) {
+    config.headers.Authorization = `Token ${token}`; // Change here too
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      store.commit('clearAuth');
+      router.push({ name: 'Login' });
+    }
+    return Promise.reject(error);
+  }
+);
 
 export default store;

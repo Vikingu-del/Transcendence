@@ -37,19 +37,34 @@ const router = createRouter({
 
 // Add global navigation guard
 router.beforeEach((to, from, next) => {
-  const isAuthenticated = store.state.isAuthenticated;
-  console.log(`Navigating to ${to.name}, isAuthenticated: ${isAuthenticated}`);
+  const isAuthenticated = store.getters.isAuthenticated;
+  const token = store.getters.getToken;
+  console.log(`Navigating to ${to.name}, isAuthenticated: ${isAuthenticated}, hasToken: ${!!token}`);
 
-  if (to.meta.requiresAuth && !isAuthenticated) {
-    console.log('Redirecting to login page...');
-    next({ name: 'Login' });
-  } else if (!to.meta.requiresAuth && isAuthenticated && (to.name === 'Login' || to.name === 'Register')) {
-    console.log('Redirecting to home page...');
-    next({ name: 'Home' });
-  } else {
-    console.log('Access granted to route:', to.name);
-    next();
+  // Public routes that don't require auth
+  if (to.matched.some(record => !record.meta.requiresAuth)) {
+    if (isAuthenticated && (to.name === 'Login' || to.name === 'Register')) {
+      console.log('Authenticated user accessing login/register, redirecting to Profile');
+      next({ name: 'Profile' });
+    } else {
+      console.log('Accessing public route:', to.name);
+      next();
+    }
+    return;
   }
+
+  // Protected routes
+  if (!isAuthenticated || !token) {
+    console.log('Unauthorized access attempt, redirecting to login');
+    next({ 
+      name: 'Login',
+      query: { redirect: to.fullPath }
+    });
+    return;
+  }
+
+  console.log('Access granted to protected route:', to.name);
+  next();
 });
 
 export default router;
