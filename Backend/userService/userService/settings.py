@@ -149,6 +149,7 @@ CORS_ORIGIN_ALLOW_ALL = True  # Development only
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",  # Vue dev server
+	"http://localhost:8080",  # Vue dev server
 ]
 
 CORS_ALLOW_CREDENTIALS = True

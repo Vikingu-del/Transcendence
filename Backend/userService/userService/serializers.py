@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/22 15:07:07 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/22 17:32:01 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -57,9 +57,9 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     def get_avatar(self, obj):
         request = self.context.get('request')
-        if obj.avatar and obj.avatar.url:
-            return f"{request.scheme}://{request.get_host()}:{request.get_port()}{obj.avatar.url}"
-        return f"{request.scheme}://{request.get_host()}/media/default.png"
+        if obj.avatar:
+            return request.build_absolute_uri(obj.avatar.url)
+        return request.build_absolute_uri(f'/media/{Profile.DEFAULT_AVATAR_PATH}')
 
     def get_is_friend(self, obj):
         user = self.context['request'].user

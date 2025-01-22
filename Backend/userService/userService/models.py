@@ -8,6 +8,13 @@ class Profile(models.Model):
     avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
     is_online = models.BooleanField(default=False)
 
+    DEFAULT_AVATAR_PATH = 'default.png'
+
+    def get_avatar_url(self):
+        if self.avatar:
+            return self.avatar.url
+        return f"/media/{self.DEFAULT_AVATAR_PATH}"
+
     def get_friends(self):
         friendships = Friendship.objects.filter(
             (Q(from_profile=self) | Q(to_profile=self)) & Q(status='accepted')

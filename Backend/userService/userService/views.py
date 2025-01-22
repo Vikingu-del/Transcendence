@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/22 14:46:52 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/22 18:39:26 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -131,7 +131,34 @@ class ProfileView(APIView):
                 {"error": "Failed to retrieve profile"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-        
+
+    def delete(self, request):
+        """Handle avatar deletion"""
+        try:
+            user_profile = request.user.profile
+            
+            if not user_profile.avatar:
+                return Response(
+                    {"message": "Already using default avatar"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            user_profile.avatar.delete(save=False)
+            user_profile.avatar = None
+            user_profile.save()
+            
+            logger.info(f"Reset avatar to default for user {request.user.username}")
+            
+            serializer = UserProfileSerializer(user_profile, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Avatar deletion error: {str(e)}")
+            return Response(
+                {"message": "Failed to delete avatar"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
     def put(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
             return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
@@ -140,46 +167,61 @@ class ProfileView(APIView):
         data = request.data
 
         if 'display_name' in data:
-            display_name = data['display_name']
+            display_name = data['display_name'].strip()
 
             if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
                 return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
             user_profile.display_name = display_name
+            logger.info(f"Updated display name for user {request.user.username}")
             
-        if 'avatar' in data:
-            user_profile.avatar = data['avatar']
+        if 'avatar' in request.FILES:
+                avatar = request.FILES['avatar']
+                
+                # Validate file type
+                if not avatar.content_type.startswith('image/'):
+                    return Response(
+                        {"message": "Invalid file type. Please upload an image"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Validate file size (5MB limit)
+                if avatar.size > 5 * 1024 * 1024:
+                    return Response(
+                        {"message": "File too large. Maximum size is 5MB"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Delete old avatar if exists
+                if user_profile.avatar:
+                    user_profile.avatar.delete(save=False)
+                
+                user_profile.avatar = avatar
+                logger.info(f"Updated avatar for user {request.user.username}")
 
         user_profile.save()
-        return Response({"message": "Profile updated successfully"}, status=status.HTTP_200_OK)
-
-@api_view(['DELETE'])
-def delete_avatar(request):
-    if not request.user.is_authenticated:
-        return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
-    user_profile = request.user.profile
-    user_profile.avatar.delete(save=False)  # Delete the current avatar file
-    user_profile.avatar = None  # Set the avatar field to None
-    user_profile.save()
-    return Response({"message": "Avatar deleted successfully", "avatar": None}, status=status.HTTP_200_OK)
-
-@api_view(['GET'])
-def check_display_name(request):
-    display_name = request.query_params.get('display_name', None)
-    if display_name is None:
-        return Response({"message": "Display name is required"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
-        return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
-
-    return Response({"message": "Display name is available"}, status=status.HTTP_200_OK)
+        
+        # Return updated profile data
+        serializer = UserProfileSerializer(user_profile, context={"request": request})
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 class SearchProfilesView(generics.ListAPIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
     serializer_class = UserProfileSerializer
 
     def get_queryset(self):
-        search_query = self.request.query_params.get('q', '')
-        return Profile.objects.filter(display_name__icontains=search_query)
+        search_query = self.request.query_params.get('q', '').strip()
+        if not search_query:
+            return Profile.objects.none()
+            
+        current_user_profile = self.request.user.profile
+        queryset = Profile.objects.filter(
+            display_name__icontains=search_query
+        ).exclude(
+            user=self.request.user
+        )
+            
+        return queryset
 
 @permission_classes([IsAuthenticated])
 class AddFriendView(APIView):
