@@ -61,8 +61,10 @@ services:
     depends_on:
       - vault
       - user
+      - frontend
     volumes:
-      - frontend_dist:/usr/share/nginx/html
+      - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./ApiGateway/ssl:/etc/nginx/ssl
     networks:
       - backtier
 
@@ -70,10 +72,14 @@ services:
     build:
       context: ./FrontEnd
       dockerfile: Dockerfile
+    ports:
+      - "5173:5173"  # Vite's default dev server port
     volumes:
-      - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+      - ./FrontEnd:/app  # Mount the entire FrontEnd directory
+      - /app/node_modules # Preserve node_modules from container
     environment:
-      - NODE_ENV=production
+      - NODE_ENV=development
+    command: npm run dev -- --host  # Run dev server and allow external connections
     networks:
       - backtier
       - frontier

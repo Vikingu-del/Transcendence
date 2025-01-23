@@ -2,92 +2,155 @@ import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
-from .models import Profile, ChatModel
-from django.contrib.auth.models import User
+from django.contrib.auth.models import AnonymousUser
+from rest_framework.authtoken.models import Token
+from urllib.parse import parse_qs
+from .models import Profile
+from django.utils import timezone
+from asgiref.sync import sync_to_async
 
 logger = logging.getLogger(__name__)
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.user = self.scope['user']
-        if self.user.is_anonymous:
-            await self.close()
-        else:
+        try:
+            # Get token from query params
+            query_string = parse_qs(self.scope['query_string'].decode())
+            token_key = query_string.get('token', [None])[0]
+
+            if not token_key:
+                logger.warning('WebSocket connection attempt without token')
+                await self.close(code=4001)
+                return
+
+            # Authenticate user with token
+            self.user = await self.get_user_from_token(token_key)
+            
+            if not self.user or not hasattr(self.user, 'profile'):
+                logger.warning(f'Invalid token or no profile: {token_key}')
+                await self.close(code=4002)
+                return
+
+            # Initialize user's group and state
             self.group_name = f"user_{self.user.id}"
-
-            await self.channel_layer.group_add(
-                self.group_name,
-                self.channel_name
-            )
-
+            self.heartbeat_received = True
+            await self.channel_layer.group_add(self.group_name, self.channel_name)
+            
+            # Accept connection and update status
             await self.accept()
-
-            # Set user as online
             await self.set_user_online()
-
-            # Notify friends about online status
             await self.notify_friends('online')
+            
+            logger.info(f'User {self.user.id} connected to WebSocket')
+
+        except Exception as e:
+            logger.error(f'WebSocket connection error: {str(e)}')
+            await self.close(code=4000)
 
     async def disconnect(self, close_code):
-        # Set user as offline
-        await self.set_user_offline()
-
-        # Notify friends about offline status
-        await self.notify_friends('offline')
-
-        await self.channel_layer.group_discard(
-            self.group_name,
-            self.channel_name
-        )
+        if hasattr(self, 'user') and self.user and hasattr(self.user, 'profile'):
+            try:
+                await self.set_user_offline()
+                await self.notify_friends('offline')
+                if hasattr(self, 'group_name'):
+                    await self.channel_layer.group_discard(self.group_name, self.channel_name)
+                logger.info(f'User {self.user.id} disconnected from WebSocket')
+            except Exception as e:
+                logger.error(f'Error in disconnect: {str(e)}')
 
     async def receive(self, text_data):
-        pass
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
 
-    async def send_notification(self, event):
-        await self.send(text_data=json.dumps(event["message"]))
+            handlers = {
+                'heartbeat': self.handle_heartbeat,
+                'friend_request': self.handle_friend_request,
+                'chat_message': self.handle_chat_message
+            }
+
+            handler = handlers.get(message_type)
+            if handler:
+                await handler(data)
+            else:
+                logger.warning(f'Unknown message type: {message_type}')
+
+        except json.JSONDecodeError:
+            logger.error('Invalid JSON received')
+        except Exception as e:
+            logger.error(f'Error in receive: {str(e)}')
+
+    async def handle_heartbeat(self, data):
+        self.heartbeat_received = True
+        await self.send(json.dumps({'type': 'heartbeat_response'}))
+
+    @database_sync_to_async
+    def get_user_from_token(self, token_key):
+        try:
+            return Token.objects.select_related('user', 'user__profile').get(key=token_key).user
+        except Token.DoesNotExist:
+            return None
 
     @database_sync_to_async
     def set_user_online(self):
-        # Update the is_online field without loading the entire profile
-        Profile.objects.filter(user_id=self.user.id).update(is_online=True)
+        try:
+            self.user.profile.is_online = True
+            self.user.profile.save(update_fields=['is_online'])
+        except Exception as e:
+            logger.error(f'Error setting user online: {str(e)}')
+            raise
 
     @database_sync_to_async
     def set_user_offline(self):
-        # Update the is_online field without loading the entire profile
-        Profile.objects.filter(user_id=self.user.id).update(is_online=False)
-
-    async def notify_friends(self, status):
-        # Get friend user IDs asynchronously
-        friend_user_ids = await self.get_friend_user_ids()
-
-        message = {
-            'type': 'friend_status',
-            'user_id': self.user.id,
-            'status': status,
-        }
-
-        for user_id in friend_user_ids:
-            group_name = f"user_{user_id}"
-            await self.channel_layer.group_send(
-                group_name,
-                {
-                    'type': 'send_notification',
-                    'message': message,
-                }
-            )
+        try:
+            self.user.profile.is_online = False
+            self.user.profile.save(update_fields=['is_online'])
+        except Exception as e:
+            logger.error(f'Error setting user offline: {str(e)}')
+            raise
 
     @database_sync_to_async
     def get_friend_user_ids(self):
-        # Obtain friend profiles and extract user IDs
-        friends = self.user.profile.get_friends()
-        return [friend.user_id for friend in friends]
+        try:
+            return [friend.user.id for friend in self.user.profile.get_friends()]
+        except Exception as e:
+            logger.error(f'Error getting friend IDs: {str(e)}')
+            return []
 
-    async def send_friend_request_notification(self, event):
-        await self.send(text_data=json.dumps({
-            'type': 'friend_request',
-            'from_user_id': event['from_user_id'],
-            'from_user_name': event['from_user_name'],
-        }))
+    async def notify_friends(self, status):
+        try:
+            friend_user_ids = await self.get_friend_user_ids()
+            if not friend_user_ids:
+                return
+
+            message = {
+                'type': 'friend_status',
+                'user_id': self.user.id,
+                'user_name': self.user.profile.display_name,
+                'status': status,
+                'timestamp': str(timezone.now())
+            }
+            
+            for user_id in friend_user_ids:
+                await self.channel_layer.group_send(
+                    f"user_{user_id}",
+                    {
+                        'type': 'send_notification',
+                        'message': message
+                    }
+                )
+        except Exception as e:
+            logger.error(f'Error in notify_friends: {str(e)}')
+
+    async def send_notification(self, event):
+        if not self.heartbeat_received:
+            logger.warning(f'Skipping notification for inactive user {self.user.id}')
+            return
+
+        try:
+            await self.send(text_data=json.dumps(event["message"]))
+        except Exception as e:
+            logger.error(f'Error in send_notification: {str(e)}')
 
 class ChatConsumer(AsyncWebsocketConsumer):
     async def connect(self):

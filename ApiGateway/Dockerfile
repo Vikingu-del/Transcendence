@@ -1,21 +1,16 @@
-# Start with the base Nginx image
 FROM nginx:alpine
 
-# Set environment variables (you can configure more as needed)
-ENV WAIT_FOR_SERVICES=true
+RUN apk add --no-cache openssl
 
-RUN apk add openssl
+WORKDIR /etc/nginx
 
-# Copy your custom Nginx configuration
 COPY config/nginx.conf /etc/nginx/nginx.conf
+COPY config/entrypoint.sh /docker-entrypoint.sh
 
-# Copy the entrypoint script
-COPY config/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN chmod +x /docker-entrypoint.sh && \
+    mkdir -p /etc/nginx/ssl && \
+    chown -R nginx:nginx /etc/nginx/ssl
 
-# Expose the necessary ports
 EXPOSE 80 443
 
-# Make the entrypoint script the container entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
-
+ENTRYPOINT ["/docker-entrypoint.sh"]

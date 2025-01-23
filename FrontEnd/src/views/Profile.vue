@@ -155,6 +155,10 @@ export default {
       isSearching: false,
       searchTimeout: null,
 
+      //Web Socket
+      wsConnected: false,
+
+
       // Chat
       showChat: false,
       activeChat: null,
@@ -490,45 +494,60 @@ export default {
     // NEED TO CHANGE WEB SOCKETS TO WORK WITH AUTHENTICATION TOKENS 
 
     // WebSocket methods
-    // connectWebSocket() {
-    //   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    //   this.socket = new WebSocket(`${protocol}//${window.location.host}/ws/profile/notifications/`);
-    //   this.socket.onmessage = (event) => {
-    //     const data = JSON.parse(event.data);
-    //     this.notifications.push(data);
+    connectWebSocket() {
+      try {
+        // Check if we already have a connection
+        if (this.socket && this.wsConnected) {
+          return;
+        }
 
-    //     if (data.type === 'friend_request') {
-    //       // Add the new friend request to the list
-    //       this.incomingFriendRequests.push({
-    //         from_user_id: data.from_user_id,
-    //         from_user_name: data.from_user_name,
-    //         avatar: data.from_user_avatar,
-    //       });
-    //     } else if (data.type === 'friend_status') {
-    //       // Update friend's online status
-    //       const friendId = data.user_id;
-    //       const status = data.status;
-    //       const friend = this.friends.find(f => f.id === friendId);
-    //       if (friend) {
-    //         friend.is_online = (status === 'online');
-    //       } else {
-    //         friend.is_online = (status === 'offline');
-    //       }
-    //     } else if (data.type === 'friend_request_accepted') {
-    //       // Update the friends list
-    //       this.fetchProfile();
-    //     } else if (data.type === 'friend_request_declined') {
-    //       // Handle friend request declined
-    //       alert(`Your friend request to ${data.user_name} was declined.`);
-    //     } else if (data.type === 'friend_removed') {
-    //       // Handle friend removed
-    //       this.friends = this.friends.filter(friend => friend.id !== data.user_id);
-    //     }
-    //   };
-    //   this.socket.onclose = () => {
-    //     console.log('WebSocket connection closed');
-    //   };
-    // }
+        // Build WebSocket URL
+        const host = window.location.hostname;
+        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const port = '8000'; // Development server port
+        const token = this.getToken;
+
+        if (!token) {
+          console.error('No authentication token found');
+          return;
+        }
+
+        // Construct WebSocket URL
+        const wsUrl = `${wsScheme}://${host}:${port}/ws/profile/notifications/?token=${token}`;
+        this.socket = new WebSocket(wsUrl);
+
+        // Setup event handlers
+        this.socket.onopen = () => {
+          console.log('WebSocket connected');
+          this.wsConnected = true;
+        };
+
+        this.socket.onclose = (event) => {
+          console.log('WebSocket disconnected:', event.code);
+          this.wsConnected = false;
+          // Attempt to reconnect after 5 seconds
+          setTimeout(() => this.connectWebSocket(), 5000);
+        };
+
+        this.socket.onerror = (error) => {
+          console.error('WebSocket error:', error);
+          this.wsConnected = false;
+        };
+
+        this.socket.onmessage = this.handleWebSocketMessage;
+
+      } catch (error) {
+        console.error('WebSocket connection error:', error);
+        this.wsConnected = false;
+      }
+    },
+
+    // Cleanup on component destruction
+    beforeDestroy() {
+      if (this.socket) {
+        this.socket.close();
+      }
+    }
   }
 };
 </script>
@@ -565,7 +584,7 @@ export default {
   width: 150px;
   height: 150px;
   border-radius: 50%;
-  border: 2px solid #4caf50;
+  border: 2px solid #000000;
   margin-bottom: 10px;
 }
 

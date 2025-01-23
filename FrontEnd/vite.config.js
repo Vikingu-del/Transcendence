@@ -10,6 +10,10 @@ export default defineConfig({
     },
   },
   server: {
+    host: true,
+    watch: {
+      usePolling: true
+    },
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
