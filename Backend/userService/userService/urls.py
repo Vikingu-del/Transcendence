@@ -18,7 +18,13 @@ Including another URLconf
 from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from .views import RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView, AddFriendView, RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, IncomingFriendRequestsView, ChatView
+from .views import (
+    RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
+    AddFriendView, RemoveFriendView, AcceptFriendRequestView,
+    DeclineFriendRequestView, IncomingFriendRequestsView,
+    ChatListView, ChatDetailView, BlockUserView, UnblockUserView
+)
+
 
 urlpatterns = [
     # Auth endpoints
@@ -38,8 +44,13 @@ urlpatterns = [
     path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
     path('api/profile/incoming_friend_requests/', IncomingFriendRequestsView.as_view(), name='incoming_friend_requests'),
     
+     # Block management endpoints
+    path('api/profile/block/<int:blocked_user_id>/', BlockUserView.as_view(), name='block_user'),
+    path('api/profile/un_block/<int:blocked_user_id>/', UnblockUserView.as_view(), name='unblock_user'),
+
     # Chat endpoints
-    path('api/profile/chat/<int:id>/', ChatView.as_view(), name='chat_view'),
+    path('api/profile/chats/', ChatListView.as_view(), name='chat_list_view'),
+    path('api/profile/chat/<int:id>/', ChatDetailView.as_view(), name='chat_view'),
 ]
 
 if settings.DEBUG:

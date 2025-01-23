@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/22 18:39:26 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/23 19:29:18 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -19,7 +19,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer
-from .models import Profile, Friendship, ChatModel
+from .models import Profile, Friendship, Chat, Message
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
@@ -31,17 +31,16 @@ from django.contrib.messages.constants import *  # NOQA
 from django.contrib.messages.storage.base import Message  # NOQA
 from django.views.generic import DetailView 
 import json
-from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
 from django.contrib.auth import get_user_model
 import logging
-from django.views import View
-from django.http import JsonResponse
+
 from django.shortcuts import get_object_or_404
-from django.views import View
+
 from django.contrib.auth.models import User
-from .models import ChatModel
+from .models import Chat, Profile, Friendship
+from .serializers import ChatSerializer, ChatListSerializer
 import json
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
@@ -204,24 +203,71 @@ class ProfileView(APIView):
         serializer = UserProfileSerializer(user_profile, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-class SearchProfilesView(generics.ListAPIView):
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-    serializer_class = UserProfileSerializer
+@permission_classes([IsAuthenticated])
+class SearchProfilesView(APIView):
+    def get(self, request):
+        query = request.query_params.get('q', '')
+        logger.debug(f"Search query: {query}")
+        
+        if not query:
+            return Response([])
 
-    def get_queryset(self):
-        search_query = self.request.query_params.get('q', '').strip()
-        if not search_query:
-            return Profile.objects.none()
+        try:
+            # First get User queryset
+            blocked_by_others = User.objects.filter(
+                profile__blocked_users=request.user
+            )
+            blocked_by_me = request.user.profile.blocked_users.all()
             
-        current_user_profile = self.request.user.profile
-        queryset = Profile.objects.filter(
-            display_name__icontains=search_query
-        ).exclude(
-            user=self.request.user
-        )
+            # Find users matching search criteria
+            users = User.objects.filter(
+                Q(username__icontains=query) |
+                Q(profile__display_name__icontains=query)
+            ).exclude(
+                id=request.user.id  # Exclude current user
+            ).exclude(
+                id__in=blocked_by_others  # Exclude users who blocked current user
+            ).exclude(
+                id__in=blocked_by_me  # Exclude users blocked by current user
+            )
+
+            # Get profiles for matched users
+            profiles = Profile.objects.filter(user__in=users)
             
-        return queryset
+            logger.debug(f"Found {profiles.count()} profiles")
+            serializer = UserProfileSerializer(profiles, many=True, context={"request": request})
+            return Response(serializer.data)
+            
+        except Exception as e:
+            logger.error(f"Search error: {str(e)}")
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@permission_classes([IsAuthenticated])
+class BlockUserView(APIView):
+    def post(self, request, blocked_user_id):
+        user_profile = request.user.profile
+
+        try:
+            blocked_user = User.objects.get(id=blocked_user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        user_profile.blocked_users.add(blocked_user)
+        return Response({'message': 'User blocked successfully'}, status=status.HTTP_200_OK)
+
+@permission_classes([IsAuthenticated])
+class UnblockUserView(APIView):
+    def post(self, request, blocked_user_id):
+        user_profile = request.user.profile
+
+        try:
+            blocked_user = User.objects.get(id=blocked_user_id)
+        except User.DoesNotExist:
+            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        user_profile.blocked_users.remove(blocked_user)
+        return Response({'message': 'User unblocked successfully'}, status=status.HTTP_200_OK)
+
 
 @permission_classes([IsAuthenticated])
 class AddFriendView(APIView):
@@ -409,32 +455,21 @@ class LogoutView(APIView):
             return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
             return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
 
-class ChatView(View):
-    def get(self, request, *args, **kwargs):
-        user = request.user
-        receiver = get_object_or_404(User, id=self.kwargs['id'])
-        
-        # Формируем thread_name
-        if user.id < receiver.id:
-            thread_name = f'chat_{user.id}-{receiver.id}'
-        else:
-            thread_name = f'chat_{receiver.id}-{user.id}'
-        
-        # Получаем сообщения из модели
-        messages = ChatModel.objects.filter(thread_name=thread_name)
-        
-        # Исключаем текущего пользователя из списка пользователей
-        users = User.objects.exclude(id=user.id)
-        
-        # Формируем данные для ответа
-        data = {
-            'users': list(users.values('id', 'username')),
-            'user': user.username,
-            'messages': list(messages.values('sender', 'message', 'timestamp')),
-            'thread_name': thread_name,
-            'user_json': json.dumps(user.id),
-            'receiver_json': json.dumps(receiver.id),
-            'username_json': json.dumps(user.username),
-            'receiver_username_json': json.dumps(receiver.username)
-        }
-        return JsonResponse(data)
+class ChatListView(generics.ListAPIView):
+    serializer_class = ChatListSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        user = self.request.user
+        return Chat.objects.filter(participant1=user) | Chat.objects.filter(participant2=user)
+    
+class ChatDetailView(generics.RetrieveAPIView):
+    serializer_class = ChatSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_object(self):
+        user1 = self.request.user
+        user2 = User.objects.get(pk=self.kwargs['pk'])
+        return (Chat.objects.filter(participant1=user1, participant2=user2) | Chat.objects.filter(participant1=user2, participant2=user1)).first()

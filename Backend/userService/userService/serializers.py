@@ -6,13 +6,13 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/22 17:32:01 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/23 19:12:10 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
 from rest_framework import serializers
 from django.contrib.auth.models import User
-from .models import Profile, Friendship, ChatModel
+from .models import Profile, Friendship, Chat, Message
 from django.db.models import Q
 import random
 
@@ -52,8 +52,8 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Profile
-        fields = ['id', 'display_name', 'avatar', 'is_online',
-                 'friend_request_status', 'requested_by_current_user']
+        fields = ['id', 'display_name', 'avatar', 'is_online', 
+                 'friend_request_status', 'requested_by_current_user', 'blocked_users']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -80,10 +80,65 @@ class UserProfileSerializer(serializers.ModelSerializer):
         user = self.context['request'].user
         return Friendship.objects.filter(from_profile=user.profile, to_profile=obj, status='pending').exists()
 
-class ChatModelSerializer(serializers.ModelSerializer):
-    sender_name = serializers.CharField(source='sender.username', read_only=True)
-    receiver_name = serializers.CharField(source='receiver.username', read_only=True)
+    def get_blocked_users(self, obj):
+        return obj.blocked_users.values_list('id', flat=True)
+
+class MessageSerializer(serializers.ModelSerializer):
+    sender = serializers.StringRelatedField()
 
     class Meta:
-        model = ChatModel
-        fields = ['id', 'sender', 'receiver', 'sender_name', 'receiver_name', 'message', 'thread_name', 'timestamp']
+        model = Message
+        fields = ['sender', 'text', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class ChatSerializer(serializers.ModelSerializer):
+    participant2 = serializers.SerializerMethodField()
+    messages = MessageSerializer(many=True, read_only=True)
+    
+    class Meta:
+        model = Chat
+        fields = ['id', 'participant2', 'messages']
+    
+    def get_participant2(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+            
+        target_user = obj.participant2 if obj.participant1 == request.user else obj.participant1
+        return {
+            'id': target_user.id,
+            'username': target_user.username,
+            'profile_image': target_user.profile.avatar.url if hasattr(target_user.profile, 'avatar') and target_user.profile.avatar else None
+        }
+
+
+class ChatListSerializer(serializers.ModelSerializer):
+    participant2 = serializers.SerializerMethodField()
+    last_message = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Chat
+        fields = ['id', 'participant2', 'last_message']
+    
+    def get_participant2(self, obj):
+        request = self.context.get('request')
+        if not request:
+            return None
+            
+        target_user = obj.participant2 if obj.participant1 == request.user else obj.participant1
+        return {
+            'id': target_user.id,
+            'username': target_user.username,
+            'profile_image': target_user.profile.avatar.url if hasattr(target_user.profile, 'avatar') and target_user.profile.avatar else None
+        }
+    
+    def get_last_message(self, obj):
+        last_msg = obj.messages.order_by('-created_at').first()
+        if last_msg:
+            return {
+                'text': last_msg.text,
+                'created_at': last_msg.created_at,
+                'sender': last_msg.sender.username
+            }
+        return None

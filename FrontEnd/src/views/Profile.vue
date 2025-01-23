@@ -37,7 +37,6 @@
         </form>
       </div>
 
-      <!-- Search Profiles Section -->
       <div class="search-section">
         <input 
           v-model="searchQuery" 
@@ -55,7 +54,12 @@
             <img :src="profile.avatar" :alt="profile.display_name" class="profile-avatar">
             <p>{{ profile.display_name }}</p>
             <div class="friend-actions">
-              <div v-if="profile.friend_request_status === 'pending'">
+              <!-- Blocked user -->
+              <div v-if="profile.is_blocked">
+                <button @click="unblockUser(profile.id)" class="btn warning-btn">Unblock</button>
+              </div>
+              <!-- Pending friend request -->
+              <div v-else-if="profile.friend_request_status === 'pending'">
                 <div v-if="profile.requested_by_current_user">
                   <p class="status-text">Request Pending</p>
                 </div>
@@ -64,15 +68,32 @@
                   <button @click="declineFriendRequest(profile.id)" class="btn secondary-btn">Decline</button>
                 </div>
               </div>
-              <div v-else-if="profile.is_friend">
+              <!-- Friend user -->
+              <div v-else-if="profile.is_friend" class="friend-management">
                 <button @click="removeFriend(profile.id)" class="btn secondary-btn">Remove Friend</button>
+                <button @click="blockUser(profile.id)" class="btn warning-btn">Block</button>
               </div>
-              <div v-else>
+              <!-- Non-friend user -->
+              <div v-else class="friend-management">
                 <button @click="sendFriendRequest(profile.id)" class="btn primary-btn">Add Friend</button>
+                <button @click="blockUser(profile.id)" class="btn warning-btn">Block</button>
               </div>
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Incoming Friend Requests -->
+      <div class="profile-card" v-if="incomingFriendRequests && incomingFriendRequests.length > 0">
+        <h2>Incoming Friend Requests</h2>
+        <ul class="search-results">
+          <li v-for="request in incomingFriendRequests" :key="request.from_user_id" class="profile-item">
+            <img :src="request.avatar" alt="Avatar" class="profile-avatar" />
+            <span class="profile-name">{{ request.from_user_name }}</span>
+            <button @click="acceptFriendRequest(request.from_user_id)" class="btn primary-btn">Accept</button>
+            <button @click="declineFriendRequest(request.from_user_id)" class="btn secondary-btn">Decline</button>
+          </li>
+        </ul>
       </div>
 
       <!-- Friends Section with Chat -->
@@ -122,6 +143,11 @@
     <!-- Loading and Error States -->
     <div v-if="loading">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
+
+    <!-- Logout Button -->
+    <nav>
+      <button @click="logout" class="btn secondary-btn">Logout</button>
+    </nav>
   </div>
 </template>
 
@@ -158,6 +184,9 @@ export default {
       //Web Socket
       wsConnected: false,
 
+      // Friend Requests
+      incomingFriendRequests: [],
+      notifications: [],
 
       // Chat
       showChat: false,
@@ -332,7 +361,7 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-          `http://localhost:8000/api/profile/search/?q=${encodeURIComponent(this.searchQuery)}`,
+          `http://localhost:8000/api/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
@@ -346,6 +375,7 @@ export default {
         }
 
         const data = await response.json();
+        console.log('Search results:', data); // Debug log
         this.searchResults = data;
 
       } catch (error) {
@@ -354,6 +384,61 @@ export default {
         this.searchResults = [];
       } finally {
         this.isSearching = false;
+      }
+    },
+
+    async blockUser(profileId) {
+      try {
+        const response = await fetch(`/api/profile/block/${profileId}/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Token ${this.getToken}`
+          },
+          body: JSON.stringify({
+            blocked_user_id: profileId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // Update local state
+        const profile = this.searchResults.find(p => p.id === profileId);
+        if (profile) {
+          profile.is_blocked = true;
+          profile.is_friend = false;
+        }
+      } catch (error) {
+        console.error('Error blocking user:', error);
+      }
+    },
+
+    async unblockUser(profileId) {
+      try {
+        const response = await fetch(`/api/profile/un_block/${profileId}/`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Token ${this.getToken}`
+          },
+          body: JSON.stringify({
+            blocked_user_id: profileId
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error('Network response was not ok');
+        }
+
+        // Update local state
+        const profile = this.searchResults.find(p => p.id === profileId);
+        if (profile) {
+          profile.is_blocked = false;
+        }
+      } catch (error) {
+        console.error('Error unblocking user:', error);
       }
     },
 
@@ -441,15 +526,15 @@ export default {
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
+          
         if (response.ok) {
-          alert('Friend removed successfully');
-          // Refresh friends list
-          this.fetchProfile();
-          // Send WebSocket notification
-          this.socket.send(JSON.stringify({
-            type: 'friend_removed',
-            user_id: this.currentUserId,
-          }));
+          await this.fetchProfile(); // Refresh sender's profile
+          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+            this.socket.send(JSON.stringify({
+              type: 'friend_removed',
+              friend_id: friendId
+            }));
+          }
         } else {
           console.error('Failed to remove friend');
         }
@@ -462,12 +547,13 @@ export default {
       try {
         const response = await fetch('/api/profile/incoming_friend_requests/', {
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+              'Authorization': `Token ${this.getToken}`,
           },
         });
         if (response.ok) {
           const data = await response.json();
-          this.incomingFriendRequests = data.requests || [];
+          // Directly assign the array since backend returns array of requests
+          this.incomingFriendRequests = data;
         } else {
           console.error('Failed to fetch incoming friend requests');
           this.incomingFriendRequests = [];
@@ -488,58 +574,61 @@ export default {
       // Close chat window
     },
     async logout() {
-      // Handle logout
+      await this.$store.dispatch('logoutAction');
+      this.$router.push('/login');
     },
 
     // NEED TO CHANGE WEB SOCKETS TO WORK WITH AUTHENTICATION TOKENS 
 
     // WebSocket methods
     connectWebSocket() {
-      try {
-        // Check if we already have a connection
-        if (this.socket && this.wsConnected) {
-          return;
+      //Get token from store
+      const token = this.getToken;
+      this.socket = new WebSocket(`ws://localhost:8000/ws/profile/notifications/?token=${token}`);
+      this.socket.onopen = () => {
+        this.wsConnected = true;
+      };
+      this.socket.onmessage = (e) => {
+        const data = JSON.parse(e.data);
+        // Handle incoming messages
+        switch (data.type) {
+          case 'friend_request':
+            this.incomingFriendRequests.push({
+              from_user_id: data.from_user_id,
+              from_user_name: data.from_user_name,
+              avatar: data.from_user_avatar,
+            });
+            break;
+
+          case 'friend_status':
+            const friendId = data.user_id;
+            const status = data.status;
+            const friend = this.friends.find(f => f.id === friendId);
+            if (friend) {
+              friend.is_online = (status === 'online');
+            }
+            break;
+
+          case 'friend_request_accepted':
+            this.fetchProfile();
+            break;
+
+          case 'friend_request_declined':
+            this.fetchProfile();
+            break;
+
+          case 'friend_removed':
+            this.fetchProfile(); // Refresh receiver's profile
+            break;
+
+          default:
+            console.warn('Unhandled WebSocket message type:', data.type);
+            break;
         }
-
-        // Build WebSocket URL
-        const host = window.location.hostname;
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const port = '8000'; // Development server port
-        const token = this.getToken;
-
-        if (!token) {
-          console.error('No authentication token found');
-          return;
-        }
-
-        // Construct WebSocket URL
-        const wsUrl = `${wsScheme}://${host}:${port}/ws/profile/notifications/?token=${token}`;
-        this.socket = new WebSocket(wsUrl);
-
-        // Setup event handlers
-        this.socket.onopen = () => {
-          console.log('WebSocket connected');
-          this.wsConnected = true;
-        };
-
-        this.socket.onclose = (event) => {
-          console.log('WebSocket disconnected:', event.code);
-          this.wsConnected = false;
-          // Attempt to reconnect after 5 seconds
-          setTimeout(() => this.connectWebSocket(), 5000);
-        };
-
-        this.socket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          this.wsConnected = false;
-        };
-
-        this.socket.onmessage = this.handleWebSocketMessage;
-
-      } catch (error) {
-        console.error('WebSocket connection error:', error);
+      };
+      this.socket.onclose = () => {
         this.wsConnected = false;
-      }
+      };
     },
 
     // Cleanup on component destruction
@@ -619,18 +708,36 @@ export default {
   margin-top: 5px;
 }
 
+.friend-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.friend-management {
+  display: flex;
+  gap: 8px;
+}
+
 .btn {
-  padding: 10px 20px;
+  padding: 6px 12px;
+  border-radius: 4px;
   border: none;
-  border-radius: 5px;
-  font-size: 14px;
   cursor: pointer;
 }
 
 .primary-btn {
-  background-color: #4caf50;
+  background-color: #4CAF50;
   color: white;
-  transition: transform 0.3s ease; /* Add transition for smooth animation */
+}
+
+.secondary-btn {
+  background-color: #f44336;
+  color: white;
+}
+
+.warning-btn {
+  background-color: #ff9800;
+  color: white;
 }
 
 .primary-btn:disabled {
@@ -721,6 +828,17 @@ nav .btn {
 
 .chat-username {
   font-weight: bold;
+}
+
+.warning-btn {
+  background-color: #dc3545;
+  color: white;
+  margin-left: 8px;
+}
+
+.friend-management {
+  display: flex;
+  gap: 8px;
 }
 
 input {
