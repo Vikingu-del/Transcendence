@@ -17,7 +17,7 @@ fi
 # Create a directory for SSL certificates if not already present
 mkdir -p /etc/nginx/ssl
 
-# Generate a self-signed certificate without prompting for input (if not already generated)
+# Generate a self-signed certificate without prompting for input
 if [ ! -f /etc/nginx/ssl/nginx-selfsigned.crt ]; then
     echo "Generating self-signed SSL certificate..."
     openssl req -newkey rsa:2048 -nodes -keyout /etc/nginx/ssl/nginx-selfsigned.key \
