@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/23 19:29:18 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/28 17:29:51 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -18,7 +18,7 @@ from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework import generics
-from .serializers import UserSerializer, UserProfileSerializer
+from .serializers import UserSerializer, UserProfileSerializer, FriendRequestSerializer
 from .models import Profile, Friendship, Chat, Message
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.permissions import IsAuthenticated
@@ -213,60 +213,58 @@ class SearchProfilesView(APIView):
             return Response([])
 
         try:
-            # First get User queryset
-            blocked_by_others = User.objects.filter(
-                profile__blocked_users=request.user
-            )
-            blocked_by_me = request.user.profile.blocked_users.all()
-            
-            # Find users matching search criteria
+            # Find users matching search criteria, excluding only current user
             users = User.objects.filter(
                 Q(username__icontains=query) |
                 Q(profile__display_name__icontains=query)
             ).exclude(
-                id=request.user.id  # Exclude current user
-            ).exclude(
-                id__in=blocked_by_others  # Exclude users who blocked current user
-            ).exclude(
-                id__in=blocked_by_me  # Exclude users blocked by current user
+                id=request.user.id  # Exclude only current user
             )
 
             # Get profiles for matched users
             profiles = Profile.objects.filter(user__in=users)
             
+            # Add blocked status to context for serializer
+            context = {
+                "request": request,
+                "blocked_users": request.user.profile.blocked_users.all(),
+            }
+            
             logger.debug(f"Found {profiles.count()} profiles")
-            serializer = UserProfileSerializer(profiles, many=True, context={"request": request})
+            serializer = UserProfileSerializer(profiles, many=True, context=context)
             return Response(serializer.data)
             
         except Exception as e:
             logger.error(f"Search error: {str(e)}")
-            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 @permission_classes([IsAuthenticated])
 class BlockUserView(APIView):
-    def post(self, request, blocked_user_id):
-        user_profile = request.user.profile
 
+    def post(self, request, user_id):
         try:
-            blocked_user = User.objects.get(id=blocked_user_id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+            user_to_block = get_object_or_404(User, id=user_id)
+            request.user.profile.blocked_users.add(user_to_block)
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
-        user_profile.blocked_users.add(blocked_user)
-        return Response({'message': 'User blocked successfully'}, status=status.HTTP_200_OK)
-
-@permission_classes([IsAuthenticated])
-class UnblockUserView(APIView):
-    def post(self, request, blocked_user_id):
-        user_profile = request.user.profile
-
+    def delete(self, request, user_id):
         try:
-            blocked_user = User.objects.get(id=blocked_user_id)
-        except User.DoesNotExist:
-            return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        user_profile.blocked_users.remove(blocked_user)
-        return Response({'message': 'User unblocked successfully'}, status=status.HTTP_200_OK)
+            user_to_unblock = get_object_or_404(User, id=user_id)
+            request.user.profile.blocked_users.remove(user_to_unblock)
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 @permission_classes([IsAuthenticated])
@@ -317,80 +315,123 @@ class AddFriendView(APIView):
 
 @permission_classes([IsAuthenticated])
 class IncomingFriendRequestsView(APIView):
-    def get(self, request, *args, **kwargs):
-        user_profile = request.user.profile
-        incoming_requests = Friendship.objects.filter(to_profile=user_profile, status='pending')
-        serializer = UserProfileSerializer([req.from_profile for req in incoming_requests], many=True, context={"request": request})
-        return Response(serializer.data)
+    def get(self, request):
+        try:
+            user_profile = request.user.profile
+            incoming_requests = Friendship.objects.filter(
+                to_profile=user_profile,
+                status='pending'
+            ).select_related('from_profile')
+
+            serializer = FriendRequestSerializer(incoming_requests, many=True)
+            return Response(serializer.data)
+        except Exception as e:
+            logger.error(f"Error fetching friend requests: {str(e)}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 @permission_classes([IsAuthenticated])
 class DeclineFriendRequestView(APIView):
-    def post(self, request, *args, **kwargs):
-        user_profile = request.user.profile
-        friend_profile_id = request.data.get('friend_profile_id')
+    def post(self, request):
+        to_profile = request.user.profile
+        from_user_id = request.data.get('from_user_id')
+        
+        # Add logging
+        logger.debug(f"Decline friend request: from_user_id={from_user_id}")
+
+        if not from_user_id:
+            return Response({'error': 'From user ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            friend_profile = Profile.objects.get(id=friend_profile_id)
-            friendship = Friendship.objects.get(from_profile=friend_profile, to_profile=user_profile, status='pending')
+            # Try to find profile by user ID first
+            from_profile = Profile.objects.select_related('user').get(user_id=from_user_id)
+            logger.debug(f"Found profile: {from_profile.display_name}")
+
+        except Profile.DoesNotExist:
+            logger.error(f"Profile not found for user_id: {from_user_id}")
+            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            friendship = Friendship.objects.get(
+                from_profile=from_profile, 
+                to_profile=to_profile, 
+                status='pending'
+            )
             friendship.delete()
 
-            # Send a WebSocket notification to the sender
+            # Send WebSocket notification
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f"user_{friend_profile.user.id}",
+                f"user_{from_profile.user.id}",
                 {
                     'type': 'send_notification',
                     'message': {
                         'type': 'friend_request_declined',
-                        'user_id': user_profile.user.id,
-                        'user_name': user_profile.display_name,
-                        'user_avatar': user_profile.avatar.url if user_profile.avatar else '',
+                        'user_id': to_profile.user.id,
+                        'user_name': to_profile.display_name,
+                        'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
                     },
                 }
             )
 
-            return Response({"message": "Friend request declined"}, status=status.HTTP_200_OK)
-        except (Profile.DoesNotExist, Friendship.DoesNotExist):
-            return Response({"message": "Friend request not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'message': 'Friend request declined'}, status=status.HTTP_200_OK)
+
+        except Friendship.DoesNotExist:
+            logger.error(f"Friendship not found between {to_profile.id} and {from_profile.id}")
+            return Response({'error': 'Friend request not found'}, status=status.HTTP_400_BAD_REQUEST)
         
 @permission_classes([IsAuthenticated])
 class AcceptFriendRequestView(APIView):
     def post(self, request):
         to_profile = request.user.profile
         from_user_id = request.data.get('from_user_id')
+        
+        # Add logging
+        logger.debug(f"Accept friend request: from_user_id={from_user_id}")
 
         if not from_user_id:
             return Response({'error': 'From user ID is required'}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            from_profile = Profile.objects.get(user__id=from_user_id)
+            # Try to find profile by user ID first
+            from_profile = Profile.objects.select_related('user').get(user_id=from_user_id)
+            logger.debug(f"Found profile: {from_profile.display_name}")
+
         except Profile.DoesNotExist:
+            logger.error(f"Profile not found for user_id: {from_user_id}")
             return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        friendship = Friendship.objects.filter(from_profile=from_profile, to_profile=to_profile, status='pending').first()
+        try:
+            friendship = Friendship.objects.get(
+                from_profile=from_profile, 
+                to_profile=to_profile, 
+                status='pending'
+            )
+            friendship.status = 'accepted'
+            friendship.save()
 
-        if not friendship:
+            # Send WebSocket notification
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{from_profile.user.id}",
+                {
+                    'type': 'send_notification',
+                    'message': {
+                        'type': 'friend_request_accepted',
+                        'user_id': to_profile.user.id,
+                        'user_name': to_profile.display_name,
+                        'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
+                    },
+                }
+            )
+
+            return Response({'message': 'Friend request accepted'}, status=status.HTTP_200_OK)
+
+        except Friendship.DoesNotExist:
+            logger.error(f"Friendship not found between {to_profile.id} and {from_profile.id}")
             return Response({'error': 'Friend request not found'}, status=status.HTTP_400_BAD_REQUEST)
-
-        friendship.status = 'accepted'
-        friendship.save()
-
-        # Send a WebSocket notification to the requester
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{from_profile.user.id}",
-            {
-                'type': 'send_notification',
-                'message': {
-                    'type': 'friend_request_accepted',
-                    'user_id': to_profile.user.id,
-                    'user_name': to_profile.display_name,
-                    'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
-                },
-            }
-        )
-
-        return Response({'message': 'Friend request accepted'}, status=status.HTTP_200_OK)
 
 @permission_classes([IsAuthenticated])
 class RemoveFriendView(APIView):

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/23 19:12:10 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/28 17:16:14 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -48,12 +48,12 @@ class UserProfileSerializer(serializers.ModelSerializer):
     avatar = serializers.SerializerMethodField()
     friend_request_status = serializers.SerializerMethodField()
     requested_by_current_user = serializers.SerializerMethodField()
-
+    isBlocked = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
         fields = ['id', 'display_name', 'avatar', 'is_online', 
-                 'friend_request_status', 'requested_by_current_user', 'blocked_users']
+                 'friend_request_status', 'requested_by_current_user', 'isBlocked']
 
     def get_avatar(self, obj):
         request = self.context.get('request')
@@ -76,12 +76,41 @@ class UserProfileSerializer(serializers.ModelSerializer):
         ).first()
         return friendship.status if friendship else None
 
+    def get_friend_request_status(self, obj):
+        user = self.context['request'].user
+        friendship = Friendship.objects.filter(
+            (Q(from_profile=user.profile) & Q(to_profile=obj)) |
+            (Q(from_profile=obj) & Q(to_profile=user.profile))
+        ).first()
+        return friendship.status if friendship else None
+
     def get_requested_by_current_user(self, obj):
         user = self.context['request'].user
         return Friendship.objects.filter(from_profile=user.profile, to_profile=obj, status='pending').exists()
 
     def get_blocked_users(self, obj):
         return obj.blocked_users.values_list('id', flat=True)
+    
+    def get_isBlocked(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return request.user.profile.blocked_users.filter(id=obj.user.id).exists()
+        return False
+
+class FriendRequestSerializer(serializers.ModelSerializer):
+    from_user = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Friendship
+        fields = ['id', 'from_user', 'status', 'created']
+        
+    def get_from_user(self, obj):
+        return {
+            'id': obj.from_profile.user.id,
+            'display_name': obj.from_profile.display_name,
+            'avatar': obj.from_profile.get_avatar_url(),
+            'is_online': obj.from_profile.is_online
+        }
 
 class MessageSerializer(serializers.ModelSerializer):
     sender = serializers.StringRelatedField()

@@ -22,7 +22,7 @@ from .views import (
     RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
     AddFriendView, RemoveFriendView, AcceptFriendRequestView,
     DeclineFriendRequestView, IncomingFriendRequestsView,
-    ChatListView, ChatDetailView, BlockUserView, UnblockUserView
+    ChatListView, ChatDetailView, BlockUserView
 )
 
 
@@ -39,14 +39,13 @@ urlpatterns = [
     
     # Friend management endpoints
     path('api/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
-    path('api/profile/accept_friend_request/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
-    path('api/profile/decline_friend_request/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
     path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
-    path('api/profile/incoming_friend_requests/', IncomingFriendRequestsView.as_view(), name='incoming_friend_requests'),
+    path('api/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
+    path('api/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
+    path('api/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
     
      # Block management endpoints
-    path('api/profile/block/<int:blocked_user_id>/', BlockUserView.as_view(), name='block_user'),
-    path('api/profile/un_block/<int:blocked_user_id>/', UnblockUserView.as_view(), name='unblock_user'),
+    path('api/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
 
     # Chat endpoints
     path('api/profile/chats/', ChatListView.as_view(), name='chat_list_view'),

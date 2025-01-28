@@ -27,6 +27,12 @@ class Profile(models.Model):
             else:
                 friends.append(friendship.from_profile)
         return friends
+    
+    def is_blocked(self, user):
+        return self.blocked_users.filter(id=user.id).exists()
+
+    def get_blocked_users(self):
+        return self.blocked_users.all()
 
 class Friendship(models.Model):
     from_profile = models.ForeignKey(Profile, related_name='from_friend_set', on_delete=models.CASCADE)
