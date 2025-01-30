@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/28 17:29:51 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/01/30 13:22:24 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -213,25 +213,24 @@ class SearchProfilesView(APIView):
             return Response([])
 
         try:
-            # Find users matching search criteria, excluding only current user
+            current_user = request.user
+            
+            # Find users matching search criteria and apply filters
             users = User.objects.filter(
                 Q(username__icontains=query) |
                 Q(profile__display_name__icontains=query)
             ).exclude(
-                id=request.user.id  # Exclude only current user
+                Q(id=current_user.id) |  # Exclude current user
+                Q(profile__blocked_users=current_user)  # Exclude users who blocked current user
             )
 
             # Get profiles for matched users
             profiles = Profile.objects.filter(user__in=users)
             
-            # Add blocked status to context for serializer
-            context = {
-                "request": request,
-                "blocked_users": request.user.profile.blocked_users.all(),
-            }
-            
-            logger.debug(f"Found {profiles.count()} profiles")
+            logger.debug(f"Found {profiles.count()} profiles before block check")
+            context = {"request": request}
             serializer = UserProfileSerializer(profiles, many=True, context=context)
+            
             return Response(serializer.data)
             
         except Exception as e:
