@@ -72,11 +72,8 @@
               <div v-else>
                 <!-- Show friend status buttons -->
                 <div v-if="isFriend(profile)" class="friend-management">
-                  <button @click="removeFriend(profile.id)" class="btn remove-btn">
+                  <button @click="removeFriend(profile.id)" class="btn secondary-btn">
                     Remove Friend
-                  </button>
-                  <button @click="blockUser(profile.id)" class="btn block-btn">
-                    Block
                   </button>
                 </div>
                 <!-- Show pending request status -->
@@ -110,22 +107,21 @@
 
       <!-- Incoming Friend Requests -->
       <div v-for="request in incomingFriendRequests" 
-        :key="request.id" 
-        class="profile-item">
-      <img :src="request.from_user.avatar" 
-          class="profile-avatar" />
-      <span class="profile-name">{{ request.from_user.display_name }}</span>
-      <div class="action-buttons">
-        <button @click="acceptFriendRequest(request)" 
-                class="btn accept-btn">
-          Accept
-        </button>
-        <button @click="declineFriendRequest(request)" 
-                class="btn decline-btn">
-          Decline
-        </button>
+          :key="request.id" 
+          class="profile-item">
+        <img :src="request.from_user.avatar" :alt="request.from_user.display_name" class="profile-avatar">
+        <span class="profile-name">{{ request.from_user.display_name }}</span>
+        <div class="action-buttons">
+          <button @click="acceptFriendRequest(request)" 
+                  class="btn accept-btn">
+            Accept
+          </button>
+          <button @click="declineFriendRequest(request)" 
+                  class="btn decline-btn">
+            Decline
+          </button>
+        </div>
       </div>
-    </div>
 
       <!-- Friends Section with Chat -->
       <div class="profile-section">
@@ -214,6 +210,7 @@ export default {
       currentUserId: null,
 
       //Web Socket
+      socket: null,
       wsConnected: false,
 
       // Friend Requests
@@ -629,12 +626,6 @@ export default {
           this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
           
           await this.fetchProfile(); // Refresh sender's profile
-          if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            this.socket.send(JSON.stringify({
-              type: 'friend_removed',
-              friend_id: friendId
-            }));
-          }
         } else {
           console.error('Failed to remove friend');
         }
@@ -648,47 +639,60 @@ export default {
       return profile.friend_request_status;
     },
 
-    // Method to show incoming requests
-    hasIncomingRequest(profile) {
-      return profile.friend_request_status === 'pending' && !profile.requested_by_current_user;
-    },
-
-    hasIncomingRequest(profile) {
-      return profile.friend_request_status === 'pending' && !profile.requested_by_current_user;
-    },
 
     async fetchIncomingRequests() {
-      try {
-        const response = await fetch('/api/profile/friend-requests/', {
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const baseUrl = 'http://localhost:8000'; // Add base URL
-
-          this.incomingFriendRequests = data.map(request => ({
-            id: request.id,
-            from_user: {
-              id: request.from_user.id,
-              display_name: request.from_user.display_name,
-              avatar: request.from_user.avatar.startsWith('http') 
-                ? request.from_user.avatar 
-                : `${baseUrl}${request.from_user.avatar}`,
-              is_online: request.from_user.is_online
-            },
-            status: request.status,
-            created: request.created
-          }));
-          localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
+    try {
+      console.log('Starting fetch of incoming requests');
+      
+      const response = await fetch('/api/profile/friend-requests/', {
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json'
         }
-      } catch (error) {
-        console.error('Error fetching requests:', error);
-        this.showStatus('Error loading requests: {msg}', { msg: error.message }, 'error');
+      });
+
+      const data = await response.json();
+      console.log('Raw API response:', data);
+
+      // Validate data before processing
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid response format');
       }
+
+      const baseUrl = 'http://localhost:8000';
+      
+      // Map with validation
+      const validRequests = data
+        .filter(request => {
+          const isValid = request && request.from_user;
+          if (!isValid) console.warn('Invalid request:', request);
+          return isValid;
+        })
+        .map(request => ({
+          id: request.id,
+          from_user: {
+            id: request.from_user.id,
+            display_name: request.from_user.display_name,
+            avatar: this.buildAvatarUrl(request.from_user.avatar, baseUrl),
+            is_online: !!request.from_user.is_online
+          },
+          status: request.status
+        }));
+
+      console.log('Processed requests:', validRequests);
+      this.incomingFriendRequests = validRequests;
+
+    } catch (error) {
+      console.error('Fetch error:', error);
+      this.incomingFriendRequests = []; // Reset on error
+    }
+  },
+
+    // Helper method for avatar URL
+    buildAvatarUrl(avatarPath, baseUrl) {
+      if (!avatarPath) return `${baseUrl}/media/default.png`;
+      if (avatarPath.startsWith('http')) return avatarPath;
+      return `${baseUrl}${avatarPath}`;
     },
 
     async startChat(friend) {
@@ -705,8 +709,6 @@ export default {
       this.$router.push('/login');
     },
 
-    // NEED TO CHANGE WEB SOCKETS TO WORK WITH AUTHENTICATION TOKENS 
-
     // WebSocket methods
     connectWebSocket() {
       //Get token from store
@@ -716,15 +718,21 @@ export default {
         this.wsConnected = true;
       };
       this.socket.onmessage = (e) => {
+        console.log('WebSocket message received:', e.data);  // Debug logging
         const data = JSON.parse(e.data);
         // Handle incoming messages
         switch (data.type) {
           case 'friend_request':
             this.incomingFriendRequests.push({
-              from_user_id: data.from_user_id,
-              from_user_name: data.from_user_name,
-              avatar: data.from_user_avatar,
+                id: Date.now(), // Generate temporary ID
+                from_user: {
+                    id: data.from_user_id,
+                    display_name: data.from_user_name,
+                    avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost:8000'),
+                    is_online: true // Assume online since they just sent request
+                }
             });
+            this.showStatus(`New friend request from ${data.from_user_name}`, {}, 'success');
             break;
 
           case 'friend_status':

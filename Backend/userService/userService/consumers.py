@@ -90,12 +90,12 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
+            logger.info(f"Received WebSocket message type: {message_type}")
 
             handlers = {
                 'friend_request': self.handle_friend_request,
                 'chat_message': self.handle_chat_message,
-                'friend_status': self.handle_friend_status,
-                'friend_removed': self.handle_friend_removed
+                'friend_status': self.handle_friend_status
             }
 
             handler = handlers.get(message_type)
@@ -104,8 +104,10 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             else:
                 logger.warning(f'Unknown message type: {message_type}')
 
+        except json.JSONDecodeError:
+            logger.error('Invalid JSON in WebSocket message')
         except Exception as e:
-            logger.error(f'Receive error: {str(e)}')
+            logger.error(f'Receive error: {str(e)}', exc_info=True)
 
     async def handle_chat_message(self, data):
         try:
@@ -147,29 +149,40 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             to_user_id = data.get('to_user_id')
             from_user_id = self.user.id
             
+            logger.info(f"Processing friend request from {from_user_id} to {to_user_id}")
+            
+            if not to_user_id:
+                logger.error("No target user ID provided")
+                return
+                
             # Get user profiles
             to_user = await self.get_user_profile(to_user_id)
             from_user = await self.get_user_profile(from_user_id)
             
             if not to_user or not from_user:
-                logger.error(f'User profile not found for friend request')
+                logger.error(f"Could not find profiles - to_user: {to_user}, from_user: {from_user}")
                 return
 
+            message = {
+                'type': 'friend_request',
+                'from_user_id': from_user_id,
+                'from_user_name': from_user.display_name,
+                'from_user_avatar': from_user.get_avatar_url()
+            }
+            
+            logger.info(f"Sending notification to user_{to_user_id}: {message}")
+            
             # Send notification to recipient's group channel
             await self.channel_layer.group_send(
-                f'user_{to_user_id}',
+                f"user_{to_user_id}",
                 {
-                    'type': 'friend_request_notification',
-                    'from_user_id': from_user_id,
-                    'from_user_name': from_user.user.username,
-                    'from_user_avatar': from_user.avatar.url if from_user.avatar else None
+                    'type': 'send_notification',
+                    'message': message
                 }
             )
-            
-            logger.info(f'Friend request sent from user {from_user_id} to user {to_user_id}')
 
         except Exception as e:
-            logger.error(f'Error handling friend request: {str(e)}')
+            logger.error(f'Error in handle_friend_request: {str(e)}', exc_info=True)
 
     async def friend_request_notification(self, event):
         """Send friend request notification to WebSocket"""

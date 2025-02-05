@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/05 12:11:01 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/05 13:56:37 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -305,8 +305,8 @@ class AddFriendView(APIView):
                     'type': 'friend_request',
                     'from_user_id': from_profile.user.id,
                     'from_user_name': from_profile.display_name,
-                    'from_user_avatar': from_profile.avatar.url if from_profile.avatar else '',
-                },
+                    'from_user_avatar': from_profile.get_avatar_url(), # Use the helper method
+                }
             }
         )
 
