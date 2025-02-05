@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/05 13:56:37 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/05 15:09:35 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -471,29 +471,38 @@ class RemoveFriendView(APIView):
             return Response({"message": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
 
 class LogoutView(APIView):
-    def post(self, request, *args, **kwargs):
-        if request.user.is_authenticated:
-            user_profile = request.user.profile
-            user_profile.is_online = False
-            user_profile.save()
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
 
-            # Notify friends that the user is offline
+    def post(self, request, *args, **kwargs):
+        try:
+            # Set user offline
+            profile = request.user.profile
+            profile.is_online = False
+            profile.save()
+
+            # Notify other users about offline status
             channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
-                f"user_{user_profile.user.id}",
+                f"user_{request.user.id}",
                 {
-                    'type': 'send_notification',
-                    'message': {
-                        'type': 'friend_status',
-                        'user_id': user_profile.user.id,
-                        'status': 'offline',
-                    },
+                    "type": "friend_status",
+                    "message": {
+                        "type": "friend_status",
+                        "user_id": request.user.id,
+                        "status": "offline"
+                    }
                 }
             )
 
-            logout(request)
-            return Response({"message": "Logout successful"}, status=status.HTTP_200_OK)
-            return Response({"message": "Logout not successful"}, status=status.HTTP_200_OK)
+            # Delete auth token
+            request.user.auth_token.delete()
+            
+            return Response({"message": "Successfully logged out."}, 
+                          status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({"error": str(e)}, 
+                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ChatListView(generics.ListAPIView):
     serializer_class = ChatListSerializer

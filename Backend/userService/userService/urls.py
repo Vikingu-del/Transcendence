@@ -35,7 +35,6 @@ urlpatterns = [
     # Profile endpoints
     path('api/profile/', ProfileView.as_view(), name='profile'),
     path('api/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
-    # path('api/profile/display-name/check/', check_display_name, name='check_display_name'),
     
     # Friend management endpoints
     path('api/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),

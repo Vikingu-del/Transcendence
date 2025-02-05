@@ -106,20 +106,23 @@
       </div>
 
       <!-- Incoming Friend Requests -->
-      <div v-for="request in incomingFriendRequests" 
-          :key="request.id" 
-          class="profile-item">
-        <img :src="request.from_user.avatar" :alt="request.from_user.display_name" class="profile-avatar">
-        <span class="profile-name">{{ request.from_user.display_name }}</span>
-        <div class="action-buttons">
-          <button @click="acceptFriendRequest(request)" 
-                  class="btn accept-btn">
-            Accept
-          </button>
-          <button @click="declineFriendRequest(request)" 
-                  class="btn decline-btn">
-            Decline
-          </button>
+      <div class="profile-section">
+        <div v-if="incomingFriendRequests.length">Incoming Friend Requests</div>
+        <div v-for="request in incomingFriendRequests" 
+            :key="request.id" 
+            class="profile-item">
+          <img :src="request.from_user.avatar" :alt="request.from_user.display_name" class="profile-avatar">
+          <span class="profile-name">{{ request.from_user.display_name }}</span>
+          <div class="action-buttons">
+            <button @click="acceptFriendRequest(request)" 
+                    class="btn accept-btn">
+              Accept
+            </button>
+            <button @click="declineFriendRequest(request)" 
+                    class="btn decline-btn">
+              Decline
+            </button>
+          </div>
         </div>
       </div>
 
@@ -704,9 +707,37 @@ export default {
     closeChat() {
       // Close chat window
     },
+
     async logout() {
-      await this.$store.dispatch('logoutAction');
-      this.$router.push('/login');
+      try {
+        // Send offline status
+        if (this.socket && this.socket.readyState === WebSocket.OPEN) {
+          this.socket.send(JSON.stringify({
+            type: 'friend_status',
+            status: 'offline'
+          }));
+          
+          await new Promise(resolve => setTimeout(resolve, 100));
+          this.socket.close();
+        }
+
+        // Call logout API
+        const response = await fetch('/api/logout/', {
+          headers: {
+            'Authorization': `Token ${this.getToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        // Clear localStorage
+        localStorage.removeItem('incomingRequests');
+        
+        // Clear store and redirect
+        await this.$store.dispatch('logoutAction');
+        this.$router.push('/login');
+      } catch (error) {
+        console.error('Logout error:', error);
+      }
     },
 
     // WebSocket methods
@@ -735,14 +766,27 @@ export default {
             this.showStatus(`New friend request from ${data.from_user_name}`, {}, 'success');
             break;
 
-          case 'friend_status':
-            const friendId = data.user_id;
-            const status = data.status;
-            const friend = this.friends.find(f => f.id === friendId);
-            if (friend) {
-              friend.is_online = (status === 'online');
-            }
-            break;
+            case 'friend_status':
+              const friendId = data.user_id;
+              const status = data.status;
+              // First try to find friend in the profile.friends array
+              const friend = this.profile.friends.find(f => 
+                  f.user_id === friendId || // Check user_id
+                  f.id === friendId || // Check profile id
+                  (f.user && f.user.id === friendId) // Check nested user object
+              );
+              
+              if (friend) {
+                  friend.is_online = (status === 'online');
+                  console.log(`Updated status for friend ${friend.display_name} to ${status}`);
+              } else {
+                  console.log('Friend status update failed:', {
+                      receivedId: friendId,
+                      status: status,
+                      friendsList: this.profile.friends
+                  });
+              }
+              break;
 
           case 'friend_request_accepted':
             this.fetchProfile();
