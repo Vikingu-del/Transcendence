@@ -109,27 +109,23 @@
       </div>
 
       <!-- Incoming Friend Requests -->
-      <div class="profile-card" v-if="incomingFriendRequests.length > 0">
-        <h2>Incoming Friend Requests</h2>
-        <ul class="search-results">
-          <li v-for="request in incomingFriendRequests" 
-              :key="request.id" 
-              class="profile-item">
-            <img :src="request.avatar" 
-                :alt="request.display_name" 
-                class="profile-avatar" />
-            <span class="profile-name">{{ request.display_name }}</span>
-            <div class="action-buttons">
-              <button @click="acceptFriendRequest(request)" class="btn accept-btn">
-                Accept
-              </button>
-              <button @click="declineFriendRequest(request)" class="btn decline-btn">
-                Decline
-              </button>
-            </div>
-          </li>
-        </ul>
+      <div v-for="request in incomingFriendRequests" 
+        :key="request.id" 
+        class="profile-item">
+      <img :src="request.from_user.avatar" 
+          class="profile-avatar" />
+      <span class="profile-name">{{ request.from_user.display_name }}</span>
+      <div class="action-buttons">
+        <button @click="acceptFriendRequest(request)" 
+                class="btn accept-btn">
+          Accept
+        </button>
+        <button @click="declineFriendRequest(request)" 
+                class="btn decline-btn">
+          Decline
+        </button>
       </div>
+    </div>
 
       <!-- Friends Section with Chat -->
       <div class="profile-section">
@@ -548,80 +544,73 @@ export default {
 
     async acceptFriendRequest(request) {
       try {
-        console.log('Request object:', request); // Debug log
-        
-        // Get from_user_id from stored request object
-        const fromUserId = request.from_user?.id;
-        
-        if (!fromUserId) {
-          throw new Error('Invalid request data');
-        }
-
-        const response = await fetch('/api/profile/friend-requests/accept/', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ from_user_id: fromUserId })
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to accept friend request');
-        }
-
-        // Update local state
-        this.incomingFriendRequests = this.incomingFriendRequests.filter(
-          req => req.from_user.id !== fromUserId
-        );
-        localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
-
-        this.showStatus('Friend request accepted successfully', {}, 'success');
+        const userId = this.extractUserId(request);
+        await this.sendAcceptRequest(userId);
+        this.updateLocalRequests(userId);
+        this.showStatus('Friend request accepted', {}, 'success');
         await this.fetchProfile();
       } catch (error) {
-        console.error('Accept friend request error:', error);
+        console.error('Accept error:', error);
         this.showStatus('Error: {msg}', { msg: error.message }, 'error');
+      }
+    },
+
+    async sendAcceptRequest(userId) {
+      const response = await fetch('/api/profile/friend-requests/accept/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from_user_id: userId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to accept friend request');
       }
     },
 
     async declineFriendRequest(request) {
       try {
-        console.log('Declining request:', request); // Debug log
-        
-        const fromUserId = request.from_user?.id;
-        
-        if (!fromUserId) {
-          throw new Error('Invalid request data');
-        }
-
-        const response = await fetch('/api/profile/friend-requests/decline/', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ from_user_id: fromUserId })
-        });
-
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to decline friend request');
-        }
-
-        // Update local state
-        this.incomingFriendRequests = this.incomingFriendRequests.filter(
-          req => req.from_user.id !== fromUserId
-        );
-        localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
-
+        const userId = this.extractUserId(request);
+        await this.sendDeclineRequest(userId);
+        this.updateLocalRequests(userId);
         this.showStatus('Friend request declined', {}, 'success');
       } catch (error) {
-        console.error('Decline friend request error:', error);
+        console.error('Decline error:', error);
         this.showStatus('Error: {msg}', { msg: error.message }, 'error');
       }
+    },
+
+    // Helper methods
+    extractUserId(request) {
+      const userId = request.from_user_id || request.from_user?.id;
+      if (!userId) throw new Error('Invalid request data');
+      return userId;
+    },
+
+    async sendDeclineRequest(userId) {
+      const response = await fetch('/api/profile/friend-requests/decline/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from_user_id: userId })
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to decline friend request');
+      }
+    },
+
+    updateLocalRequests(userId) {
+      this.incomingFriendRequests = this.incomingFriendRequests.filter(
+        req => (req.from_user_id || req.from_user?.id) !== userId
+      );
+      localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
     },
 
     async removeFriend(friendId) {
@@ -677,23 +666,28 @@ export default {
           }
         });
 
-        this.showStatus('Fetching incoming friend requests...', {}, 'info');
-
         if (response.ok) {
           const data = await response.json();
-          this.incomingFriendRequests = data;
-          localStorage.setItem('incomingRequests', JSON.stringify(data));
-          
-          if (data.length > 0) {
-            this.showStatus(
-              '{count} incoming friend requests', 
-              { count: data.length },
-              'info'
-            );
-          }
+          const baseUrl = 'http://localhost:8000'; // Add base URL
+
+          this.incomingFriendRequests = data.map(request => ({
+            id: request.id,
+            from_user: {
+              id: request.from_user.id,
+              display_name: request.from_user.display_name,
+              avatar: request.from_user.avatar.startsWith('http') 
+                ? request.from_user.avatar 
+                : `${baseUrl}${request.from_user.avatar}`,
+              is_online: request.from_user.is_online
+            },
+            status: request.status,
+            created: request.created
+          }));
+          localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
         }
       } catch (error) {
-        this.showStatus('Error fetching requests: {error}', { error: error.message }, 'error');
+        console.error('Error fetching requests:', error);
+        this.showStatus('Error loading requests: {msg}', { msg: error.message }, 'error');
       }
     },
 
