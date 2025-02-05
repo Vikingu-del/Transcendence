@@ -15,31 +15,21 @@ logger = logging.getLogger(__name__)
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         try:
-            # Authentication
             query_string = parse_qs(self.scope['query_string'].decode())
             token_key = query_string.get('token', [None])[0]
-            chat_id = query_string.get('chat_id', [None])[0]
 
             if not token_key:
                 await self.close(code=4001)
                 return
 
-            # Get user and validate
             self.user = await self.get_user_from_token(token_key)
             if not self.user or not hasattr(self.user, 'profile'):
                 await self.close(code=4002)
                 return
 
-            # Set up user's notification group
             self.notification_group = f"user_{self.user.id}"
             await self.channel_layer.group_add(self.notification_group, self.channel_name)
-
-            # Set up chat group if chat_id provided
-            if chat_id:
-                self.chat_group = f"chat_{chat_id}"
-                await self.channel_layer.group_add(self.chat_group, self.channel_name)
-
-            # Accept connection and set online
+            
             await self.accept()
             await self.set_user_online()
             await self.notify_friends('online')
@@ -48,53 +38,29 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             logger.error(f'Connection error: {str(e)}')
             await self.close(code=4000)
 
+
     async def disconnect(self, close_code):
         if hasattr(self, 'user') and self.user and hasattr(self.user, 'profile'):
             try:
                 await self.set_user_offline()
                 await self.notify_friends('offline')
                 
-                # Proper group cleanup
                 if hasattr(self, 'notification_group'):
                     await self.channel_layer.group_discard(
                         self.notification_group, 
                         self.channel_name
                     )
-                if hasattr(self, 'chat_group'):
-                    await self.channel_layer.group_discard(
-                        self.chat_group, 
-                        self.channel_name
-                    )
 
-                logger.info(f'User {self.user.id} disconnected from WebSocket')
             except Exception as e:
                 logger.error(f'Error in disconnect: {str(e)}')
-
-    async def chat_message(self, event):
-        """Handle chat message broadcast"""
-        try:
-            await self.send(text_data=json.dumps(event['message']))
-        except Exception as e:
-            logger.error(f'Error sending chat message: {str(e)}')
-
-    async def handle_friend_status(self, data):
-        """Handle friend status updates"""
-        try:
-            status = data.get('status')
-            if status in ['online', 'offline']:
-                await self.notify_friends(status)
-        except Exception as e:
-            logger.error(f'Error handling friend status: {str(e)}')
 
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
             message_type = data.get('type')
-            logger.info(f"Received WebSocket message type: {message_type}")
 
             handlers = {
                 'friend_request': self.handle_friend_request,
-                'chat_message': self.handle_chat_message,
                 'friend_status': self.handle_friend_status
             }
 
@@ -104,43 +70,8 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             else:
                 logger.warning(f'Unknown message type: {message_type}')
 
-        except json.JSONDecodeError:
-            logger.error('Invalid JSON in WebSocket message')
         except Exception as e:
             logger.error(f'Receive error: {str(e)}', exc_info=True)
-
-    async def handle_chat_message(self, data):
-        try:
-            chat_id = data.get('chat_id')
-            message = data.get('message')
-            
-            if not chat_id or not message:
-                return
-
-            # Save to database
-            saved_message = await self.save_chat_message(
-                chat_id=chat_id,
-                sender=self.user,
-                text=message
-            )
-
-            # Broadcast to chat group
-            await self.channel_layer.group_send(
-                f"chat_{chat_id}",
-                {
-                    'type': 'chat.message',
-                    'message': {
-                        'id': saved_message.id,
-                        'sender_id': self.user.id,
-                        'sender_name': self.user.username,
-                        'text': message,
-                        'timestamp': str(saved_message.created_at)
-                    }
-                }
-            )
-
-        except Exception as e:
-            logger.error(f'Chat message error: {str(e)}')
 
     async def handle_friend_request(self, data):
         """Handle incoming friend request notifications"""
@@ -228,16 +159,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f'Error getting friend IDs: {str(e)}')
             return []
-    
-    @database_sync_to_async
-    def save_chat_message(self, chat_id, sender, text):
-        chat = Chat.objects.get(id=chat_id)
-        return Message.objects.create(
-            chat=chat,
-            sender=sender,
-            text=text
-        )
-
 
     async def notify_friends(self, status):
         try:
@@ -269,3 +190,120 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps(event["message"]))
         except Exception as e:
             logger.error(f'Error in send_notification: {str(e)}')
+
+class ChatConsumer(AsyncWebsocketConsumer):
+    async def connect(self):
+        try:
+            # Get token and chat_id from query parameters
+            query_string = parse_qs(self.scope['query_string'].decode())
+            token_key = query_string.get('token', [None])[0]
+            self.chat_id = self.scope['url_route']['kwargs']['chat_id']
+
+            if not token_key or not self.chat_id:
+                await self.close(code=4001)
+                return
+
+            # Authenticate user
+            self.user = await self.get_user_from_token(token_key)
+            if not self.user:
+                await self.close(code=4002)
+                return
+
+            # Join chat group
+            await self.channel_layer.group_add(
+                f"chat_{self.chat_id}",
+                self.channel_name
+            )
+            await self.accept()
+
+        except Exception as e:
+            logger.error(f'Chat connection error: {str(e)}')
+            await self.close(code=4000)
+
+    async def disconnect(self, close_code):
+        if hasattr(self, 'chat_id'):
+            await self.channel_layer.group_discard(
+                f"chat_{self.chat_id}",
+                self.channel_name
+            )
+
+    async def receive(self, text_data):
+        try:
+            data = json.loads(text_data)
+            if data['type'] != 'chat_message':
+                return
+
+            saved_message = await self.save_message(
+                chat_id=self.chat_id,
+                sender=self.user,
+                text=data['text']
+            )
+
+            # Format the message for broadcasting
+            message_data = {
+                'type': 'chat.message',
+                'message': {
+                    'sender_name': self.user.profile.display_name,
+                    'text': data['text'],
+                    'timestamp': saved_message.created_at.isoformat()
+                }
+            }
+
+            # Broadcast to the chat group
+            await self.channel_layer.group_send(
+                f"chat_{self.chat_id}",
+                message_data
+            )
+
+        except Exception as e:
+            logger.error(f'Error in chat receive: {str(e)}')
+
+
+    async def chat_message(self, event):
+        """Handle chat.message event"""
+        try:
+            await self.send(text_data=json.dumps({
+                'type': 'chat.message',
+                'sender_name': event['message']['sender_name'],
+                'text': event['message']['text'],
+                'timestamp': event['message']['timestamp']
+            }))
+        except Exception as e:
+            logger.error(f'Error sending chat message: {str(e)}')
+
+    @database_sync_to_async
+    def get_user_from_token(self, token_key):
+        try:
+            return Token.objects.select_related('user', 'user__profile').get(key=token_key).user
+        except Token.DoesNotExist:
+            return None
+
+    @database_sync_to_async
+    def save_message(self, chat_id, sender, text):
+        try:
+            chat = Chat.objects.get(id=chat_id)
+            message = Message.objects.create(
+                chat=chat,
+                sender=sender,
+                text=text
+            )
+            # Force refresh to get the created_at timestamp
+            message.refresh_from_db()
+            return message
+        except Chat.DoesNotExist:
+            # Create chat if doesn't exist
+            user_ids = chat_id.split('_')
+            if len(user_ids) != 2:
+                raise ValueError("Invalid chat_id format")
+                
+            chat = Chat.objects.create(
+                participant1_id=user_ids[0],
+                participant2_id=user_ids[1]
+            )
+            message = Message.objects.create(
+                chat=chat,
+                sender=sender,
+                text=text
+            )
+            message.refresh_from_db()
+            return message

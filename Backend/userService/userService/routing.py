@@ -11,6 +11,6 @@ websocket_urlpatterns = [
     # Chat WebSocket with chat_id parameter
     re_path(
         r'ws/chat/(?P<chat_id>[^/]+)/$',
-        consumers.NotificationConsumer.as_asgi()
+        consumers.ChatConsumer.as_asgi()
     ),
 ]

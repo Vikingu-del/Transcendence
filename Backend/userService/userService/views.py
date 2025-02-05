@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/05 15:09:35 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/05 15:29:39 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -520,5 +520,5 @@ class ChatDetailView(generics.RetrieveAPIView):
 
     def get_object(self):
         user1 = self.request.user
-        user2 = User.objects.get(pk=self.kwargs['pk'])
+        user2 = get_object_or_404(User, id=self.kwargs['id'])
         return (Chat.objects.filter(participant1=user1, participant2=user2) | Chat.objects.filter(participant1=user2, participant2=user1)).first()
