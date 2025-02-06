@@ -221,7 +221,6 @@ export default {
       
       // Avatar Upload
       defaultAvatarUrl: 'http://localhost:8000/media/default.png',
-      isDefaultAvatar: true,
 
       // Profile Search
       searchQuery: '',

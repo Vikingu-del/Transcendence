@@ -30,6 +30,11 @@ const store = createStore({
       state.user = user;
     },
 
+    setAuthentication(state, token) {
+      state.token = token;
+      state.isAuthenticated = !!token;
+    },
+    
     clearAuth(state) {
       state.token = null;
       state.user = null;
