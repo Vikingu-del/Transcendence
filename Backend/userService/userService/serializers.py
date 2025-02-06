@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/01/28 17:16:14 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/06 12:32:42 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -117,8 +117,12 @@ class MessageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Message
-        fields = ['sender', 'text', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'chat', 'sender', 'text', 'created_at']
+    
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        data['sender'] = instance.sender.id  # Return numeric ID instead of username
+        return data
 
 
 class ChatSerializer(serializers.ModelSerializer):
@@ -126,8 +130,8 @@ class ChatSerializer(serializers.ModelSerializer):
     messages = MessageSerializer(many=True, read_only=True)
     
     class Meta:
-        model = Chat
-        fields = ['id', 'participant2', 'messages']
+            model = Chat
+            fields = ['id', 'participant1', 'participant2', 'messages']
     
     def get_participant2(self, obj):
         request = self.context.get('request')

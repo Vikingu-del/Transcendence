@@ -233,19 +233,25 @@ class ChatConsumer(AsyncWebsocketConsumer):
             if data['type'] != 'chat_message':
                 return
 
+            if 'message' not in data or 'text' not in data['message']:
+                logger.error('Invalid message format')
+                return
+
             saved_message = await self.save_message(
                 chat_id=self.chat_id,
                 sender=self.user,
-                text=data['text']
+                text=data['message']['text']
             )
 
             # Format the message for broadcasting
             message_data = {
                 'type': 'chat.message',
                 'message': {
-                    'sender_name': self.user.profile.display_name,
-                    'text': data['text'],
-                    'timestamp': saved_message.created_at.isoformat()
+                    'id': str(saved_message.id),
+                    'chat': self.chat_id,
+                    'sender': self.user.id,
+                    'text': saved_message.text,
+                    'created_at': saved_message.created_at.isoformat()
                 }
             }
 
@@ -260,16 +266,21 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
 
     async def chat_message(self, event):
-        """Handle chat.message event"""
-        try:
-            await self.send(text_data=json.dumps({
-                'type': 'chat.message',
-                'sender_name': event['message']['sender_name'],
-                'text': event['message']['text'],
-                'timestamp': event['message']['timestamp']
-            }))
-        except Exception as e:
-            logger.error(f'Error sending chat message: {str(e)}')
+        message = event['message']
+        
+        # Format message before sending
+        formatted_message = {
+            'id': str(message.get('id')),
+            'chat': str(message.get('chat')),
+            'sender': str(message.get('sender')),
+            'text': message.get('text'),
+            'created_at': message.get('created_at')
+        }
+        
+        await self.send(text_data=json.dumps({
+            'type': 'chat.message',
+            'message': formatted_message
+        }))
 
     @database_sync_to_async
     def get_user_from_token(self, token_key):

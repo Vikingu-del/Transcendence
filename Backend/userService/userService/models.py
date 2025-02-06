@@ -44,6 +44,12 @@ class Friendship(models.Model):
         unique_together = ('from_profile', 'to_profile')
 
 class Chat(models.Model):
+    class Meta:
+        indexes = [
+            models.Index(fields=['participant1']),
+            models.Index(fields=['participant2'])
+        ]
+    
     id = models.CharField(primary_key=True, max_length=255, editable=False)
     participant1 = models.ForeignKey(User, related_name='chats1', on_delete=models.CASCADE)
     participant2 = models.ForeignKey(User, related_name='chats2', on_delete=models.CASCADE)
@@ -52,6 +58,9 @@ class Chat(models.Model):
         super().save(*args, **kwargs)
 
 class Message(models.Model):
+    class Meta:
+        ordering = ['created_at']
+    
     chat = models.ForeignKey(Chat, related_name='messages', on_delete=models.CASCADE)
     sender = models.ForeignKey(User, related_name='messages', on_delete=models.CASCADE)
     text = models.TextField()

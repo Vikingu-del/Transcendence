@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/05 15:29:39 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/06 11:44:47 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -521,4 +521,27 @@ class ChatDetailView(generics.RetrieveAPIView):
     def get_object(self):
         user1 = self.request.user
         user2 = get_object_or_404(User, id=self.kwargs['id'])
-        return (Chat.objects.filter(participant1=user1, participant2=user2) | Chat.objects.filter(participant1=user2, participant2=user1)).first()
+        
+        # Get or create chat
+        chat = Chat.objects.filter(
+            Q(participant1=user1, participant2=user2) | 
+            Q(participant1=user2, participant2=user1)
+        ).first()
+        
+        if not chat:
+            chat = Chat.objects.create(
+                participant1=user1,
+                participant2=user2
+            )
+        
+        # Prefetch related messages for better performance
+        return Chat.objects.prefetch_related('messages').get(id=chat.id)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        
+        # Restructure the response format
+        return Response({
+            'messages': serializer.data['messages']
+        })
