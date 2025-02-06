@@ -148,13 +148,9 @@
       <!-- Chat Section -->
       <div v-if="showChat" class="chat-container">
         <div class="chat-header">
-          <h4>Chat with {{ activeChat }}</h4>
-          <div class="debug-info">
-            <small>Chat ID: {{ chatId }}</small>
-          </div>
+          <h4 class="chat-title">Chat with {{ activeChat }}</h4>
           <button @click="closeChat" class="btn secondary-btn">Close</button>
         </div>
-
         <div class="chat-messages" ref="chatMessages">
           <div v-for="message in messages" 
             :key="message.id" 
@@ -168,7 +164,7 @@
             }">
               <div class="message-header">
                 <small class="message-sender">
-                  {{ parseInt(message.sender) === parseInt(currentUserId) ? 'You' : activeChat }}
+                  {{ parseInt(message.sender) === parseInt(currentUserId) ? '' : activeChat }} <!-- Hide sender name for own messages -->
                 </small>
               </div>
               <span class="message-text">{{ message.text }}</span>
@@ -1060,15 +1056,6 @@ export default {
   margin-top: 10px;
 }
 
-.input-field,
-.file-input {
-  padding: 10px;
-  border: 1px solid #4caf50;
-  border-radius: 5px;
-  font-size: 14px;
-  width: 100%;
-}
-
 .error-message {
   color: red;
   font-size: 12px;
@@ -1076,6 +1063,7 @@ export default {
 }
 
 .friend-actions {
+  margin-left: auto;
   display: flex;
   gap: 10px;
 }
@@ -1086,24 +1074,39 @@ export default {
 }
 
 .btn {
-  padding: 6px 12px;
+  padding: 0.75rem 1.5rem;
   border-radius: 4px;
   border: none;
+  font-weight: 500;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
 .primary-btn {
-  background-color: #4CAF50;
+  background: #333333;
   color: white;
+}
+
+.primary-btn:hover {
+  background: #03a670;
+}
+
+.primary-btn:disabled {
+  background-color: #5b5b5b;
+  cursor: not-allowed;
 }
 
 .secondary-btn {
-  background-color: #f44336;
-  color: white;
+  background: #333333;
+  color: #ffffff;
+}
+
+.secondary-btn:hover {
+  background: #a60303;
 }
 
 .warning-btn {
-  background: #ff4444;
+  background: #a60303;
   color: white;
 }
 
@@ -1113,18 +1116,13 @@ export default {
 }
 
 .accept-btn {
-  background: #4CAF50;
+  background: #03a670;
   color: white;
 }
 
 .decline-btn {
-  background: #f44336;
+  background: #a60303;
   color: white;
-}
-
-.primary-btn:disabled {
-  background-color: #5b5b5b;
-  cursor: not-allowed;
 }
 
 @keyframes pulse {
@@ -1141,7 +1139,7 @@ export default {
 }
 
 .block-btn {
-  background: #ff4444;
+  background: #a60303;
   color: white;
 }
 
@@ -1156,29 +1154,34 @@ export default {
 
 .search-results {
   list-style: none;
-  padding: 0;
+  padding-top: 1%;
+  padding-bottom: 1%;
   margin: 0;
 }
 
 .profile-item {
   display: flex;
   align-items: center;
-  margin-bottom: 10px;
+  margin-bottom: 1%;
 }
 
 .profile-avatar {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  margin-right: 10px;
+  margin-right: 5%;
 }
 
 .profile-name {
   font-size: 16px;
   flex-grow: 1;
+  padding-left: 5%;
+  padding-right: 5%;
 }
 
 .status {
+  padding-left: 5%;
+  padding-right: 5%;
   margin-right: 10px;
 }
 
@@ -1202,19 +1205,27 @@ nav .btn {
   height: 500px;
   display: flex;
   flex-direction: column;
-  border-radius: 8px;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-  background: #1a1a1a;
+  border-radius: 10px;
+  box-shadow: 2px 2px 30px #03a670;
 }
 
 .chat-header {
   padding: 1rem;
   background: #2d2d2d;
-  border-bottom: 1px solid #404040;
   display: flex;
   justify-content: space-between;
   align-items: center;
   color: #ffffff;
+  border-radius: 10px;
+}
+
+.chat-header h4 {
+  color: #ffffff;
+  font-size: 1.1rem;
+  font-weight: 500;
+  margin: 0;
+  padding: 0;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 .chat-messages {
@@ -1236,17 +1247,19 @@ nav .btn {
 
 .message-sent {
   margin-left: auto;
-  margin-right: 20px;
+  margin-right: 1%;
 }
 
 .message-received {
   margin-right: auto;
-  margin-left: 20px;
+  margin-left: 1%;
+  text-align: left;
 }
 
 .message-sender {
   font-weight: bold;
   margin-bottom: 4px;
+  
 }
 
 .message-content {
@@ -1257,7 +1270,7 @@ nav .btn {
 }
 
 .content-sent {
-  background: #0066cc;
+  background: #03a670;
   color: #ffffff;
   border-radius: 1rem 1rem 0 1rem;
 }
@@ -1273,6 +1286,7 @@ nav .btn {
   color: rgba(255, 255, 255, 0.7);
   margin-top: 0.5rem;
   display: block;
+  text-align: left;
 }
 
 .message-text {
@@ -1285,6 +1299,7 @@ nav .btn {
   padding: 1rem;
   background: #2d2d2d;
   border-top: 1px solid #404040;
+  border-radius: 10px;
   display: flex;
   gap: 0.5rem;
 }
@@ -1300,50 +1315,6 @@ nav .btn {
 
 .input-field::placeholder {
   color: #808080;
-}
-
-.btn {
-  padding: 0.75rem 1.5rem;
-  border-radius: 4px;
-  border: none;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.primary-btn {
-  background: #0066cc;
-  color: #ffffff;
-}
-
-.primary-btn:hover {
-  background: #0052a3;
-}
-
-.secondary-btn {
-  background: #404040;
-  color: #ffffff;
-}
-
-.secondary-btn:hover {
-  background: #333333;
-}
-
-.warning-btn {
-  background-color: #dc3545;
-  color: white;
-  margin-left: 8px;
-}
-
-.friend-management {
-  display: flex;
-  gap: 8px;
-}
-
-.friend-actions {
-  margin-left: auto;
-  display: flex;
-  gap: 8px;
 }
 
 .status-text {

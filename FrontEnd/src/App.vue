@@ -34,7 +34,7 @@ onMounted(() => {
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
     <div class="wrapper">
-      <HelloWorld msg="Transendence" />
+      <HelloWorld msg="Transcendence" />
       <nav>
         <RouterLink to="/">Home</RouterLink>
         <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
