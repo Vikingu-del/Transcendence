@@ -14,14 +14,42 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
-from django.contrib import admin
-from django.urls import path
-from django.http import HttpResponse
 
-def home_view(request):
-    return HttpResponse("Welcome to the homepage!")
+from django.urls import path, re_path
+from django.conf import settings
+from django.conf.urls.static import static
+from .views import (
+    RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
+    AddFriendView, RemoveFriendView, AcceptFriendRequestView,
+    DeclineFriendRequestView, IncomingFriendRequestsView,
+    ChatListView, ChatDetailView, BlockUserView
+)
+
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('user/', home_view),
+    # Auth endpoints
+    path('api/register/', RegisterView.as_view(), name='register'),
+    path('api/login/', LoginView.as_view(), name='login'),
+    path('api/logout/', LogoutView.as_view(), name='logout'),
+    
+    # Profile endpoints
+    path('api/profile/', ProfileView.as_view(), name='profile'),
+    path('api/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
+    
+    # Friend management endpoints
+    path('api/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
+    path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
+    path('api/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
+    path('api/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
+    path('api/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
+    
+     # Block management endpoints
+    path('api/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
+
+    # Chat endpoints
+    path('api/profile/chats/', ChatListView.as_view(), name='chat_list_view'),
+    path('api/profile/chat/<int:id>/', ChatDetailView.as_view(), name='chat_view'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,0 +1,164 @@
+i want to also make another change, what I want to do is that between my Vault container and my vault_secrets container im sharing the .env file so while im executing the initialization of the vault service by unsealing it in its entrypoing script, i will write the root token in the .env file of the vault_secrets. This was just something to see how the things will work  out but it doesnt respect the reason of why i created in the first place the Vault_secrets, so it will do the encryption of this env variables inside vault and after it will put the container down so no one has access to the .env file. the docker compose file looks like this services:
+
+  # swagger:
+  #   container_name: swagger
+  #   build:
+  #     context: ./Swagger
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     URLS_PRIMARY_NAME: "UserService" # Default API to display in Swagger UI
+  #     URLS: '[{ "url": "/doc/ApiGateway.yaml", "name": "ApiGateway" }, 
+  #        { "url": "/doc/UserService.yaml", "name": "UserService" },
+  #        { "url": "/doc/Security.yaml", "name": "Security" },
+  #        { "url": "/doc/Database.yaml", "name": "Database" },
+  #        { "url": "/doc/FrontEnd.yaml", "name": "FrontEnd" }]'
+  #   volumes:
+  #     - ./docs/openapi:/usr/share/nginx/html/doc # Mount local OpenAPI specs
+  #   ports:
+  #     - "8080:8080"  # Swagger UI available at localhost:8080
+  #   restart: always
+  #   networks:
+  #     backtier:
+
+  vault:
+    container_name: vault
+    build:
+      context: ./Security/Vault
+      dockerfile: Dockerfile
+    cap_add:
+      - IPC_LOCK
+    ports:
+      - "8200:8200"
+    networks:
+      - backtier
+    environment:
+      - VAULT_ADDR=http://vault:8200
+    volumes:
+      - vault_secrets_data:/vault/secrets
+      - ./Security/VaultSecrets/secrets/.env:/secrets/.env
+    healthcheck:
+      test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  vault_secrets:
+    container_name: vault_secrets
+    build:
+      context: ./Security/VaultSecrets
+      dockerfile: Dockerfile
+    env_file:
+      - ./Security/VaultSecrets/secrets/.env
+    networks:
+      - backtier
+    depends_on:
+      vault:
+        condition: service_healthy
+    restart: on-failure
+    volumes:
+      - ./Security/VaultSecrets/secrets:/secrets
+      - vault_secrets_data:/vault/secrets
+
+  # user:
+  #   container_name: user
+  #   build:
+  #     context: ./Backend/userService
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   volumes:
+  #     - ./Backend/userService:/app
+  #     - ./vault-agent-config:/vault/agent/config # Mount Vault Agent config
+  #     - ./secrets/user_service:/vault/secrets # mounted role_id/secret_id
+  #   environment:
+  #     VAULT_ADDR: "http://vault:8200"
+  #     VAULT_ROLE_ID_FILE: "/vault/secrets/role_id"
+  #     VAULT_SECRET_ID_FILE: "/vault/secrets/secret_id"
+  #   depends_on:
+  #     - vault
+  #     - vault_secrets
+  #     - user_db
+  #   networks:
+  #     - backtier
+
+  user_db:
+    container_name: user_db
+    build:
+      context: ./Database/user_db
+      dockerfile: Dockerfile
+    restart: always
+    image: postgres:latest
+    depends_on:
+      - vault
+      - vault_secrets
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -q -d postgres -U postgres || exit 1"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    ports: 
+      - "5432:5432" # or Expose syntax like expose: -5432
+    volumes:
+      - vault_secrets_data:/vault/secrets # Mounting the specific secrets for the user_db
+    networks:
+      - backtier
+
+  # gateway:
+  #   container_name: gateway
+  #   build:
+  #     context: ./ApiGateway
+  #     dockerfile: Dockerfile
+  #     args:
+  #       - CURRENT_HOST=localhost
+  #   environment:
+  #     - CURRENT_HOST=localhost
+  #     - VAULT_ADDR=http://vault:8200
+  #     - VAULT_ROLE_ID_FILE=/vault/secrets/role_id
+  #     - VAULT_SECRET_ID_FILE=/vault/secrets/secret_id
+  #   ports:
+  #     - 80:80
+  #     - 443:443
+  #   depends_on:
+  #     - vault
+  #     - vault_secrets
+  #     - user
+  #     - frontend
+  #   volumes:
+  #     - ./ApiGateway/config/nginx.conf.template:/nginx.conf.template
+  #     - frontend_dist:/usr/share/nginx/html
+  #     - ./.cert/:/etc/nginx/ssl/
+  #     - ./vault-agent-config:/vault/agent/config
+  #     - ./secrets/gateway:/vault/secrets
+  #   networks:
+  #     - backtier
+
+  # frontend:
+  #   container_name: frontend
+  #   build:
+  #     context: ./FrontEnd
+  #     dockerfile: Dockerfile
+  #   volumes:
+  #     - ./FrontEnd:/app
+  #     - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+  #   environment:
+  #     - NODE_ENV=development
+  #   command: npm run dev -- --host
+  #   networks:
+  #     - backtier
+  #     - frontier
+
+volumes:
+  frontend_dist:
+  user_db_data:
+  secrets: # this is the shared volume between vault and vault_secrets
+  vault_secrets_data:
+    driver: local
+
+networks:
+  backtier:
+    driver: bridge
+    name: backtier
+  frontier:
+    driver: bridge
+    name: frontier where here - ./Security/VaultSecrets/secrets/.env:/secrets/.env im sharing the .env but also here - vault_secrets_data:/vault/secrets - ./Security/VaultSecrets/secrets:/secrets im sharing all the folder. 

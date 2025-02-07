@@ -12,7 +12,7 @@ import CommunityIcon from './icons/IconCommunity.vue'
       <SubjectIcon />
     </template>
     <template #heading>Subject</template>
-    Transendence’s
+    Transcendence’s
     <a href="https://cdn.intra.42.fr/pdf/pdf/133398/en.subject.pdf" target="_blank" rel="noopener">official subject</a>
     provides you with all details and requirements needed for this project.
   </WelcomeItem>

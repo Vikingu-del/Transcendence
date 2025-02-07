@@ -34,8 +34,7 @@ services:
     environment:
       - VAULT_ADDR=http://vault:8200
     volumes:
-      - ./Security/Vault/config:/vault/config
-      - secrets:/secrets
+      - vault_secrets_data:/vault/secrets
       - ./Security/VaultSecrets/secrets/.env:/secrets/.env
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
@@ -58,6 +57,7 @@ services:
     restart: on-failure
     volumes:
       - ./Security/VaultSecrets/secrets:/secrets
+      - vault_secrets_data:/vault/secrets
 
   user:
     container_name: user
@@ -68,61 +68,58 @@ services:
       - "8000:8000"
     volumes:
       - ./Backend/userService:/app
-      - ./vault-agent-config:/vault/agent/config # Mount Vault Agent config
-      - ./secrets/user_service:/vault/secrets # mounted role_id/secret_id
-    environment:
-      VAULT_ADDR: "http://vault:8200"
+      - vault_secrets_data:/vault/secrets # mounted role_id/secret_id
     depends_on:
-      - vault
-      - user_db
+      vault:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
+      user_db:
+        condition: service_healthy
     networks:
       - backtier
+      - user_network
 
   user_db:
     container_name: user_db
     build:
       context: ./Database/user_db
       dockerfile: Dockerfile
-    image: postgres:latest
+    restart: always
     depends_on:
       - vault
+      - vault_secrets
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -q -d postgres -U postgres || exit 1"]
-      interval: 3s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
       timeout: 5s
-      retries: 10
-      start_period: 30s
-    environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DB: "postgres"
+      retries: 5
     ports: 
-      - "5432:5432" # or Expose syntax like expose: -5432
+      - "5432:5432"
     volumes:
+      - vault_secrets_data:/vault/secrets
       - user_db_data:/var/lib/postgresql/data
     networks:
       - backtier
+      - user_network
 
   gateway:
     container_name: gateway
     build:
       context: ./ApiGateway
       dockerfile: Dockerfile
-      args:
-        - CURRENT_HOST=localhost
-    environment:
-      - CURRENT_HOST=localhost
     ports:
       - 80:80
       - 443:443
     depends_on:
       - vault
+      - vault_secrets
       - user
       - frontend
     volumes:
-      - ./ApiGateway/config/nginx.conf.template:/nginx.conf.template
-      - frontend_dist:/usr/share/nginx/html
+      - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./.cert/:/etc/nginx/ssl/
+      - vault_secrets_data:/vault/secrets
     networks:
       - backtier
 
@@ -131,9 +128,14 @@ services:
     build:
       context: ./FrontEnd
       dockerfile: Dockerfile
+    ports:
+      - "5173:5173"  # Vite's default dev server port
     volumes:
       - ./FrontEnd:/app
-      - frontend_dist:/app/dist # Mount volume to persist the dist/ folder
+      - /app/node_modules # Preserve node_modules from container
+    environment:
+      - NODE_ENV=development
+    command: npm run dev -- --host
     networks:
       - backtier
       - frontier
@@ -142,8 +144,12 @@ volumes:
   frontend_dist:
   user_db_data:
   secrets: # this is the shared volume between vault and vault_secrets
+  vault_secrets_data:
+    driver: local
 
 networks:
+  user_network:
+    driver: bridge
   backtier:
     driver: bridge
     name: backtier

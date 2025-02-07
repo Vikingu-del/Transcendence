@@ -1,6 +1,32 @@
 <script setup>
-import { RouterLink, RouterView } from 'vue-router'
+import { RouterLink, RouterView, useRouter } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
+import { computed, onMounted } from 'vue'
+import { useStore } from 'vuex'
+
+const store = useStore()
+const router = useRouter()
+const isAuthenticated = computed(() => store.state.isAuthenticated)
+
+function logout() {
+  store.dispatch('logoutAction')
+}
+
+// Check authentication state on app load
+onMounted(() => {
+  let authToken = localStorage.getItem('authToken')
+  console.log('Auth Token:', authToken) // Debugging log
+
+  // Clear invalid tokens
+  if (!authToken || authToken === 'undefined' || authToken === 'null') {
+    localStorage.removeItem('authToken')
+    authToken = null
+  }
+
+  const isAuthenticated = Boolean(authToken)
+  store.commit('setAuthentication', isAuthenticated)
+  console.log('Is Authenticated:', isAuthenticated) // Debugging log
+})
 </script>
 
 <template>
@@ -8,11 +34,12 @@ import HelloWorld from './components/HelloWorld.vue'
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
     <div class="wrapper">
-      <HelloWorld msg="Transendence" />
+      <HelloWorld msg="Transcendence" />
       <nav>
         <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/login">Login</RouterLink>
-        <RouterLink to="/register">Register</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
       </nav>
     </div>
   </header>
@@ -55,12 +82,13 @@ nav a {
 nav a:first-of-type {
   border: 0;
 }
+
 @media (min-width: 1024px) {
   header {
     display: flex;
     place-items: center;
     padding-right: calc(var(--section-gap) / 2);
-    }
+  }
     
   .logo {
     margin: 0 2rem 0 0;
@@ -79,6 +107,5 @@ nav a:first-of-type {
     padding: 1rem 0;
     margin-top: 1rem;
   }
-   
-} 
+}
 </style>

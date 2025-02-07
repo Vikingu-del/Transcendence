@@ -4,6 +4,7 @@ import os
 
 env_vars = dotenv_values('secrets/.env')
 vault_token = env_vars.get("VAULT_ROOT_TOKEN")
+
 if not vault_token:
     raise ValueError("Vault root token not found. Ensure VAULT_ROOT_TOKEN is set in the .env file.")
 print("Vault root token loaded.")
@@ -14,34 +15,37 @@ vault_client = hvac.Client(
     token=vault_token,
 )
 
-vault_client.is_authenticated()
+if not vault_client.is_authenticated():
+    raise ValueError("Failed to authenticate with Vault. Check the VAULT_ROOT_TOKEN.")
 
-# Function to write secrets to Vault
-def write_secret_to_vault(key, value):
-    secret_path = f"secret/{key}"
+print("✅ Successfully authenticated with Vault.")
+
+def write_secret_to_vault(path, secrets):
     try:
         vault_client.secrets.kv.v2.create_or_update_secret(
-            path=key,
-            secret={key: value},
+            path=path, # Store under a specific service path eg. "user_db"
+            secret=secrets, # Dictionary of all keys
         )
-        print(f"Secret '{key}' successfully written to Vault at '{secret_path}'")
+        print(f"✅ Secrets successfully written to Vault at '{path}'")
     except hvac.exceptions.VaultError as e:
-        print(f"Failed to write secret '{key}' to Vault. Error: {e}")
+        print(f"❌ Failed to write secrets to Vault. Error: {e}")
 
-def read_secret_from_vault(key, default=None):
-    secret_path = f"secret/{key}"
+
+def read_secret_from_vault(path, key, default=None):
+    # Read a specific secret key from a give Vault path.
     try:
         response = vault_client.secrets.kv.v2.read_secret_version(
-            path=key,
+            path=path,
             # remove the warning message
-            raise_on_deleted_version=True,
+            raise_on_deleted_version=True, # avoid fetching deleted secrets
         )
-        return response['data']['data'][key]
+        # Extract the secrets dictionary
+        secrets = response['data']['data']
+        return secrets.get(key, default) # Return specific key value or default
     except hvac.exceptions.VaultError as e:
-        print(f"Failed to read secret '{key}' at '{secret_path}' from Vault. Error: {e}")
+        print(f"❌ Failed to read secret '{key}' from Vault at '{path}'. Error: {e}")
         return default
 
-# Function to create AppRole
 def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", token_max_ttl="4h"):
     try:
         # Enable AppRole if not already enabled
@@ -49,7 +53,7 @@ def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", toke
         if 'approle/' not in auth_methods:
             vault_client.sys.enable_auth_method(method_type='approle', path='approle', mount_point='approle')
 
-        # Create the AppRole
+        # Create the AppRole using the correct write method
         vault_client.write(
             f'auth/approle/role/{role_name}',
             policies=policies,
@@ -58,33 +62,64 @@ def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", toke
             token_max_ttl=token_max_ttl,
         )
 
-        # Retrieve Role ID and Secret ID
-        role_id = vault_client.read(f'auth/approle/role/{role_name}/role-id')['data']['role_id']
-        secret_id = vault_client.write(f'auth/approle/role/{role_name}/secret-id')['data']['secret_id']
-        print(f"AppRole '{role_name}' created with Role ID: {role_id} and Secret ID: {secret_id}")
+        # Retrieve Role ID
+        role_id_response = vault_client.read(f'auth/approle/role/{role_name}/role-id')
+        if role_id_response is None:
+            raise ValueError(f"Failed to retrieve role ID for {role_name}")
+        role_id = role_id_response['data']['role_id']
+
+        # Generate a Secret ID
+        secret_id_response = vault_client.write(f'auth/approle/role/{role_name}/secret-id')
+        if secret_id_response is None or 'wrap_info' not in secret_id_response:
+            raise ValueError(f"Failed to generate secret ID for {role_name}")
+        secret_id = secret_id_response['data']['secret_id']
+
+        # Store credentials securely to the specified mounted paths in Vault
+        secret_path = f"/vault/secrets/{role_name}"
+        os.makedirs(secret_path, exist_ok=True)
+        with open(f"{secret_path}/role_id", "w") as f:
+            f.write(role_id)
+        with open(f"{secret_path}/secret_id", "w") as f:
+            f.write(secret_id)
+        print(f"✅ AppRole '{role_name}' created and stored in '{secret_path}'")
         return role_id, secret_id
     except hvac.exceptions.VaultError as e:
-        print(f"Failed to create AppRole '{role_name}'. Error: {e}")
+        print(f"❌ Failed to create AppRole '{role_name}'. Error: {e}")
         return None, None
 
-# Write each key-value pair to Vault
-for key, value in env_vars.items():
-    write_secret_to_vault(key, value)
 
-# # Generate tokens for services
-services = ['user_service', 'gateway_service']
+# Write secrets under "user_db" path
+secrets_to_store_db = {
+    "DB_USER": env_vars.get("DB_USER"),
+    "DB_PASSWORD": env_vars.get("DB_PASSWORD"),
+    "DB_HOST": env_vars.get("DB_HOST"),
+    "DB_PORT": env_vars.get("DB_PORT"),
+    "DB_NAME": env_vars.get("DB_NAME"),
+}
 
-# Create AppRoles for services (Optional)
+write_secret_to_vault("user_db", secrets_to_store_db)
+
+secrets_to_store_gateway = {
+    "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
+}
+
+write_secret_to_vault("gateway", secrets_to_store_gateway)
+write_secret_to_vault("user", secrets_to_store_db)
+
+# Generate AppRoles for services
+services = ['user_db', 'gateway', 'user']
 approle_credentials = {}
 for service in services:
     role_id, secret_id = create_approle(role_name=service, policies=[f'{service}-policy'])
     if role_id and secret_id:
         approle_credentials[service] = {'role_id': role_id, 'secret_id': secret_id}
 
-# Save AppRole credentials to a shared volume (Optional)
+# Save AppRole credentials securely
+vault_config_dir = "/vault/agent/config" # Keep this until confirmed differently
+os.makedirs(vault_config_dir, exist_ok=True)
 for service, creds in approle_credentials.items():
-    role_id_path = f'/vault/agent/config/{service}_role_id'
-    secret_id_path = f'/vault/agent/config/{service}_secret_id'
+    role_id_path = f'/vault/secrets/{service}/role_id'
+    secret_id_path = f'/vault/secrets/{service}/secret_id'
     os.makedirs(os.path.dirname(role_id_path), exist_ok=True)
     with open(role_id_path, 'w') as role_file:
         role_file.write(creds['role_id'])
@@ -92,5 +127,8 @@ for service, creds in approle_credentials.items():
         secret_file.write(creds['secret_id'])
 
 # Read specific secrets
-postgres_password = read_secret_from_vault("POSTGRES_PASSWORD")
-print("POSTGRES_PASSWORD:", postgres_password)
+# postgres_password = read_secret_from_vault("user_db", "DB_PASSWORD")
+# print("DB_PASSWORD:", postgres_password)
+
+LocalHost = read_secret_from_vault("gateway", "CURRENT_HOST")
+print("CURRENT_HOST:", LocalHost)
