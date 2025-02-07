@@ -115,6 +115,21 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f'Error in handle_friend_request: {str(e)}', exc_info=True)
 
+        async def handle_friend_status(self, data):
+            """Handle friend status change notifications"""
+            try:
+                # Extract status data
+                status = data.get('status')
+                if not status:
+                    logger.error("No status provided in friend_status message")
+                    return
+                    
+                # Notify friends of status change
+                await self.notify_friends(status)
+                
+            except Exception as e:
+                logger.error(f"Error handling friend status: {str(e)}", exc_info=True)
+
     async def friend_request_notification(self, event):
         """Send friend request notification to WebSocket"""
         try:

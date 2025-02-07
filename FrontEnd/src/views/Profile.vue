@@ -890,15 +890,6 @@ export default {
           this.notificationSocket.close();
         }
 
-        // Call logout API
-        const response = await fetch('/api/logout/', {
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        // Clear localStorage
         localStorage.removeItem('incomingRequests');
         
         // Clear store and redirect
