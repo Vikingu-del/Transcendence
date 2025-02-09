@@ -2,8 +2,8 @@ import hvac
 from dotenv import dotenv_values
 import os
 
-env_vars = dotenv_values('secrets/.env')
-vault_token = env_vars.get("VAULT_ROOT_TOKEN")
+env_vars = dotenv_values('/internal/secrets/.env')
+vault_token = os.environ.get("VAULT_TOKEN")
 
 if not vault_token:
     raise ValueError("Vault root token not found. Ensure VAULT_ROOT_TOKEN is set in the .env file.")
@@ -75,7 +75,7 @@ def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", toke
         secret_id = secret_id_response['data']['secret_id']
 
         # Store credentials securely to the specified mounted paths in Vault
-        secret_path = f"/vault/secrets/{role_name}"
+        secret_path = f"/vault/approle/{role_name}"
         os.makedirs(secret_path, exist_ok=True)
         with open(f"{secret_path}/role_id", "w") as f:
             f.write(role_id)
@@ -108,23 +108,18 @@ write_secret_to_vault("user", secrets_to_store_db)
 
 # Generate AppRoles for services
 services = ['user_db', 'gateway', 'user']
-approle_credentials = {}
 for service in services:
-    role_id, secret_id = create_approle(role_name=service, policies=[f'{service}-policy'])
+    role_id, secret_id = create_approle(
+        role_name=service, 
+        policies=[f'{service}-policy']
+    )
     if role_id and secret_id:
-        approle_credentials[service] = {'role_id': role_id, 'secret_id': secret_id}
-
-# Save AppRole credentials securely
-vault_config_dir = "/vault/agent/config" # Keep this until confirmed differently
-os.makedirs(vault_config_dir, exist_ok=True)
-for service, creds in approle_credentials.items():
-    role_id_path = f'/vault/secrets/{service}/role_id'
-    secret_id_path = f'/vault/secrets/{service}/secret_id'
-    os.makedirs(os.path.dirname(role_id_path), exist_ok=True)
-    with open(role_id_path, 'w') as role_file:
-        role_file.write(creds['role_id'])
-    with open(secret_id_path, 'w') as secret_file:
-        secret_file.write(creds['secret_id'])
+        secret_path = f"/vault/approle/{service}"
+        os.makedirs(secret_path, exist_ok=True)
+        with open(f"{secret_path}/role_id", "w") as f:
+            f.write(role_id)
+        with open(f"{secret_path}/secret_id", "w") as f:
+            f.write(secret_id)
 
 # Read specific secrets
 # postgres_password = read_secret_from_vault("user_db", "DB_PASSWORD")

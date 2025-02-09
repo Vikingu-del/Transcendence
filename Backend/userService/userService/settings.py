@@ -80,16 +80,45 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# # Debug database environment variables
+# print("=== Database Environment Variables ===")
+# print(f"DB_NAME: {os.environ.get('DB_NAME')}")
+# print(f"DB_USER: {os.environ.get('DB_USER')}")
+# print(f"DB_PASSWORD: {os.environ.get('DB_PASSWORD')}")
+# print(f"DB_HOST: {os.environ.get('DB_HOST')}")
+# print(f"DB_PORT: {os.environ.get('DB_PORT')}")
+# print("================================")
+
+# # Validate required environment variables
+# required_db_vars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT']
+# missing_vars = [var for var in required_db_vars if not os.environ.get(var)]
+# if missing_vars:
+#     print("❌ Missing required database environment variables:")
+#     for var in missing_vars:
+#         print(f"   - {var}")
+#     raise Exception("Missing required database configuration")
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('POSTGRES_DB'),
-        'USER': os.environ.get('POSTGRES_USER'),
-        'PASSWORD': os.environ.get('POSTGRES_PASSWORD'),
-        'HOST': os.environ.get('POSTGRES_HOST'),
-        'PORT': os.environ.get('POSTGRES_PORT'),
+        'NAME': os.environ.get('DB_NAME'),
+        'USER': os.environ.get('DB_USER'),
+        'PASSWORD': os.environ.get('DB_PASSWORD'),
+        'HOST': os.environ.get('DB_HOST'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
+
+# # Debug final configuration
+# db_config = DATABASES['default']
+# print("\n=== Final Database Configuration ===")
+# print(f"ENGINE: {db_config['ENGINE']}")
+# print(f"NAME: {db_config['NAME']}")
+# print(f"USER: {db_config['USER']}")
+# print(f"PASSWORD: {'*' * len(str(db_config['PASSWORD'])) if db_config['PASSWORD'] else 'None'}")
+# print(f"HOST: {db_config['HOST']}")
+# print(f"PORT: {db_config['PORT']}")
+# print("================================")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators

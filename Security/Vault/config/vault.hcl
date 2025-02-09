@@ -1,7 +1,7 @@
 ui = true
 
 storage "file" {
-  path = "/vault/data"
+  path = "/vault/file"
 }
 
 listener "tcp" {
@@ -14,5 +14,5 @@ path "auth/token/lookup" {
   capabilities = ["read"]
 }
 
-api_addr = "https://vault:8200" # Set to the external address if needed
+api_addr = "http://vault:8200"
 disable_mlock = true
