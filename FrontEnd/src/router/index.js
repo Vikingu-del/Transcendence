@@ -3,6 +3,7 @@ import Home from '../views/Home.vue';
 import Login from '../views/Login.vue';
 import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
+import Friends from '../views/Friends.vue';
 import store from '../store';
 
 const router = createRouter({
@@ -30,6 +31,12 @@ const router = createRouter({
       path: '/profile',
       name: 'Profile',
       component: Profile,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/friends',
+      name: 'Friends',
+      component: Friends,
       meta: { requiresAuth: true }
     }
   ]

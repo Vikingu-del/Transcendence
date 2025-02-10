@@ -22,7 +22,7 @@ from .views import (
     RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
     AddFriendView, RemoveFriendView, AcceptFriendRequestView,
     DeclineFriendRequestView, IncomingFriendRequestsView,
-    ChatListView, ChatDetailView, BlockUserView
+    BlockUserView
 )
 
 
@@ -42,14 +42,9 @@ urlpatterns = [
     path('api/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
     path('api/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
     path('api/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
-    
-     # Block management endpoints
+
+    # Block management endpoints
     path('api/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
-
-    # Chat endpoints
-    path('api/profile/chats/', ChatListView.as_view(), name='chat_list_view'),
-    path('api/profile/chat/<int:id>/', ChatDetailView.as_view(), name='chat_view'),
 ]
-
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/06 11:44:47 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/10 11:21:22 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -19,8 +19,7 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework import generics
 from .serializers import UserSerializer, UserProfileSerializer, FriendRequestSerializer
-from .models import Profile, Friendship, Chat, Message
-from rest_framework.parsers import MultiPartParser, FormParser
+from .models import Profile, Friendship
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import permission_classes
 from django.db.models import Q
@@ -29,7 +28,6 @@ from asgiref.sync import async_to_sync
 from django.contrib.messages.api import *  # NOQA
 from django.contrib.messages.constants import *  # NOQA
 from django.contrib.messages.storage.base import Message  # NOQA
-from django.views.generic import DetailView 
 import json
 from django.shortcuts import get_object_or_404
 from django.shortcuts import render
@@ -39,8 +37,7 @@ import logging
 from django.shortcuts import get_object_or_404
 
 from django.contrib.auth.models import User
-from .models import Chat, Profile, Friendship
-from .serializers import ChatSerializer, ChatListSerializer
+from .models import Profile, Friendship
 import json
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
@@ -503,45 +500,3 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, 
                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-class ChatListView(generics.ListAPIView):
-    serializer_class = ChatListSerializer
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        return Chat.objects.filter(participant1=user) | Chat.objects.filter(participant2=user)
-    
-class ChatDetailView(generics.RetrieveAPIView):
-    serializer_class = ChatSerializer
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_object(self):
-        user1 = self.request.user
-        user2 = get_object_or_404(User, id=self.kwargs['id'])
-        
-        # Get or create chat
-        chat = Chat.objects.filter(
-            Q(participant1=user1, participant2=user2) | 
-            Q(participant1=user2, participant2=user1)
-        ).first()
-        
-        if not chat:
-            chat = Chat.objects.create(
-                participant1=user1,
-                participant2=user2
-            )
-        
-        # Prefetch related messages for better performance
-        return Chat.objects.prefetch_related('messages').get(id=chat.id)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        
-        # Restructure the response format
-        return Response({
-            'messages': serializer.data['messages']
-        })

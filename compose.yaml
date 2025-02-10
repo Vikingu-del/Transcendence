@@ -31,6 +31,27 @@ services:
     networks:
       - backtier
       - user_network
+  
+  chat:
+    build:
+      context: ./Backend/chatService
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./Backend/chatService:/app
+    environment:
+      DB_NAME: "postgres"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      DB_HOST: "chat_db"
+      DB_PORT: "5432"
+    depends_on:
+      - vault
+      - chat_db
+    networks:
+      - backtier
+      - chat_network
 
   user_db:
     image: postgres:latest
@@ -45,6 +66,25 @@ services:
     networks:
       - backtier
       - user_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  chat_db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "postgres"
+    ports:
+      - "5433:5432"  # Note: Different port from user_db
+    volumes:
+      - chat_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
+      - chat_network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -86,6 +126,7 @@ services:
 
 volumes:
   user_db_data:
+  chat_db_data:
   frontend_dist:
 
 networks:
@@ -94,4 +135,6 @@ networks:
   backtier:
     driver: bridge
   frontier:
+    driver: bridge
+  chat_network:
     driver: bridge
