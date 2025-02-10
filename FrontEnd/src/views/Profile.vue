@@ -694,7 +694,8 @@ export default {
       //Get token from store
       const token = this.getToken;
       const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${wsScheme}://${window.location.host}/ws/profile/notifications/?token=${this.$store.state.token}`;
+      const wsUrl = `${wsScheme}://${window.location.host}/ws/profile/notifications/?token=${token}`;
+      
       this.notificationSocket = new WebSocket(wsUrl);
       this.notificationSocket.onopen = () => {
         this.wsConnected = true;

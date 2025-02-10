@@ -19,25 +19,34 @@ class MessageSerializer(serializers.ModelSerializer):
 
 
 class ChatSerializer(serializers.ModelSerializer):
-    participant2 = serializers.SerializerMethodField()
-    messages = MessageSerializer(many=True, read_only=True)
-    
+    participant1_info = serializers.SerializerMethodField()
+    participant2_info = serializers.SerializerMethodField()
+    messages = serializers.SerializerMethodField()
+
     class Meta:
-            model = Chat
-            fields = ['id', 'participant1', 'participant2', 'messages']
-    
-    def get_participant2(self, obj):
-        request = self.context.get('request')
-        if not request:
-            return None
-            
-        target_user = obj.participant2 if obj.participant1 == request.user else obj.participant1
+        model = Chat
+        fields = ['id', 'participant1_info', 'participant2_info', 'messages']
+
+    def get_participant1_info(self, obj):
+        return self._get_user_info(obj.participant1)
+
+    def get_participant2_info(self, obj):
+        return self._get_user_info(obj.participant2)
+
+    def _get_user_info(self, user):
         return {
-            'id': target_user.id,
-            'username': target_user.username,
-            'profile_image': target_user.profile.avatar.url if hasattr(target_user.profile, 'avatar') and target_user.profile.avatar else None
+            'id': user.id,
+            'username': user.username,
         }
 
+    def get_messages(self, obj):
+        messages = Message.objects.filter(chat=obj).order_by('created_at')
+        return [{
+            'id': msg.id,
+            'sender_id': msg.sender.id,
+            'text': msg.text,
+            'created_at': msg.created_at
+        } for msg in messages]
 
 class ChatListSerializer(serializers.ModelSerializer):
     participant2 = serializers.SerializerMethodField()

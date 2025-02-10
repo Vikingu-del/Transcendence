@@ -1,5 +1,4 @@
 #!/bin/sh
-
 # Wait until PostgreSQL is ready
 echo "Waiting for the database to be ready..."
 
@@ -16,6 +15,6 @@ python3 manage.py makemigrations
 echo "Running migrate..."
 python3 manage.py migrate
 
-# Start the Daphne server
-echo "Starting Daphne server..."
+# Start the Django development server
+echo "Starting Django server..."
 exec "$@"

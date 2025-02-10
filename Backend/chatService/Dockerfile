@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.11
 
 WORKDIR /app
 
@@ -21,4 +21,5 @@ COPY config/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8001", "chatService.asgi:application"]
+# Change CMD to use Django development server instead of Daphne for development
+CMD ["python", "manage.py", "runserver", "0.0.0.0:8001"]

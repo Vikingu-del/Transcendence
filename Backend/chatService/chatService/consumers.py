@@ -106,7 +106,9 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_user_from_token(self, token_key):
         try:
-            return Token.objects.select_related('user', 'user__profile').get(key=token_key).user
+            # Remove the profile from select_related since it's causing the error
+            token = Token.objects.select_related('user').get(key=token_key)
+            return token.user
         except Token.DoesNotExist:
             return None
 

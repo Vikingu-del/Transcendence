@@ -44,14 +44,14 @@ services:
       DB_NAME: "postgres"
       DB_USER: "postgres"
       DB_PASSWORD: "postgres"
-      DB_HOST: "chat_db"
+      DB_HOST: "user_db"
       DB_PORT: "5432"
     depends_on:
       - vault
-      - chat_db
+      - user_db
     networks:
       - backtier
-      - chat_network
+      - user_network
 
   user_db:
     image: postgres:latest

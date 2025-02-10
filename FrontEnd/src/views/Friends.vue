@@ -20,31 +20,22 @@
     </div>
 
     <!-- Chat Section -->
-    <div v-if="showChat" class="chat-container">
+    <div class="chat-container" v-if="showChat">
       <div class="chat-header">
-        <h4 class="chat-title">Chat with {{ activeChat }}</h4>
+        <h4>Chat with {{ activeChat }}</h4>
         <button @click="closeChat" class="btn secondary-btn">Close</button>
       </div>
+      
       <div class="chat-messages" ref="chatMessages">
         <div v-for="message in messages" 
-          :key="message.id" 
-          :class="['message', { 
-            'message-sent': message.sender === parseInt(currentUserId),
-            'message-received': message.sender !== parseInt(currentUserId)
-          }]">
-          <div class="message-content" :class="{ 
-            'content-sent': parseInt(message.sender) === parseInt(currentUserId),
-            'content-received': parseInt(message.sender) !== parseInt(currentUserId)
-          }">
-            <div class="message-header">
-              <small class="message-sender">
-                {{ parseInt(message.sender) === parseInt(currentUserId) ? '' : activeChat }}
-              </small>
-            </div>
-            <span class="message-text">{{ message.text }}</span>
-            <div class="message-footer">
-              <small class="message-time">{{ formatDate(message.created_at) }}</small>
-            </div>
+            :key="message.id" 
+            :class="['message', { 
+              'message-sent': message.sender === parseInt(currentUserId),
+              'message-received': message.sender !== parseInt(currentUserId)
+            }]">
+          <div class="message-content">
+            <p>{{ message.text }}</p>
+            <small>{{ formatDate(message.created_at) }}</small>
           </div>
         </div>
       </div>
@@ -52,9 +43,8 @@
       <div class="chat-input">
         <input 
           v-model="newMessage" 
-          @keyup.enter="sendMessage" 
+          @keyup.enter="sendMessage"
           placeholder="Type your message..."
-          class="input-field"
         />
         <button @click="sendMessage" class="btn primary-btn">Send</button>
       </div>
@@ -64,6 +54,7 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import { SERVICE_URLS } from '@/config/services';
 
 export default {
   name: 'Friends',
@@ -86,13 +77,27 @@ export default {
   },
 
   computed: {
-    ...mapGetters(['getToken']),
+    ...mapGetters(['getToken', 'isAuthenticated']),
   },
 
   async created() {
-    await this.fetchProfile();
-    this.currentUserId = this.profile.id;
-    this.initNotificationSocket();
+    try {
+      if (this.isInitialized) return;
+      
+      const authInitialized = await this.$store.dispatch('initializeAuth');
+      
+      if (!authInitialized || !this.getToken) {
+        this.$router.push('/login');
+        return;
+      }
+      
+      this.isInitialized = true;
+      await this.fetchProfile();
+      this.initNotificationSocket();
+    } catch (error) {
+      console.error('Initialization error:', error);
+      this.$router.push('/login');
+    }
   },
 
   methods: {
@@ -105,10 +110,16 @@ export default {
           },
         });
         
-        if (!response.ok) throw new Error('Failed to fetch profile');
+        if (!response.ok) {
+          console.error('Profile fetch failed:', response.status);
+          throw new Error(`Failed to fetch profile: ${response.status}`);
+        }
+        
         this.profile = await response.json();
+        this.currentUserId = this.profile.id; // Set currentUserId here
       } catch (error) {
         console.error('Profile fetch error:', error);
+        this.$router.push('/login'); // Redirect on error
       }
     },
 
@@ -117,54 +128,42 @@ export default {
         this.activeChat = friend.display_name;
         this.showChat = true;
 
-        // Get chat ID by combining sorted user IDs
         const chatId = [this.currentUserId.toString(), friend.id.toString()]
-          .sort()
-          .join('_');
+            .sort()
+            .join('_');
 
-        if (!chatId.includes('_')) {
-          throw new Error('Invalid chat ID format');
+        const response = await fetch(`${SERVICE_URLS.CHAT_SERVICE}/api/chats/${chatId}/`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Token ${this.getToken}`,
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error('Chat service error:', errorData);
+            throw new Error(`Chat service error: ${response.status}`);
         }
 
-        this.chatId = chatId;
-
-        // Fetch existing messages
-        const response = await fetch(`http://localhost:8001/api/chats/${chatId}/`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-
-        // Parse and set existing messages
-        
-        // Parse and set existing messages
         const data = await response.json();
-        console.log('Messages data:', {
-          currentUserId: this.currentUserId,
-          friendId: friend.id,
-          messages: data.messages
-        });
-        
         this.messages = data.messages.map(msg => ({
-          id: msg.id,
-          chat: msg.chat,
-          sender: msg.sender,
-          text: msg.text,
-          created_at: msg.created_at
+            id: msg.id,
+            chat: msg.chat,
+            sender: msg.sender,
+            text: msg.text,
+            created_at: msg.created_at
         }));
-        // Initialize WebSocket connection
+
+        this.chatId = chatId;
+        // Setup WebSocket connection with token
         if (this.chatSocket) {
-          this.chatSocket.close();
+            this.chatSocket.close();
         }
 
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://localhost:8001/ws/chat/${this.chatId}/?token=${this.getToken}`;
-    
-        console.log('Chat WebSocket URL:', wsUrl);
-        
+        const wsUrl = `${wsScheme}://${window.location.host}/chat/ws/chat/${this.chatId}/?token=${this.getToken}`;
         this.chatSocket = new WebSocket(wsUrl);
         
         // Handle incoming messages with correct structure
@@ -197,7 +196,9 @@ export default {
         };
       } catch (error) {
         console.error('Error starting chat:', error);
-        this.showStatus('Failed to start chat', {}, 'error');
+        
+        this.showChat = false;
+        this.activeChat = null;
       }
     },
 
@@ -219,36 +220,34 @@ export default {
 
     async sendMessage() {
       if (!this.newMessage.trim() || !this.chatSocket) return;
-      
-      if (this.chatSocket.readyState !== WebSocket.OPEN) {
-        console.error('WebSocket is not connected');
-        return;
-      }
 
       try {
         const messageData = {
           type: 'chat_message',
           message: {
-            chat: this.chatId,
             text: this.newMessage,
-            sender: this.currentUserId
+            chat: this.chatId
           }
         };
 
-        console.log('Sending message data:', {
-          messageContent: messageData,
-          socketState: this.chatSocket.readyState,
-          currentUserId: this.currentUserId,
-          chatId: this.chatId,
-          timestamp: new Date().toISOString()
-        });
-
         this.chatSocket.send(JSON.stringify(messageData));
-        this.scrollToBottom();
         this.newMessage = '';
       } catch (error) {
         console.error('Error sending message:', error);
       }
+    },
+
+    formatDate(timestamp) {
+      return new Date(timestamp).toLocaleTimeString();
+    },
+
+    scrollToBottom() {
+      this.$nextTick(() => {
+        const chatMessages = this.$refs.chatMessages;
+        if (chatMessages) {
+          chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+      });
     },
 
     async removeFriend(friendId) {
@@ -346,14 +345,13 @@ export default {
       };
     },
 
-    scrollToBottom() {
-      this.$nextTick(() => {
-        const chatMessages = this.$refs.chatMessages;
-        if (chatMessages) {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-      });
+  },
+
+  messages: {
+    handler() {
+      this.scrollToBottom();
     },
+    deep: true
   },
 
   beforeDestroy() {
