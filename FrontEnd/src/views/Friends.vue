@@ -20,35 +20,45 @@
     </div>
 
     <!-- Chat Section -->
-    <div class="chat-container" v-if="showChat">
-      <div class="chat-header">
-        <h4>Chat with {{ activeChat }}</h4>
-        <button @click="closeChat" class="btn secondary-btn">Close</button>
-      </div>
-      
-      <div class="chat-messages" ref="chatMessages">
-        <div v-for="message in messages" 
+    <div v-if="showChat" class="chat-container">
+        <div class="chat-header">
+          <h4 class="chat-title">Chat with {{ activeChat }}</h4>
+          <button @click="closeChat" class="btn secondary-btn">Close</button>
+        </div>
+        <div class="chat-messages" ref="chatMessages">
+          <div v-for="message in messages" 
             :key="message.id" 
             :class="['message', { 
-              'message-sent': message.sender === parseInt(currentUserId),
-              'message-received': message.sender !== parseInt(currentUserId)
+              'message-sent': parseInt(message.sender_id) === parseInt(currentUserId),
+              'message-received': parseInt(message.sender_id) !== parseInt(currentUserId)
             }]">
-          <div class="message-content">
-            <p>{{ message.text }}</p>
-            <small>{{ formatDate(message.created_at) }}</small>
+            <div class="message-content" :class="{ 
+              'content-sent': parseInt(message.sender_id) === currentUserId,
+              'content-received': parseInt(message.sender_id) !== currentUserId
+            }">
+              <div class="message-header">
+                <small class="message-sender">
+                  {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }} <!-- Hide sender name for own messages -->
+                </small>
+              </div>
+              <span class="message-text">{{ message.text }}</span>
+              <div class="message-footer">
+                <small class="message-time">{{ formatDate(message.created_at) }}</small>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      <div class="chat-input">
-        <input 
-          v-model="newMessage" 
-          @keyup.enter="sendMessage"
-          placeholder="Type your message..."
-        />
-        <button @click="sendMessage" class="btn primary-btn">Send</button>
+        <div class="chat-input">
+          <input 
+            v-model="newMessage" 
+            @keyup.enter="sendMessage" 
+            placeholder="Type your message..."
+            class="input-field"
+          />
+          <button @click="sendMessage" class="btn primary-btn">Send</button>
+        </div>
       </div>
-    </div>
   </div>
 </template>
 
@@ -77,7 +87,7 @@ export default {
   },
 
   computed: {
-    ...mapGetters(['getToken', 'isAuthenticated']),
+    ...mapGetters(['getToken', 'isAuthenticated', 'currentUserId']),
   },
 
   async created() {
@@ -136,8 +146,7 @@ export default {
             method: 'GET',
             headers: {
                 'Authorization': `Token ${this.getToken}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Content-Type': 'application/json'
             }
         });
 
@@ -148,10 +157,16 @@ export default {
         }
 
         const data = await response.json();
+        console.log('Messages data:', {
+          currentUserId: this.currentUserId,
+          friendId: friend.id,
+          messages: data.messages
+        });
+        
         this.messages = data.messages.map(msg => ({
             id: msg.id,
             chat: msg.chat,
-            sender: msg.sender,
+            sender_id: msg.sender_id,
             text: msg.text,
             created_at: msg.created_at
         }));
@@ -170,18 +185,19 @@ export default {
         this.chatSocket.onmessage = (event) => {
           const data = JSON.parse(event.data);
           if (data.type === 'chat.message') {
-            // Format incoming message to match loaded messages structure
             const newMessage = {
               id: data.message.id,
               chat: data.message.chat,
-              sender: parseInt(data.message.sender),
+              sender_id: data.message.sender_id || data.message.sender,
               text: data.message.text,
               created_at: data.message.created_at || new Date().toISOString()
             };
             
-            console.log('Received WebSocket message:', {
-              message: newMessage,
-              currentUserId: this.currentUserId
+            console.log('Message alignment check:', {
+              newMessage,
+              senderId: newMessage.sender_id,
+              currentUserId: this.currentUserId,
+              isOwn: parseInt(newMessage.sender_id) === parseInt(this.currentUserId)
             });
 
             this.messages.push(newMessage);
@@ -220,17 +236,32 @@ export default {
 
     async sendMessage() {
       if (!this.newMessage.trim() || !this.chatSocket) return;
+      
+      if (this.chatSocket.readyState !== WebSocket.OPEN) {
+        console.error('WebSocket is not connected');
+        return;
+      }
 
       try {
         const messageData = {
           type: 'chat_message',
           message: {
+            chat: this.chatId,
             text: this.newMessage,
-            chat: this.chatId
+            sender_id: this.currentUserId  // Change 'sender' to 'sender_id'
           }
         };
 
+        console.log('Sending message data:', {
+          messageContent: messageData,
+          socketState: this.chatSocket.readyState,
+          currentUserId: this.currentUserId,
+          chatId: this.chatId,
+          timestamp: new Date().toISOString()
+        });
+
         this.chatSocket.send(JSON.stringify(messageData));
+        this.scrollToBottom();
         this.newMessage = '';
       } catch (error) {
         console.error('Error sending message:', error);
