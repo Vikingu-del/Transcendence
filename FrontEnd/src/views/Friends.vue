@@ -4,15 +4,15 @@
     <div class="profile-section">
       <h2>Friends</h2>
       <div v-if="profile.friends && profile.friends.length > 0">
-        <div v-for="friend in profile.friends" :key="friend.id" class="profile-item" @click="showFriendInfo(friend)">
-          <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
-          <span class="profile-name">{{ friend.display_name }}</span>
-          <span :class="['status', friend.is_online ? 'online' : 'offline']">
-            {{ friend.is_online ? 'Online' : 'Offline' }}
-          </span>
+        <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
+          <div class="avatar-container" @click="showFriendInfo(friend)">
+            <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
+            <span :class="['status-dot', friend.is_online ? 'online' : 'offline']"></span>
+          </div>
+          <span class="profile-name" @click="showFriendInfo(friend)">{{ friend.display_name }}</span>
           <div class="friend-actions">
-            <button @click.stop="showFriendInfo(friend)" class="btn primary-btn">Info</button>
-            <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
+            <button @click="showFriendInfo(friend)" class="btn primary-btn">Info</button>
+            <button @click.stop="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
           </div>
         </div>
       </div>
@@ -24,30 +24,28 @@
       <div v-if="showFriendProfile && selectedFriend" class="overlay">
         <div class="friend-profile-modal">
           <div class="friend-profile-header">
-            <h4 class="profile-title">Profile: {{ selectedFriend.display_name }}</h4>
+            <h3 class="profile-title">Profile Information</h3>
             <button @click="showFriendProfile = false" class="btn secondary-btn">Close</button>
           </div>
 
           <div class="profile-details">
+            <!-- Add avatar section -->
+            <div class="detail-group avatar-group">
+              <div class="profile-avatar-large">
+                <img 
+                  :src="selectedFriend.avatar" 
+                  :alt="selectedFriend.display_name"
+                  class="friend-avatar"
+                >
+                <span :class="['status-indicator', selectedFriend.is_online ? 'online' : 'offline']"></span>
+              </div>
+            </div>
+
             <div class="detail-group">
               <h5>Display Name</h5>
               <p>{{ selectedFriend.display_name }}</p>
             </div>
-            
-            <div class="detail-group" v-if="selectedFriend.bio">
-              <h5>Bio</h5>
-              <p>{{ selectedFriend.bio }}</p>
-            </div>
-            
-            <div class="detail-group" v-if="selectedFriend.location">
-              <h5>Location</h5>
-              <p>{{ selectedFriend.location }}</p>
-            </div>
-            
-            <div class="detail-group">
-              <h5>Member Since</h5>
-              <p>{{ formatDate(selectedFriend.date_joined) }}</p>
-            </div>
+
           </div>
 
           <div class="friend-profile-footer">
@@ -121,11 +119,11 @@ export default {
       activeChat: null,
       chatId: null,
       chatSocket: null,
-      currentUserId: null,
       messages: [],
       newMessage: '',
       notificationSocket: null,
       wsConnected: false,
+      incomingFriendRequests: [],
 
       //Friends Profile View
       selectedFriend: null,
@@ -134,7 +132,7 @@ export default {
   },
 
   computed: {
-    ...mapGetters(['getToken', 'isAuthenticated', 'currentUserId']),
+    ...mapGetters(['getToken', 'isAuthenticated']),
   },
 
   async created() {
@@ -345,8 +343,33 @@ export default {
     });
   },
 
-  async removeFriend(friendId) {
+  showStatus(message, variables = {}, type = 'success') {
+    // Validate message type
+    const validTypes = ['success', 'warning', 'error'];
+    if (!validTypes.includes(type)) {
+      type = 'success'; // Default fallback
+    }
+
+    // Interpolate variables into message
+    let text = message;
+    Object.entries(variables).forEach(([key, value]) => {
+      text = text.replace(`{${key}}`, value);
+    });
+
+    // Set status message
+    this.statusMessage = { text, type };
+
+    // Clear after timeout
+    setTimeout(() => {
+      this.statusMessage = null;
+    }, 3000);
+  },
+
+  async removeFriend(friendId, event) {
     try {
+      // Prevent event propagation
+      event?.stopPropagation();
+      
       const friend = this.profile.friends.find(f => f.id === friendId);
       const response = await fetch('/api/profile/remove_friend/', {
         method: 'POST',
@@ -360,13 +383,35 @@ export default {
       if (response.ok) {
         this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
         
+        // Make sure profile modal is closed
+        this.showFriendProfile = false;
+        this.selectedFriend = null;
+        
         await this.fetchProfile(); // Refresh sender's profile
       } else {
         console.error('Failed to remove friend');
+        this.showStatus('Failed to remove friend', {}, 'error');
       }
     } catch (error) {
       console.error('Error removing friend:', error);
+      this.showStatus('Error removing friend', {}, 'error');
     }
+  },
+
+  buildAvatarUrl(avatarPath, baseUrl) {
+      // If no avatar path provided, return default avatar
+      if (!avatarPath) return this.defaultAvatarUrl;
+      
+      // If it's already a full URL, return it
+      if (avatarPath.startsWith('http')) return avatarPath;
+      
+      // If it's a path starting with /media
+      if (avatarPath.startsWith('/media')) {
+          return `${baseUrl}${avatarPath}`;
+      }
+      
+      // For relative paths in the avatars directory
+      return `${baseUrl}/media/avatars/${avatarPath}`;
   },
 
 	initNotificationSocket() {
@@ -480,17 +525,42 @@ export default {
   background: #1a1a1a;
 }
 
+.avatar-container {
+  position: relative;
+  margin-right: 5%;
+}
+
+.status-dot {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #1a1a1a;
+}
+
+.status-dot.online {
+  background-color: #03a670;
+}
+
+.status-dot.offline {
+  background-color: #a60303;
+}
+
+/* Update existing profile-avatar style */
 .profile-avatar {
   width: 50px;
   height: 50px;
   border-radius: 50%;
-  margin-right: 5%;
+  object-fit: cover;
 }
 
 .profile-name {
   font-size: 16px;
   flex-grow: 1;
   color: #ffffff;
+  margin-right: 20px;
 }
 
 .status {
@@ -525,12 +595,12 @@ export default {
 }
 
 .secondary-btn {
-  background: #333333;
+  background: #a60303;
   color: #ffffff;
 }
 
 .secondary-btn:hover {
-  background: #a60303;
+  background: #333333;
 }
 
 .chat-container {
@@ -550,6 +620,7 @@ export default {
   align-items: center;
   color: #ffffff;
   border-radius: 10px 10px 0 0;
+  padding-left: 10%;
 }
 
 .chat-messages {
@@ -653,6 +724,7 @@ export default {
   justify-content: space-between;
   align-items: center;
   border-radius: 10px 10px 0 0;
+  padding-left: 30%;
 }
 
 .profile-details {
@@ -703,5 +775,44 @@ export default {
 .fade-enter-from,
 .fade-leave-to {
   opacity: 0;
+}
+
+.avatar-group {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem 0;
+}
+
+.profile-avatar-large {
+  position: relative;
+  width: 120px;
+  height: 120px;
+}
+
+.friend-avatar {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid #03a670;
+}
+
+.status-indicator {
+  position: absolute;
+  bottom: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 3px solid #1a1a1a;
+}
+
+.status-indicator.online {
+  background-color: #03a670;
+}
+
+.status-indicator.offline {
+  background-color: #a60303;
 }
 </style>
