@@ -33,7 +33,16 @@ export default {
   methods: {
     ...mapActions(['loginAction']),
 
+    resetForm() {
+      this.username = '';
+      this.password = '';
+      this.error = '';
+      this.loading = false;
+    },
+
     async login() {
+      if (this.loading) return;
+      
       this.loading = true;
       this.error = '';
       
@@ -45,13 +54,18 @@ export default {
         
         // Login successful - redirect handled in store
       } catch (error) {
+        console.error('Login error:', error);
         if (error.response?.data?.message) {
           this.error = error.response.data.message;
+        } else if (error.message) {
+          this.error = error.message;
         } else {
           this.error = 'Login failed. Please try again.';
         }
+        // Clear password on error
+        this.password = '';
       } finally {
-        this.loading = true;
+        this.loading = false; // Fixed: Set loading to false when done
       }
     }
   }
@@ -122,6 +136,27 @@ button.submit-btn:hover {
 
 button:disabled {
   background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.reset-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 10px;
+  background-color: #666;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.reset-btn:hover {
+  background-color: #555;
+}
+
+input:disabled {
+  background-color: #f5f5f5;
   cursor: not-allowed;
 }
 </style>
