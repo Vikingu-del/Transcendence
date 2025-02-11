@@ -4,14 +4,14 @@
     <div class="profile-section">
       <h2>Friends</h2>
       <div v-if="profile.friends && profile.friends.length > 0">
-        <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
+        <div v-for="friend in profile.friends" :key="friend.id" class="profile-item" @click="showFriendInfo(friend)">
           <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
           <span class="profile-name">{{ friend.display_name }}</span>
           <span :class="['status', friend.is_online ? 'online' : 'offline']">
             {{ friend.is_online ? 'Online' : 'Offline' }}
           </span>
           <div class="friend-actions">
-            <button @click="startChat(friend)" class="btn primary-btn">Chat</button>
+            <button @click.stop="showFriendInfo(friend)" class="btn primary-btn">Info</button>
             <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
           </div>
         </div>
@@ -19,46 +19,89 @@
       <p v-else>No friends yet</p>
     </div>
 
-    <!-- Chat Section -->
-    <div v-if="showChat" class="chat-container">
-        <div class="chat-header">
-          <h4 class="chat-title">Chat with {{ activeChat }}</h4>
-          <button @click="closeChat" class="btn secondary-btn">Close</button>
+    <!-- Replace the existing friend-profile-modal div with this -->
+    <transition name="fade">
+      <div v-if="showFriendProfile && selectedFriend" class="overlay">
+        <div class="friend-profile-modal">
+          <div class="friend-profile-header">
+            <h4 class="profile-title">Profile: {{ selectedFriend.display_name }}</h4>
+            <button @click="showFriendProfile = false" class="btn secondary-btn">Close</button>
+          </div>
+
+          <div class="profile-details">
+            <div class="detail-group">
+              <h5>Display Name</h5>
+              <p>{{ selectedFriend.display_name }}</p>
+            </div>
+            
+            <div class="detail-group" v-if="selectedFriend.bio">
+              <h5>Bio</h5>
+              <p>{{ selectedFriend.bio }}</p>
+            </div>
+            
+            <div class="detail-group" v-if="selectedFriend.location">
+              <h5>Location</h5>
+              <p>{{ selectedFriend.location }}</p>
+            </div>
+            
+            <div class="detail-group">
+              <h5>Member Since</h5>
+              <p>{{ formatDate(selectedFriend.date_joined) }}</p>
+            </div>
+          </div>
+
+          <div class="friend-profile-footer">
+            <button @click="startChat(selectedFriend)" class="btn primary-btn">Start Chat</button>
+          </div>
         </div>
-        <div class="chat-messages" ref="chatMessages">
-          <div v-for="message in messages" 
-            :key="message.id" 
-            :class="['message', { 
-              'message-sent': parseInt(message.sender_id) === parseInt(currentUserId),
-              'message-received': parseInt(message.sender_id) !== parseInt(currentUserId)
-            }]">
-            <div class="message-content" :class="{ 
-              'content-sent': parseInt(message.sender_id) === currentUserId,
-              'content-received': parseInt(message.sender_id) !== currentUserId
-            }">
-              <div class="message-header">
-                <small class="message-sender">
-                  {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }} <!-- Hide sender name for own messages -->
-                </small>
-              </div>
-              <span class="message-text">{{ message.text }}</span>
-              <div class="message-footer">
-                <small class="message-time">{{ formatDate(message.created_at) }}</small>
+      </div>
+    </transition>
+
+    <!-- Chat Section -->
+    <transition name="fade">
+      <div v-if="showChat" class="overlay">
+        <div class="chat-container">
+          <div class="chat-header">
+            <h4 class="chat-title">Chat with {{ activeChat }}</h4>
+            <button @click="closeChat" class="btn secondary-btn">Close</button>
+          </div>
+          <div class="chat-messages" ref="chatMessages">
+            <div v-for="message in messages" 
+              :key="message.id" 
+              :class="['message', { 
+                'message-sent': parseInt(message.sender_id) === parseInt(currentUserId),
+                'message-received': parseInt(message.sender_id) !== parseInt(currentUserId)
+              }]">
+              <div class="message-content" :class="{ 
+                  'content-sent': parseInt(message.sender_id) === currentUserId,
+                  'content-received': parseInt(message.sender_id) !== currentUserId
+                }">
+                <div class="message-header">
+                  <small class="message-sender">
+                    {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }} <!-- Hide sender name for own messages -->
+                  </small>
+                </div>
+                <span class="message-text">{{ message.text }}</span>
+                <div class="message-footer">
+                  <small class="message-time">{{ formatDate(message.created_at) }}</small>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+          
 
-        <div class="chat-input">
-          <input 
-            v-model="newMessage" 
-            @keyup.enter="sendMessage" 
-            placeholder="Type your message..."
-            class="input-field"
-          />
-          <button @click="sendMessage" class="btn primary-btn">Send</button>
+          <div class="chat-input">
+            <input 
+              v-model="newMessage" 
+              @keyup.enter="sendMessage" 
+              placeholder="Type your message..."
+              class="input-field"
+            />
+            <button @click="sendMessage" class="btn primary-btn">Send</button>
+          </div>
         </div>
       </div>
+    </transition>
   </div>
 </template>
 
@@ -83,6 +126,10 @@ export default {
       newMessage: '',
       notificationSocket: null,
       wsConnected: false,
+
+      //Friends Profile View
+      selectedFriend: null,
+      showFriendProfile: false
     };
   },
 
@@ -111,199 +158,216 @@ export default {
   },
 
   methods: {
-    async fetchProfile() {
-      try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
-          },
-        });
-        
-        if (!response.ok) {
-          console.error('Profile fetch failed:', response.status);
-          throw new Error(`Failed to fetch profile: ${response.status}`);
-        }
-        
-        this.profile = await response.json();
-        this.currentUserId = this.profile.id; // Set currentUserId here
-      } catch (error) {
-        console.error('Profile fetch error:', error);
-        this.$router.push('/login'); // Redirect on error
+    
+  async fetchProfile() {
+    try {
+      const response = await fetch('http://localhost:8000/api/profile/', {
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json'
+        },
+      });
+      
+      if (!response.ok) {
+        console.error('Profile fetch failed:', response.status);
+        throw new Error(`Failed to fetch profile: ${response.status}`);
       }
-    },
+      
+      this.profile = await response.json();
+      this.currentUserId = this.profile.id; // Set currentUserId here
+    } catch (error) {
+      console.error('Profile fetch error:', error);
+      this.$router.push('/login'); // Redirect on error
+    }
+  },
 
-    async startChat(friend) {
-      try {
-        this.activeChat = friend.display_name;
-        this.showChat = true;
-
-        const chatId = [this.currentUserId.toString(), friend.id.toString()]
-            .sort()
-            .join('_');
-
-        const response = await fetch(`${SERVICE_URLS.CHAT_SERVICE}/api/chats/${chatId}/`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Token ${this.getToken}`,
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            console.error('Chat service error:', errorData);
-            throw new Error(`Chat service error: ${response.status}`);
+  async startChat(friend) {
+    try {
+      this.activeChat = friend.display_name;
+      this.showFriendProfile = false;
+      this.showChat = true;
+      
+      const chatId = [this.currentUserId.toString(), friend.id.toString()]
+      .sort()
+      .join('_');
+      
+      const response = await fetch(`${SERVICE_URLS.CHAT_SERVICE}/api/chats/${chatId}/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json'
         }
-
-        const data = await response.json();
-        console.log('Messages data:', {
-          currentUserId: this.currentUserId,
-          friendId: friend.id,
-          messages: data.messages
-        });
-        
-        this.messages = data.messages.map(msg => ({
-            id: msg.id,
-            chat: msg.chat,
-            sender_id: msg.sender_id,
-            text: msg.text,
-            created_at: msg.created_at
-        }));
-
-        this.chatId = chatId;
-        // Setup WebSocket connection with token
-        if (this.chatSocket) {
-            this.chatSocket.close();
-        }
-
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${window.location.host}/chat/ws/chat/${this.chatId}/?token=${this.getToken}`;
-        this.chatSocket = new WebSocket(wsUrl);
-        
-        // Handle incoming messages with correct structure
-        this.chatSocket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'chat.message') {
-            const newMessage = {
-              id: data.message.id,
-              chat: data.message.chat,
-              sender_id: data.message.sender_id || data.message.sender,
-              text: data.message.text,
-              created_at: data.message.created_at || new Date().toISOString()
-            };
-            
-            console.log('Message alignment check:', {
-              newMessage,
-              senderId: newMessage.sender_id,
-              currentUserId: this.currentUserId,
-              isOwn: parseInt(newMessage.sender_id) === parseInt(this.currentUserId)
-            });
-
-            this.messages.push(newMessage);
-            this.$nextTick(() => {
-              this.scrollToBottom();
-            });
-          }
-        };
-
-        this.chatSocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-        };
-      } catch (error) {
-        console.error('Error starting chat:', error);
-        
-        this.showChat = false;
-        this.activeChat = null;
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Chat service error:', errorData);
+        throw new Error(`Chat service error: ${response.status}`);
       }
-    },
-
-    closeChat() {
+      
+      const data = await response.json();
+      console.log('Messages data:', {
+        currentUserId: this.currentUserId,
+        friendId: friend.id,
+        messages: data.messages
+      });
+      
+      this.messages = data.messages.map(msg => ({
+        id: msg.id,
+        chat: msg.chat,
+        sender_id: msg.sender_id,
+        text: msg.text,
+        created_at: msg.created_at
+      }));
+      
+      this.chatId = chatId;
+      // Setup WebSocket connection with token
       if (this.chatSocket) {
         this.chatSocket.close();
-        this.chatSocket = null;
-        //Console log to check if chatSocket is closed
-        console.log('Chat socket closed');
       }
-
+      
+      const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      const wsUrl = `${wsScheme}://${window.location.host}/chat/ws/chat/${this.chatId}/?token=${this.getToken}`;
+      this.chatSocket = new WebSocket(wsUrl);
+      
+      // Handle incoming messages with correct structure
+      this.chatSocket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'chat.message') {
+          const newMessage = {
+            id: data.message.id,
+            chat: data.message.chat,
+            sender_id: data.message.sender_id || data.message.sender,
+            text: data.message.text,
+            created_at: data.message.created_at || new Date().toISOString()
+          };
+          
+          console.log('Message alignment check:', {
+            newMessage,
+            senderId: newMessage.sender_id,
+            currentUserId: this.currentUserId,
+            isOwn: parseInt(newMessage.sender_id) === parseInt(this.currentUserId)
+          });
+          
+          this.messages.push(newMessage);
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
+        }
+      };
+      
+      this.chatSocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+      };
+    } catch (error) {
+      console.error('Error starting chat:', error);
       
       this.showChat = false;
       this.activeChat = null;
-      this.chatId = null;
-      this.messages = [];
-      this.newMessage = '';
-    },
-
-    async sendMessage() {
-      if (!this.newMessage.trim() || !this.chatSocket) return;
+    }
+  },
       
-      if (this.chatSocket.readyState !== WebSocket.OPEN) {
-        console.error('WebSocket is not connected');
-        return;
-      }
+  showFriendInfo(friend) {
+    this.selectedFriend = friend;
+    this.showFriendProfile = true;
+    this.showChat = false;
+  },
 
-      try {
-        const messageData = {
-          type: 'chat_message',
-          message: {
-            chat: this.chatId,
-            text: this.newMessage,
-            sender_id: this.currentUserId  // Change 'sender' to 'sender_id'
-          }
-        };
+  closeChat() {
+    if (this.chatSocket) {
+      this.chatSocket.close();
+      this.chatSocket = null;
+      //Console log to check if chatSocket is closed
+      console.log('Chat socket closed');
+    }
 
-        console.log('Sending message data:', {
-          messageContent: messageData,
-          socketState: this.chatSocket.readyState,
-          currentUserId: this.currentUserId,
-          chatId: this.chatId,
-          timestamp: new Date().toISOString()
-        });
+  
+    this.showChat = false;
+    this.activeChat = null;
+    this.chatId = null;
+    this.messages = [];
+    this.newMessage = '';
+  },
 
-        this.chatSocket.send(JSON.stringify(messageData));
-        this.scrollToBottom();
-        this.newMessage = '';
-      } catch (error) {
-        console.error('Error sending message:', error);
-      }
-    },
+  async sendMessage() {
+    if (!this.newMessage.trim() || !this.chatSocket) return;
+    
+    if (this.chatSocket.readyState !== WebSocket.OPEN) {
+      console.error('WebSocket is not connected');
+      return;
+    }
 
-    formatDate(timestamp) {
-      return new Date(timestamp).toLocaleTimeString();
-    },
-
-    scrollToBottom() {
-      this.$nextTick(() => {
-        const chatMessages = this.$refs.chatMessages;
-        if (chatMessages) {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
+    try {
+      const messageData = {
+        type: 'chat_message',
+        message: {
+          chat: this.chatId,
+          text: this.newMessage,
+          sender_id: this.currentUserId  // Change 'sender' to 'sender_id'
         }
+      };
+
+      console.log('Sending message data:', {
+        messageContent: messageData,
+        socketState: this.chatSocket.readyState,
+        currentUserId: this.currentUserId,
+        chatId: this.chatId,
+        timestamp: new Date().toISOString()
       });
-    },
 
-    async removeFriend(friendId) {
-      try {
-        const friend = this.profile.friends.find(f => f.id === friendId);
-        const response = await fetch('/api/profile/remove_friend/', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ friend_profile_id: friendId }),
-        });
-          
-        if (response.ok) {
-          this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
-          
-          await this.fetchProfile(); // Refresh sender's profile
-        } else {
-          console.error('Failed to remove friend');
-        }
-      } catch (error) {
-        console.error('Error removing friend:', error);
+      this.chatSocket.send(JSON.stringify(messageData));
+      this.scrollToBottom();
+      this.newMessage = '';
+    } catch (error) {
+      console.error('Error sending message:', error);
+    }
+  },
+
+  formatDate(timestamp) {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const options = { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric',
+      hour: '2-digit', 
+      minute: '2-digit'
+    };
+    return new Date(timestamp).toLocaleDateString(undefined, options);
+  },
+  
+  scrollToBottom() {
+    this.$nextTick(() => {
+      const chatMessages = this.$refs.chatMessages;
+      if (chatMessages) {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
       }
-    },
+    });
+  },
+
+  async removeFriend(friendId) {
+    try {
+      const friend = this.profile.friends.find(f => f.id === friendId);
+      const response = await fetch('/api/profile/remove_friend/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Token ${this.getToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ friend_profile_id: friendId }),
+      });
+        
+      if (response.ok) {
+        this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
+        
+        await this.fetchProfile(); // Refresh sender's profile
+      } else {
+        console.error('Failed to remove friend');
+      }
+    } catch (error) {
+      console.error('Error removing friend:', error);
+    }
+  },
 
 	initNotificationSocket() {
       //Get token from store
@@ -555,5 +619,89 @@ export default {
 
 .input-field::placeholder {
   color: #808080;
+}
+
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.friend-profile-modal {
+  width: 90%;
+  max-width: 500px;
+  background: #1a1a1a;
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(3, 166, 112, 0.4);
+  z-index: 1001;
+  display: flex;
+  flex-direction: column;
+  max-height: 80vh;
+}
+
+.friend-profile-header {
+  padding: 1rem;
+  background: #2d2d2d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-radius: 10px 10px 0 0;
+}
+
+.profile-details {
+  flex: 1;
+  padding: 1.5rem;
+  overflow-y: auto;
+}
+
+.detail-group {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid #404040;
+}
+
+.detail-group:last-child {
+  margin-bottom: 0;
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.detail-group h5 {
+  color: #03a670;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+}
+
+.detail-group p {
+  margin: 0;
+  color: #ffffff;
+  line-height: 1.4;
+}
+
+.friend-profile-footer {
+  padding: 1rem;
+  background: #2d2d2d;
+  border-top: 1px solid #404040;
+  border-radius: 0 0 10px 10px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Add transition styles */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>
