@@ -8,14 +8,21 @@
       <!-- Avatar Section with Upload/Delete -->
       <div class="avatar-container">
         <img 
-          :src="profile.avatar" 
-          :alt="profile.display_name"
-          class="profile-picture"
+            :src="profile.avatar || defaultAvatarUrl" 
+            :alt="profile.display_name"
+            class="profile-picture"
+            @error="handleAvatarError"
         />
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
           <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
-          <button v-if="!isDefaultAvatar" @click="deleteAvatar" class="btn secondary-btn">Delete Avatar</button>
+          <button 
+            v-if="!isDefaultAvatar" 
+            @click="deleteAvatar" 
+            class="btn secondary-btn"
+          >
+            Delete Avatar
+          </button>
         </div>
       </div>
 
@@ -158,7 +165,7 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: 'http://localhost:8000/media/default.png',
+      defaultAvatarUrl: 'https://localhost:8000/media/default.png',
 
       // Profile Search
       searchQuery: '',
@@ -184,7 +191,8 @@ export default {
     ...mapGetters(['getToken', 'isAuthenticated']),
 
     isDefaultAvatar() {
-      return !this.profile || this.profile.avatar === this.defaultAvatarUrl;
+      if (!this.profile || !this.profile.avatar) return true;
+      return this.profile.avatar.includes('default.png');
     }
   },
 
@@ -651,9 +659,29 @@ export default {
 
     // Helper method for avatar URL
     buildAvatarUrl(avatarPath, baseUrl) {
-      if (!avatarPath) return `${baseUrl}/media/default.png`;
-      if (avatarPath.startsWith('http')) return avatarPath;
-      return `${baseUrl}${avatarPath}`;
+        // If no avatar path provided, return default avatar
+        if (!avatarPath) return this.defaultAvatarUrl;
+        
+        // If it's already a full URL, return it
+        if (avatarPath.startsWith('http')) return avatarPath;
+        
+        // If it's a path starting with /media
+        if (avatarPath.startsWith('/media')) {
+            return `${baseUrl}${avatarPath}`;
+        }
+        
+        // For relative paths in the avatars directory
+        return `${baseUrl}/media/avatars/${avatarPath}`;
+    },
+
+    handleAvatarError(e) {
+        console.warn('Avatar failed to load:', e.target.src);
+        if (e.target.src !== this.defaultAvatarUrl) {
+            e.target.src = this.defaultAvatarUrl;
+        } else {
+            // If even the default avatar fails, use an inline SVG or emergency fallback
+            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MyLjY3IDAgNC42NyAyIDQuNjcgNC42N2MwIDIuNjctMiA0LjY3LTQuNjcgNC42N3MtNC42Ny0yLTQuNjctNC42N0M3LjMzIDcgOS4zMyA1IDEyIDV6bTAgMTIuNTVjLTMuNDcgMC02LjMzLTIuMTMtNy41LTUuMTNDNi40NSAxMC42OCA5LjUzIDEwIDEyIDEwczUuNTUuNjggNi41IDIuNDJjLTEuMTcgMy0zLjAzIDUuMTMtNi41IDUuMTN6Ii8+PC9zdmc+';
+        }
     },
 
     formatDate(timestamp) {
