@@ -5,6 +5,7 @@ VAULT_ADDR="http://vault:8200"
 ROLE_ID_FILE="/vault/approle/gateway/role_id"
 SECRET_ID_FILE="/vault/approle/gateway/secret_id"
 
+# Vault Authentication
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
     echo "❌ Credentials missing"
     exit 1
@@ -24,16 +25,16 @@ if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
 fi
 echo "✅ Successfully authenticated with Vault"
 
-CURRENT_HOST=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/gateway | jq -r .data.data.CURRENT_HOST)
-export CURRENT_HOST
+# Export ModSecurity configuration
+export MODSEC_RULE_ENGINE=On
+export MODSEC_AUDIT_LOG=/var/log/modsec_audit.log
+export MODSEC_CONFIG_DIR=/etc/nginx/modsecurity.d
 
-# Generate SSL if needed
-if [ ! -f /etc/nginx/ssl/nginx-selfsigned.crt ]; then
-    openssl req -newkey rsa:2048 -nodes \
-        -keyout /etc/nginx/ssl/nginx-selfsigned.key \
-        -x509 -days 365 -out /etc/nginx/ssl/nginx-selfsigned.crt \
-        -subj "/CN=localhost"
-fi
+# Create writable directories for dynamic content
+mkdir -p /tmp/nginx/conf
+mkdir -p /tmp/nginx/ssl
+mkdir -p /tmp/modsecurity/data
+mkdir -p /tmp/modsecurity/tmp
 
-exec nginx -g 'daemon off;'
+# Let the original entrypoint handle template processing
+exec /docker-entrypoint.sh nginx -g "daemon off;"

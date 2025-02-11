@@ -125,8 +125,9 @@ services:
       - frontend
     volumes:
       - approle_gateway:/vault/approle/gateway:ro
-      - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./.cert/:/etc/nginx/ssl/
+      - ./ApiGateway/config/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ./ApiGateway/config/modsecurity:/etc/nginx/modsecurity:ro
+      - ./.cert/:/etc/nginx/ssl/:ro
     networks:
       - backtier
       - frontier
@@ -143,6 +144,7 @@ services:
       - /app/node_modules # Preserve node_modules from container
     environment:
       - NODE_ENV=development
+      - VITE_HOST=0.0.0.0
     command: npm run dev -- --host
     networks:
       - frontier

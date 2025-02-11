@@ -36,6 +36,9 @@ export default {
   },
   methods: {
     async register() {
+      const baseUrl = window.location.hostname === 'localhost' 
+      ? 'http://localhost:8000' 
+      : 'https://10.12.12.5';
       if (this.password !== this.passwordConfirm) {
         this.message = 'Passwords do not match!';
         this.errors = [];
@@ -43,7 +46,7 @@ export default {
       }
 
       try {
-        const response = await fetch('/api/register/', {
+        const response = await fetch(`${baseUrl}/api/register/`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

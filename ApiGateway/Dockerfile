@@ -1,26 +1,41 @@
-# Start with the base Nginx image
-FROM nginx:alpine
+FROM owasp/modsecurity-crs:nginx-alpine
 
-# Set environment variables (you can configure more as needed)
+USER root
+
 ENV WAIT_FOR_SERVICES=false
 
-RUN apk update; apk upgrade; apk add nginx openssl curl bash unzip jq; apk add --no-cache gettext
+# Install required packages
+RUN apk update && \
+    apk add --no-cache \
+    openssl \
+    curl \
+    bash \
+    unzip \
+    jq \
+    gettext
 
 # Install Vault CLI
 RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_amd64.zip -o vault.zip && \
-    unzip vault.zip && mv vault /usr/local/bin/ && rm vault.zip
+    unzip vault.zip && \
+    mv vault /usr/local/bin/ && \
+    rm vault.zip
 
-# Copy your custom Nginx configuration
-COPY config/nginx.conf /etc/nginx/nginx.conf
-COPY config/entrypoint.sh /entrypoint.sh
+# Set up template directories
+RUN mkdir -p /etc/nginx/templates/conf.d \
+    /etc/nginx/templates/modsecurity.d \
+    /etc/nginx/templates/includes \
+    /etc/nginx/conf \
+    /etc/nginx/ssl
 
-# Copy the entrypoint script
-RUN chmod +x /entrypoint.sh && \
-    mkdir -p /etc/nginx/ssl && \
-    chown -R nginx:nginx /etc/nginx/ssl
+# Copy configuration templates
+COPY config/nginx.conf.template /etc/nginx/templates/
+COPY config/entrypoint.sh /usr/local/bin/custom-entrypoint.sh
+COPY config/modsecurity/modsecurity.conf /etc/nginx/templates/modsecurity.d/modsecurity.conf.template
+
+# Set permissions
+RUN chmod +x /usr/local/bin/custom-entrypoint.sh && \
+    chmod -R 755 /etc/nginx/templates
 
 EXPOSE 80 443
 
-# Make the entrypoint script the container entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
-
+ENTRYPOINT ["/usr/local/bin/custom-entrypoint.sh"]

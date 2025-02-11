@@ -8,9 +8,10 @@
       <!-- Avatar Section with Upload/Delete -->
       <div class="avatar-container">
         <img 
-          :src="profile.avatar" 
-          :alt="profile.display_name"
+          :src="profile?.avatar ? buildAvatarUrl(profile.avatar) : defaultAvatarUrl" 
+          :alt="profile?.display_name || 'Profile'"
           class="profile-picture"
+          @error="handleImageError"
         />
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
@@ -220,7 +221,9 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: 'http://localhost:8000/media/default.png',
+      defaultAvatarUrl: window.location.hostname === 'localhost' 
+      ? 'http://localhost:8000/media/default.png' 
+      : 'https://10.12.12.5/media/default.png',
 
       // Profile Search
       searchQuery: '',
@@ -292,6 +295,18 @@ export default {
   },
 
   methods: {
+    handleImageError(e) {
+      console.error('Image faile to load:', e.target.src);
+      e.target.src = this.defaultAvatarUrl;
+    },
+
+    getBaseUrl() {
+      const isLocalhost = window.location.hostname === 'localhost';
+      const protocol = window.location.protocol;
+      return isLocalhost 
+        ? 'http://localhost:8000'
+        : `${protocol}//15.12.12.8`;  // Use same protocol as page
+    },
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
@@ -317,11 +332,17 @@ export default {
 
     async fetchProfile() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        console.log('Fetching profile from:', `${this.getBaseUrl()}/api/profile/`);
+        
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
+          method: 'GET',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Token ${this.$store.state.token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
+          credentials: 'include',
+          mode: 'cors'  // Enable CORS
         });
         
         if (!response.ok) {
@@ -332,8 +353,15 @@ export default {
           }
           throw new Error('Failed to fetch profile');
         }
-        
-        this.profile = await response.json();
+        const profile = await response.json();
+    console.log('Fetched profile:', profile);
+
+    // Ensure avatar URL uses correct protocol and domain
+      if (profile.avatar) {
+        profile.avatar = this.buildAvatarUrl(profile.avatar);
+      }
+    
+        this.profile = profile;
         this.error = null;
       } catch (error) {
         console.error('Profile fetch error:', error);
@@ -351,31 +379,41 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`
           },
-          body: formData
+          body: formData,
+          credentials: 'include'
         });
 
         if (!response.ok) {
-          throw new Error('Failed to upload avatar');
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to upload avatar');
         }
 
         // Update profile with new data including avatar
         const updatedProfile = await response.json();
+
+        // Ensure avatar URL uses HTTPS in production
+        if (window.location.hostname !== 'localhost') {
+          updatedProfile.avatar = updatedProfile.avatar.replace('http://', 'https://');
+        }
+
         this.profile = updatedProfile;
+        this.showStatus('Avatar updated successfully', {}, 'success');
 
       } catch (error) {
         console.error('Avatar upload error:', error);
         this.error = error.message;
+        this.showStatus(error.message, {}, 'error');
       }
     },
 
     async deleteAvatar() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -406,7 +444,7 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -458,12 +496,13 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-          `http://localhost:8000/api/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
+        `${this.getBaseUrl()}/api/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
               'Content-Type': 'application/json'
-            }
+            },
+            credentials: 'include'
           }
         );
 
@@ -493,7 +532,7 @@ export default {
     async blockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/profile/${profileId}/block/`, {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/${profileId}/block/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -519,7 +558,7 @@ export default {
     async unblockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/profile/${profileId}/block/`, {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/${profileId}/block/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -545,7 +584,7 @@ export default {
     async sendFriendRequest(friendId) {
       try {
         const friend = this.searchResults.find(p => p.id === friendId);
-        const response = await fetch('/api/profile/add_friend/', {
+        const response = await fetch(`${this.getBaseUrl()}/api/profile/add_friend/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -690,8 +729,6 @@ export default {
         if (!Array.isArray(data)) {
           throw new Error('Invalid response format');
         }
-
-        const baseUrl = 'http://localhost:8000';
         
         // Map with validation
         const validRequests = data
@@ -721,9 +758,18 @@ export default {
     },
 
     // Helper method for avatar URL
-    buildAvatarUrl(avatarPath, baseUrl) {
-      if (!avatarPath) return `${baseUrl}/media/default.png`;
-      if (avatarPath.startsWith('http')) return avatarPath;
+    buildAvatarUrl(avatarPath) {
+      if (!avatarPath) {
+        console.log('No avatar path, using default');
+        return this.defaultAvatarUrl;
+      }
+      let url;
+      if (avatarPath.startsWith('http')) {
+          url = window.location.protocol === 'https:' 
+            ? avatarPath.replace('http://', 'https://') 
+            : avatarPath;
+      } 
+      const baseUrl = this.getBaseUrl();
       return `${baseUrl}${avatarPath}`;
     },
 
@@ -905,10 +951,13 @@ export default {
       //Get token from store
       const token = this.getToken;
       const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${wsScheme}://${window.location.host}/ws/profile/notifications/?token=${this.$store.state.token}`;
+      const wsHost = window.location.hostname;
+      const wsUrl = `${wsScheme}://${wsHost}/ws/profile/notifications/?token=${this.$store.state.token}`;
+      console.log('Attempting WebSocket connection:', wsUrl);
       this.notificationSocket = new WebSocket(wsUrl);
       this.notificationSocket.onopen = () => {
         this.wsConnected = true;
+        console.log('WebSocket connected');
       };
       this.notificationSocket.onmessage = (e) => {
         console.log('WebSocket message received:', e.data);  // Debug logging
@@ -921,7 +970,7 @@ export default {
                 from_user: {
                     id: data.from_user_id,
                     display_name: data.from_user_name,
-                    avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost:8000'),
+                    avatar: this.buildAvatarUrl(data.from_user_avatar, this.getBaseUrl()),
                     is_online: true // Assume online since they just sent request
                 }
             });

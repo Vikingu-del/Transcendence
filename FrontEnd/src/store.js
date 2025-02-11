@@ -2,8 +2,17 @@ import { createStore } from 'vuex';
 import router from './router';
 import axios from 'axios';
 
+const getBaseUrl = () => window.location.hostname === 'localhost' 
+  ? 'http://localhost:8000' 
+  : 'https://10.12.12.5';
+
 const api = axios.create({
-  baseURL: 'http://localhost:8000'
+  baseURL: getBaseUrl(),
+  headers: {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json'
+  },
+  withCredentials: true
 });
 
 const store = createStore({
@@ -11,6 +20,7 @@ const store = createStore({
     token: localStorage.getItem('authToken') || null,
     isAuthenticated: false,
     user: null,
+    api: api
   },
 
   mutations: {
@@ -106,6 +116,7 @@ const store = createStore({
 });
 
 api.interceptors.request.use(config => {
+  config.baseURL = getBaseUrl(); // Dynamic base URL
   const token = store.state.token;
   if (token) {
     config.headers.Authorization = `Token ${token}`; // Change here too

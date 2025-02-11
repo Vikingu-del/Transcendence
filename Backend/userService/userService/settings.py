@@ -17,7 +17,12 @@ SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "user", "0.0.0.0:8000"]
+ALLOWED_HOSTS = [
+    "localhost",
+    "user",
+    "10.12.12.5",
+    "0.0.0.0"
+]
 
 # Application definition
 
@@ -181,8 +186,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ORIGIN_ALLOW_ALL = True  # Development only
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vue dev server
-	"http://localhost:8080",  # Vue dev server
+    "http://localhost:5173",
+    "https://localhost:5173",
+    "http://10.12.12.5:5173",
+    "https://10.12.12.5:5173",
+    "http://localhost",
+    "https://localhost",
+    "http://10.12.12.5",
+    "https://10.12.12.5"
 ]
 
 CORS_ALLOW_CREDENTIALS = True
