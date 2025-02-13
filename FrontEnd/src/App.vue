@@ -8,24 +8,42 @@ const store = useStore()
 const router = useRouter()
 const isAuthenticated = computed(() => store.state.isAuthenticated)
 
-function logout() {
-  store.dispatch('logoutAction')
+async function logout() {
+  try {
+    await store.dispatch('logoutAction')
+    router.push('/login')
+  } catch (error) {
+    console.error('Logout error:', error)
+  }
 }
 
 // Check authentication state on app load
-onMounted(() => {
-  let authToken = localStorage.getItem('authToken')
-  console.log('Auth Token:', authToken) // Debugging log
+onMounted(async () => {
+  let token = localStorage.getItem('token') // Changed from authToken to token
+  console.log('Token status:', token ? 'Present' : 'Not found')
 
   // Clear invalid tokens
-  if (!authToken || authToken === 'undefined' || authToken === 'null') {
-    localStorage.removeItem('authToken')
-    authToken = null
+  if (!token || token === 'undefined' || token === 'null') {
+    localStorage.removeItem('token')
+    store.commit('setToken', null)
+    if (router.currentRoute.value.meta.requiresAuth) {
+      router.push('/login')
+    }
+    return
   }
 
-  const isAuthenticated = Boolean(authToken)
-  store.commit('setAuthentication', isAuthenticated)
-  console.log('Is Authenticated:', isAuthenticated) // Debugging log
+  // Validate token and set authentication state
+  try {
+    store.commit('setToken', token)
+    
+  } catch (error) {
+    console.error('Token validation error:', error)
+    store.commit('setToken', null)
+    localStorage.removeItem('token')
+    if (router.currentRoute.value.meta.requiresAuth) {
+      router.push('/login')
+    }
+  }
 })
 </script>
 

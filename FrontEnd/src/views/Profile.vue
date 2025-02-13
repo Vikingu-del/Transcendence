@@ -17,7 +17,7 @@
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
           <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
           <button 
-            v-if="!isDefaultAvatar" 
+            v-if="profile.avatar && profile.avatar !== defaultAvatarUrl" 
             @click="deleteAvatar" 
             class="btn secondary-btn"
           >
@@ -165,7 +165,7 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: 'https://localhost:8000/media/default.png',
+      defaultAvatarUrl: '/api/user/media/default.png',
 
       // Profile Search
       searchQuery: '',
@@ -183,17 +183,24 @@ export default {
       incomingFriendRequests: JSON.parse(localStorage.getItem('incomingRequests') || '[]'),
 
       // Status Message
-      statusMessage: null
+      statusMessage: null,
+
+      //Auth Token
+      token: localStorage.getItem('token'),
     };
   },
 
   computed: {
-    ...mapGetters(['getToken', 'isAuthenticated']),
-
+    // Remove mapGetters and add direct token getter
+    getToken() {
+      return this.token;
+    },
+    isAuthenticated() {
+      return !!this.token;
+    },
     isDefaultAvatar() {
-      if (!this.profile || !this.profile.avatar) return true;
-      return this.profile.avatar.includes('default.png');
-    }
+      return !this.profile?.avatar || this.profile.avatar === this.defaultAvatarUrl;
+    },
   },
 
   watch: {
@@ -208,20 +215,22 @@ export default {
     }
   },
 
+  // Update the created hook:
+
   async created() {
-    if (this.isInitialized) return;
-    
-    const authInitialized = await this.$store.dispatch('initializeAuth');
-    
-    if (!authInitialized || !this.getToken) {
-      this.$router.push('/login');
-      return;
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Initial token:', token);
+      
+      if (!token) {
+        await this.$router.push('/login');
+        return;
+      }
+      
+      await this.fetchProfile();
+    } catch (error) {
+      console.error('Profile initialization error:', error);
     }
-    
-    this.isInitialized = true;
-    await this.fetchProfile();
-    this.currentUserId = this.profile.id;
-    this.fetchIncomingRequests();
   },
 
   mounted() {
@@ -254,29 +263,38 @@ export default {
 
     async fetchProfile() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const token = localStorage.getItem('token');
+        console.log('Fetching profile with token:', token);
+
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+
+        const response = await fetch('/api/user/profile/', {
+          method: 'GET',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
+            'Authorization': `Token ${token}`,
             'Content-Type': 'application/json'
           },
+          credentials: 'include'
         });
-        
+
         if (!response.ok) {
-          if (response.status === 401) {
-            await this.$store.dispatch('logoutAction');
-            this.$router.push('/login');
-            return;
-          }
-          throw new Error('Failed to fetch profile');
+          const errorText = await response.text();
+          console.error(`Profile fetch failed: ${response.status}`, errorText);
+          throw new Error(errorText);
         }
-        
-        this.profile = await response.json();
-        this.error = null;
+
+        const data = await response.json();
+        this.profile = data;
+        this.loading = false;
       } catch (error) {
         console.error('Profile fetch error:', error);
-        this.error = error.message;
-      } finally {
-        this.loading = false;
+        if (error.message.includes('Invalid token')) {
+          localStorage.removeItem('token');
+          await this.$router.push('/login');
+        }
+        throw error;
       }
     },
 
@@ -288,7 +306,7 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch('http://localhost:8000/api/user/profile/', {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -312,7 +330,7 @@ export default {
 
     async deleteAvatar() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch('http://localhost:8000/api/user/profile/', {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -343,7 +361,7 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch('http://localhost:8000/api/profile/', {
+        const response = await fetch('http://localhost:8000/api/user/profile/', {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -395,7 +413,7 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-          `http://localhost:8000/api/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
+          `http://localhost:8000/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
@@ -430,7 +448,7 @@ export default {
     async blockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/profile/${profileId}/block/`, {
+        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -456,7 +474,7 @@ export default {
     async unblockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/profile/${profileId}/block/`, {
+        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -482,7 +500,7 @@ export default {
     async sendFriendRequest(friendId) {
       try {
         const friend = this.searchResults.find(p => p.id === friendId);
-        const response = await fetch('/api/profile/add_friend/', {
+        const response = await fetch('/api/user/profile/add_friend/', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -522,7 +540,7 @@ export default {
     },
 
     async sendAcceptRequest(userId) {
-      const response = await fetch('/api/profile/friend-requests/accept/', {
+      const response = await fetch('/api/user/profile/friend-requests/accept/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
@@ -557,7 +575,7 @@ export default {
     },
 
     async sendDeclineRequest(userId) {
-      const response = await fetch('/api/profile/friend-requests/decline/', {
+      const response = await fetch('/api/user/profile/friend-requests/decline/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
@@ -582,7 +600,7 @@ export default {
     async removeFriend(friendId) {
       try {
         const friend = this.profile.friends.find(f => f.id === friendId);
-        const response = await fetch('/api/profile/remove_friend/', {
+        const response = await fetch('/api/user/profile/remove_friend/', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -613,7 +631,7 @@ export default {
       try {
         console.log('Starting fetch of incoming requests');
         
-        const response = await fetch('/api/profile/friend-requests/', {
+        const response = await fetch('/api/user/profile/friend-requests/', {
           headers: {
             'Authorization': `Token ${this.getToken}`,
             'Content-Type': 'application/json'
@@ -659,29 +677,29 @@ export default {
 
     // Helper method for avatar URL
     buildAvatarUrl(avatarPath, baseUrl) {
-        // If no avatar path provided, return default avatar
-        if (!avatarPath) return this.defaultAvatarUrl;
-        
-        // If it's already a full URL, return it
-        if (avatarPath.startsWith('http')) return avatarPath;
-        
-        // If it's a path starting with /media
-        if (avatarPath.startsWith('/media')) {
-            return `${baseUrl}${avatarPath}`;
-        }
-        
-        // For relative paths in the avatars directory
-        return `${baseUrl}/media/avatars/${avatarPath}`;
+      // If no avatar path provided, return default avatar
+      if (!avatarPath) return this.defaultAvatarUrl;
+      
+      // If it's already a full URL, return it
+      if (avatarPath.startsWith('http')) return avatarPath;
+      
+      // If it's a path starting with /media
+      if (avatarPath.startsWith('/media')) {
+        return `/api/user${avatarPath}`; // Add /api/user prefix
+      }
+      
+      // For relative paths in the avatars directory
+      return `/api/user/media/avatars/${avatarPath}`;
     },
 
     handleAvatarError(e) {
-        console.warn('Avatar failed to load:', e.target.src);
-        if (e.target.src !== this.defaultAvatarUrl) {
-            e.target.src = this.defaultAvatarUrl;
-        } else {
-            // If even the default avatar fails, use an inline SVG or emergency fallback
-            e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MyLjY3IDAgNC42NyAyIDQuNjcgNC42N2MwIDIuNjctMiA0LjY3LTQuNjcgNC42N3MtNC42Ny0yLTQuNjctNC42N0M3LjMzIDcgOS4zMyA1IDEyIDV6bTAgMTIuNTVjLTMuNDcgMC02LjMzLTIuMTMtNy41LTUuMTNDNi40NSAxMC42OCA5LjUzIDEwIDEyIDEwczUuNTUuNjggNi41IDIuNDJjLTEuMTcgMy0zLjAzIDUuMTMtNi41IDUuMTN6Ii8+PC9zdmc+';
-        }
+      console.warn('Avatar failed to load:', e.target.src);
+      if (e.target.src !== this.defaultAvatarUrl) {
+        e.target.src = this.defaultAvatarUrl;
+      } else {
+        // Fallback to inline SVG
+        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MyLjY3IDAgNC42NyAyIDQuNjcgNC42N2MwIDIuNjctMiA0LjY3LTQuNjcgNC42N3MtNC42Ny0yLTQuNjctNC42N0M3LjMzIDcgOS4zMyA1IDEyIDV6bTAgMTIuNTVjLTMuNDcgMC02LjMzLTIuMTMtNy41LTUuMTNDNi40NSAxMC42OCA5LjUzIDEwIDEyIDEwczUuNTUuNjggNi41IDIuNDJjLTEuMTcgMy0zLjAzIDUuMTMtNi41IDUuMTN6Ii8+PC9zdmc+';
+      }
     },
 
     formatDate(timestamp) {
@@ -696,7 +714,7 @@ export default {
 
     async logout() {
       try {
-        // Send offline status
+        // Send offline status via WebSocket
         if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
           this.notificationSocket.send(JSON.stringify({
             type: 'friend_status',
@@ -707,10 +725,15 @@ export default {
           this.notificationSocket.close();
         }
 
+        // Clear local storage
+        await this.$store.dispatch('logoutAction');
         localStorage.removeItem('incomingRequests');
         
-        // Clear store and redirect
-        await this.$store.dispatch('logoutAction');
+        // Reset component state
+        this.token = null;
+        this.profile = null;
+        
+        // Redirect to login
         this.$router.push('/login');
       } catch (error) {
         console.error('Logout error:', error);
@@ -719,10 +742,10 @@ export default {
 
     // WebSocket methods
     initNotificationSocket() {
-      //Get token from store
       const token = this.getToken;
-      const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsUrl = `${wsScheme}://${window.location.host}/ws/profile/notifications/?token=${token}`;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = 'localhost:8000'; // Use direct service URL
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/profile/notifications/?token=${token}`;
       
       this.notificationSocket = new WebSocket(wsUrl);
       this.notificationSocket.onopen = () => {

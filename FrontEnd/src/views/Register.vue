@@ -56,6 +56,9 @@
 </template>
 
 <script>
+
+import { SERVICE_URLS } from '@/config/services';
+
 export default {
   data() {
     return {
@@ -81,27 +84,11 @@ export default {
     },
 
     async register() {
-      if (this.loading) return;
-      
-      this.loading = true;
-      this.message = '';
-      this.messageType = '';
-      this.errors = [];
-
-      // Client-side validation
-      if (this.password !== this.passwordConfirm) {
-        this.message = 'Passwords do not match!';
-        this.messageType = 'error';
-        this.loading = false;
-        return;
-      }
-
       try {
-        const response = await fetch('/api/register/', {
+        // 1. Register with auth service
+        const authResponse = await fetch('/api/auth/register/', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: this.username,
             password1: this.password,
@@ -109,38 +96,38 @@ export default {
           })
         });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          // In the register method, update the success block:
-          if (response.ok) {
-            this.isRegistrationSuccessful = true;
-            this.message = 'Registration successful! Redirecting to login...';
-            this.messageType = 'success';
-            // Clear sensitive data
-            this.password = '';
-            this.passwordConfirm = '';
-            // Delay redirect to show success message
-            setTimeout(() => {
-              this.$router.push('/login');
-            }, 1500);
-          } else {
-            this.message = data.error || 'Registration failed!';
-            this.messageType = 'error';
-            this.errors = data.details ? Object.values(data.details).flat() : [];
-            // Clear passwords on error
-            this.password = '';
-            this.passwordConfirm = '';
-          }
+        const authData = await authResponse.json();
+
+        if (authResponse.ok) {
+          this.isRegistrationSuccessful = true;
+          this.message = 'Registration successful! Redirecting to login...';
+          this.messageType = 'success';
+          
+          // Clear sensitive data
+          this.password = '';
+          this.passwordConfirm = '';
+          
+          // Delay redirect to show success message
+          setTimeout(() => {
+            this.$router.push('/login');
+          }, 1500);
         } else {
-          this.message = 'Unexpected response from server.';
+          // Handle auth service error
+          if (authData.non_field_errors) {
+            this.errors = Array.isArray(authData.non_field_errors) 
+              ? authData.non_field_errors 
+              : [authData.non_field_errors];
+          } else if (authData.detail) {
+            this.message = authData.detail;
+          } else {
+            this.message = 'Registration failed';
+          }
           this.messageType = 'error';
-          console.error('Non-JSON response:', await response.text());
         }
       } catch (error) {
-        this.message = 'An error occurred. Please try again.';
+        console.error('Registration error:', error);
+        this.message = 'Registration failed: ' + error.message;
         this.messageType = 'error';
-        console.error(error);
       } finally {
         this.loading = false;
       }

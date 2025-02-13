@@ -1,4 +1,4 @@
 export const SERVICE_URLS = {
-	USER_SERVICE: 'http://localhost:8000',
-	CHAT_SERVICE: 'http://localhost:8001'
+    AUTH_SERVICE: '/api/auth',
+    USER_SERVICE: '/api/user'
   };

@@ -19,7 +19,7 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex';
+import { auth } from '@/utils/auth';
 
 export default {
   data() {
@@ -27,46 +27,66 @@ export default {
       username: '',
       password: '',
       error: '',
-      loading: false
+      loading: false,
+      redirect: null
     };
   },
+  
+  created() {
+    // Get redirect path from query params if it exists
+    this.redirect = this.$route.query.redirect || '/profile';
+  },
+
   methods: {
-    ...mapActions(['loginAction']),
+    async login() {
+      if (this.loading) return;
+      this.loading = true;
+      this.error = '';
+      
+      try {
+          const response = await fetch('/api/auth/login/', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                  username: this.username,
+                  password: this.password
+              })
+          });
+
+          const data = await response.json();
+          console.log('Login response:', data);
+
+          if (response.ok && data.token) {
+              // Use auth helper instead of direct localStorage access
+              await this.$store.dispatch('loginAction', data.token);
+              
+              this.password = '';
+              await this.$nextTick();
+              
+              const redirectPath = this.redirect || '/profile';
+              console.log('Redirecting to:', redirectPath);
+              await this.$router.push(redirectPath);
+          } else {
+              this.error = data.error || 'Login failed';
+              this.password = '';
+          }
+      } catch (error) {
+          console.error('Login error:', error);
+          this.error = 'Network error occurred';
+          this.password = '';
+      } finally {
+          this.loading = false;
+      }
+    },
 
     resetForm() {
       this.username = '';
       this.password = '';
       this.error = '';
       this.loading = false;
-    },
-
-    async login() {
-      if (this.loading) return;
-      
-      this.loading = true;
-      this.error = '';
-      
-      try {
-        await this.loginAction({
-          username: this.username,
-          password: this.password
-        });
-        
-        // Login successful - redirect handled in store
-      } catch (error) {
-        console.error('Login error:', error);
-        if (error.response?.data?.message) {
-          this.error = error.response.data.message;
-        } else if (error.message) {
-          this.error = error.message;
-        } else {
-          this.error = 'Login failed. Please try again.';
-        }
-        // Clear password on error
-        this.password = '';
-      } finally {
-        this.loading = false; // Fixed: Set loading to false when done
-      }
     }
   }
 };

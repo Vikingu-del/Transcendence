@@ -19,22 +19,23 @@ ALLOWED_HOSTS = ["localhost", "user", "0.0.0.0:8000"]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
-    'daphne',  # Add Daphne here
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'userService',  # userService app
-    'rest_framework',  # django_rest_framework
-	'rest_framework.authtoken',  # django_rest_framework
-	'channels',  # django_channels
-	'corsheaders',  # django_cors_headers
+    'rest_framework',
+    'rest_framework.authtoken',
+    'channels',
+    'corsheaders',
     'crispy_forms',
     'crispy_bootstrap4',
+    'userService',
 ]
 
+# Crispy Forms Settings
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap4'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -112,11 +113,19 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+INTERNAL_API_KEY = 'your-internal-api-key'
+
+AUTH_SERVICE_URL = 'http://auth:8001'
+
 # Django Rest Framework
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
 }
 
 # Internationalization
@@ -144,15 +153,13 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS Settings
-CORS_ORIGIN_ALLOW_ALL = True  # Development only
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",  # Vue dev server
-	"http://localhost:8080",  # Vue dev server
+    "https://localhost",
+    "https://localhost:8080",
 ]
-
-CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -174,3 +181,5 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+CORS_EXPOSE_HEADERS = ['*']

@@ -6,128 +6,133 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/10 11:21:22 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/13 19:12:31 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
-from django.contrib.auth import authenticate, login, logout
-from django.contrib.auth.models import User
 from rest_framework import status, viewsets, filters
 from rest_framework.response import Response
-from rest_framework.authtoken.models import Token
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view
-from rest_framework import generics
-from .serializers import UserSerializer, UserProfileSerializer, FriendRequestSerializer
-from .models import Profile, Friendship
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.authentication import TokenAuthentication
+from rest_framework.authtoken.models import Token
 from rest_framework.decorators import permission_classes
 from django.db.models import Q
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from django.contrib.messages.api import *  # NOQA
-from django.contrib.messages.constants import *  # NOQA
-from django.contrib.messages.storage.base import Message  # NOQA
-import json
 from django.shortcuts import get_object_or_404
-from django.shortcuts import render
-from django.contrib.auth import get_user_model
 import logging
-
-from django.shortcuts import get_object_or_404
-
-from django.contrib.auth.models import User
+from .serializers import UserProfileSerializer, FriendRequestSerializer
 from .models import Profile, Friendship
-import json
-from rest_framework.permissions import IsAuthenticated
-from rest_framework.authentication import TokenAuthentication
+from rest_framework.authtoken.models import Token
+from django.contrib.auth.models import User
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
-class RegisterView(generics.CreateAPIView):
-    serializer_class = UserSerializer
+class SyncTokenView(APIView):
+    authentication_classes = []
+    permission_classes = []
 
-    def post(self, request, *args, **kwargs):
-        logger.debug("Received registration data: %s", request.data)
-        serializer = self.get_serializer(data=request.data)
-        if serializer.is_valid():
-            username = serializer.validated_data['username']
-            if User.objects.filter(username=username).exists():
-                return Response({"error": "Username already exists."}, status=status.HTTP_400_BAD_REQUEST)
-            
-            serializer.save()
-            return Response({"message": "Registration successful"}, status=status.HTTP_201_CREATED)
+    def post(self, request):
+        logger.debug(f"Received sync token request: {request.data}")
         
-        logger.debug("Registration errors: %s", serializer.errors)
-        return Response({"error": "Registration failed", "details": serializer.errors}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class LoginView(APIView):
-    def post(self, request, *args, **kwargs):
-        print("Raw request data:", request.body)
-        username = request.data.get("username")
-        password = request.data.get("password")
-        print(f"Username: {username}, Password length: {len(password) if password else 0}")
-
-        if not username or not password:
+        if request.headers.get('Internal-API-Key') != settings.INTERNAL_API_KEY:
+            logger.error("Invalid API key")
             return Response(
-                {"message": "Username and password are required."},
-                status=status.HTTP_400_BAD_REQUEST
+                {'error': 'Invalid API key'},
+                status=status.HTTP_403_FORBIDDEN
             )
 
-        user = authenticate(request, username=username, password=password)
-        print('Request received:', request.data)
-        
-        if user:
-            # Get or create token using correct import
-            token, created = Token.objects.get_or_create(user=user)
-            
-            user_data = {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-            }
-            
-            return Response({
-                'token': token.key,
-                'user': user_data
-            }, status=status.HTTP_200_OK)
-        
-        return Response(
-            {"message": "Invalid username or password."},
-            status=status.HTTP_401_UNAUTHORIZED
-        )
+        user_id = request.data.get('user_id')
+        token_key = request.data.get('token')
+        username = request.data.get('username')
 
-class ProfileView(APIView):
-    authentication_classes = [TokenAuthentication]  # First: Validates authToken
-    permission_classes = [IsAuthenticated]         # Then: Checks if identified user has access
-
-    def get(self, request):
         try:
-            logger.debug(f"Fetching profile for user: {request.user.username}")
+            # Get or create user
+            user, created = User.objects.get_or_create(
+                id=user_id,
+                defaults={'username': username}
+            )
             
-            # Use get_object_or_404 instead of direct get()
-            user_profile = get_object_or_404(Profile, user=request.user)
+            # Create or update token
+            token, _ = Token.objects.get_or_create(
+                user=user,
+                defaults={'key': token_key}
+            )
+            if token.key != token_key:
+                token.key = token_key
+                token.save()
+
+            # Create profile if it doesn't exist
+            Profile.objects.get_or_create(
+                user=user,
+                defaults={'display_name': username}
+            )
             
-            # Fetch friends
-            friends = user_profile.get_friends()
-            
-            # Serialize data
-            serializer_context = {"request": request}
-            friends_data = UserProfileSerializer(friends, many=True, context=serializer_context).data
-            profile_data = UserProfileSerializer(user_profile, context=serializer_context).data
-            profile_data['friends'] = friends_data
-            
-            logger.debug(f"Successfully retrieved profile for user: {request.user.username}")
-            return Response(profile_data, status=status.HTTP_200_OK)
-            
+            logger.info(f"Successfully synced token for user {user.username}")
+            return Response({'status': 'success'})
+
         except Exception as e:
-            logger.error(f"Error fetching profile: {str(e)}")
+            logger.error(f"Error in sync token: {str(e)}", exc_info=True)
             return Response(
-                {"error": "Failed to retrieve profile"},
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+# class CreateUserProfileView(APIView):
+#     authentication_classes = [TokenAuthentication]
+#     permission_classes = [IsAuthenticated]
+
+#     def post(self, request):
+#         try:
+#             # Create user profile
+#             profile = Profile.objects.create(
+#                 user=request.user,
+#                 display_name=request.data.get('display_name', request.user.username),
+#                 # Add other fields as needed
+#             )
+            
+#             return Response({
+#                 'id': profile.id,
+#                 'username': request.user.username,
+#                 'display_name': profile.display_name,
+#                 'avatar': 'localhost:8000' + profile.get_avatar_url(),  # Use the helper method
+#             }, status=status.HTTP_201_CREATED)
+            
+#         except Exception as e:
+#             return Response({
+#                 'detail': str(e)
+#             }, status=status.HTTP_400_BAD_REQUEST)
+
+logger = logging.getLogger(__name__)
+
+class ProfileView(APIView):
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            logger.debug(f"Auth header: {request.headers.get('Authorization')}")
+            profile = Profile.objects.get(user=request.user)
+            
+            data = {
+                'id': profile.id,
+                'display_name': profile.display_name,
+                'avatar': profile.get_avatar_url(),
+                'is_online': profile.is_online
+            }
+            
+            logger.debug(f"Returning profile data: {data}")
+            return Response(data)
+            
+        except Exception as e:
+            logger.error(f"Profile fetch error: {str(e)}", exc_info=True)
+            return Response(
+                {"detail": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+    
     def delete(self, request):
         """Handle avatar deletion"""
         try:
@@ -199,6 +204,7 @@ class ProfileView(APIView):
         # Return updated profile data
         serializer = UserProfileSerializer(user_profile, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
+
 
 @permission_classes([IsAuthenticated])
 class SearchProfilesView(APIView):
@@ -466,37 +472,3 @@ class RemoveFriendView(APIView):
             return Response({"message": "Friend removed successfully"}, status=status.HTTP_200_OK)
         except Profile.DoesNotExist:
             return Response({"message": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
-
-class LogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def post(self, request, *args, **kwargs):
-        try:
-            # Set user offline
-            profile = request.user.profile
-            profile.is_online = False
-            profile.save()
-
-            # Notify other users about offline status
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"user_{request.user.id}",
-                {
-                    "type": "friend_status",
-                    "message": {
-                        "type": "friend_status",
-                        "user_id": request.user.id,
-                        "status": "offline"
-                    }
-                }
-            )
-
-            # Delete auth token
-            request.user.auth_token.delete()
-            
-            return Response({"message": "Successfully logged out."}, 
-                          status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": str(e)}, 
-                          status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -19,32 +19,30 @@ from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from .views import (
-    RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
-    AddFriendView, RemoveFriendView, AcceptFriendRequestView,
-    DeclineFriendRequestView, IncomingFriendRequestsView,
-    BlockUserView
+    CreateUserProfileView, ProfileView, SearchProfilesView, AddFriendView,
+    RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
+    IncomingFriendRequestsView, BlockUserView, SyncTokenView
 )
 
-
 urlpatterns = [
-    # Auth endpoints
-    path('api/register/', RegisterView.as_view(), name='register'),
-    path('api/login/', LoginView.as_view(), name='login'),
-    path('api/logout/', LogoutView.as_view(), name='logout'),
+    # Sync token endpoint
+    path('api/user/sync-token/', SyncTokenView.as_view(), name='sync-token'),
     
     # Profile endpoints
-    path('api/profile/', ProfileView.as_view(), name='profile'),
-    path('api/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
+    # path('api/profile/create/', CreateUserProfileView.as_view(), name='create-profile'),
+    path('api/user/profile/', ProfileView.as_view(), name='profile'),
+    path('api/user/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
     
     # Friend management endpoints
-    path('api/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
-    path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
-    path('api/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
-    path('api/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
-    path('api/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
+    path('api/user/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
+    path('api/user/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
+    path('api/user/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
+    path('api/user/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
+    path('api/user/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
 
     # Block management endpoints
-    path('api/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
+    path('api/user/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
+
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

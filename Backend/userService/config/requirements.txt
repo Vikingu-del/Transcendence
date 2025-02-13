@@ -8,3 +8,5 @@ crispy-bootstrap4>=2024.10
 django-filter>=2.4
 channels>=3.0
 daphne>=3.0
+django-cors-headers>=3.7
+Pillow>=8.3

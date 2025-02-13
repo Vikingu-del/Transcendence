@@ -5,25 +5,18 @@ FROM python:3.11
 ENV PYTHONDONTWRITEBYTECODE 1
 ENV PYTHONUNBUFFERED 1
 
-# Set the working directory
 WORKDIR /app
 
 # Install netcat
 RUN apt-get update && apt-get install -y netcat-openbsd
 
 # Copy the requirements file
-COPY config/requirements.txt /requirements.txt
+COPY config/requirements.txt config/requirements.txt
 COPY config/entrypoint.sh /bin/entrypoint.sh
 RUN chmod +x /bin/entrypoint.sh
 
 # Install the dependencies
-RUN pip install --no-cache-dir -r /requirements.txt
-
-# Install Pillow
-RUN python -m pip install Pillow
-
-# Install corsheaders
-RUN pip install django-cors-headers
+RUN pip install --no-cache-dir -r config/requirements.txt
 
 # Install PostgreSQL client tools
 RUN apt-get update && apt-get install -y postgresql-client

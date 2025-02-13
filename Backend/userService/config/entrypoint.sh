@@ -1,21 +1,23 @@
-#!/bin/sh
+#!/bin/bash
 
-# Wait until PostgreSQL is ready
-echo "Waiting for the database to be ready..."
+# Function to wait for postgres
+postgres_ready() {
+    nc -z $DB_HOST $DB_PORT
+}
 
-while ! nc -z $DB_HOST 5432; do
+until postgres_ready; do
   echo "Database is still unavailable - sleeping"
   sleep 1
 done
 
 echo "Database is up - continuing..."
 
-# Run database migrations
+# Run migrations
 echo "Running makemigrations..."
-python3 manage.py makemigrations
-echo "Running migrate..."
-python3 manage.py migrate
+python manage.py makemigrations
 
-# Start the Django development server
-echo "Starting Django server..."
+echo "Running migrate..."
+python manage.py migrate
+
+echo "Starting server..."
 exec "$@"

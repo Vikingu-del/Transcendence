@@ -159,7 +159,7 @@ export default {
     
   async fetchProfile() {
     try {
-      const response = await fetch('http://localhost:8000/api/profile/', {
+      const response = await fetch('http://localhost:8000/api/user/profile/', {
         headers: {
           'Authorization': `Token ${this.getToken}`,
           'Content-Type': 'application/json'
@@ -371,7 +371,7 @@ export default {
       event?.stopPropagation();
       
       const friend = this.profile.friends.find(f => f.id === friendId);
-      const response = await fetch('/api/profile/remove_friend/', {
+      const response = await fetch('/api/user/profile/remove_friend/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,

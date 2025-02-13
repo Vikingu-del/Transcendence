@@ -11,6 +11,53 @@ services:
     networks:
       - backtier
 
+  auth:
+    build:
+      context: ./Backend/authService
+      dockerfile: config/docker/Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./Backend/authService:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=authService.settings
+      - DB_NAME=auth_db
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=auth_db
+      - DB_PORT=5432
+      - USER_SERVICE_URL=http://user:8000  # For service communication
+      - INTERNAL_API_KEY=your-secure-key-here
+    depends_on:
+      auth_db:
+        condition: service_healthy
+      user:
+        condition: service_started
+    networks:
+      - backtier
+      - auth_network
+      - frontier
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8001"
+
+  auth_db:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: "auth_db"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+    ports:
+      - "5434:5432"  # Different port from other DBs
+    volumes:
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
+      - auth_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   user:
     build:
       context: ./Backend/userService
@@ -19,27 +66,32 @@ services:
       - "8000:8000"
     volumes:
       - ./Backend/userService:/app
+      - ./Backend/userService/media:/app/media
     environment:
-      DB_NAME: "postgres"
-      DB_USER: "postgres"
-      DB_PASSWORD: "postgres"
-      DB_HOST: "user_db"
-      DB_PORT: "5432"
+      - DJANGO_SETTINGS_MODULE=userService.settings
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_HOST=user_db
+      - DB_PORT=5432
+      - AUTH_SERVICE_URL=http://auth:8001
     depends_on:
-      - vault
-      - user_db
+      user_db:
+        condition: service_healthy
     networks:
       - backtier
       - user_network
+    command: sh -c "pip install -r config/requirements.txt && python manage.py migrate && daphne -b 0.0.0.0 -p 8000 userService.asgi:application"
   
   chat:
     build:
       context: ./Backend/chatService
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8002:8002"
     volumes:
       - ./Backend/chatService:/app
+      - ./Backend/userService/media:/app/media
     environment:
       DB_NAME: "postgres"
       DB_USER: "postgres"
@@ -101,10 +153,12 @@ services:
     depends_on:
       - vault
       - user
+      - auth  # Add this line
       - frontend
     volumes:
       - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./ApiGateway/ssl:/etc/nginx/ssl
+      - ./Backend/userService/media:/app/media
     networks:
       - backtier
 
@@ -128,6 +182,7 @@ volumes:
   user_db_data:
   chat_db_data:
   frontend_dist:
+  auth_db_data:
 
 networks:
   user_network:
@@ -137,4 +192,6 @@ networks:
   frontier:
     driver: bridge
   chat_network:
+    driver: bridge
+  auth_network:
     driver: bridge

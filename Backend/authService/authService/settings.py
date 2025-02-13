@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -25,7 +26,7 @@ SECRET_KEY = 'django-insecure-r=cm7hw^wp(fo)=bbwaz-@on6$b6r0wh4*r77)(*^+$b@elwo&
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["localhost", "auth", "0.0.0.0", "127.0.0.1"]
 
 
 # Application definition
@@ -37,19 +38,24 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'rest_framework',
+    'rest_framework.authtoken',
+    'corsheaders',
+    'authService',
 ]
+
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+	'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
-    'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'authenticationService.urls'
+ROOT_URLCONF = 'authService.urls'
 
 TEMPLATES = [
     {
@@ -67,19 +73,30 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'authenticationService.wsgi.application'
-
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+WSGI_APPLICATION = 'authService.wsgi.application'
+
+AUTH_USER_MODEL = 'auth.User'  # Use Django's built-in User model
+
+# Database configuration
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.environ.get('DB_NAME', 'auth_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'HOST': os.environ.get('DB_HOST', 'auth_db'),
+        'PORT': os.environ.get('DB_PORT', '5432'),
     }
 }
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+    ],
+}
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -121,3 +138,66 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+# Add these settings
+USER_SERVICE_MAX_RETRIES = 3
+USER_SERVICE_RETRY_DELAY = 1  # seconds
+
+USER_SERVICE_ENDPOINTS = {
+    'CREATE_PROFILE': '/api/user/profile/',
+}
+
+CORS_ALLOWED_ORIGINS = [
+    "https://localhost",
+    "https://localhost:8080",
+    "https://localhost:5173",  # Add your frontend origin
+]
+
+# Also ensure these settings are present
+CORS_ALLOW_CREDENTIALS = True
+CORS_EXPOSE_HEADERS = ['*']
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+]
+
+# User Service Configuration
+USER_SERVICE_URL = 'http://user:8000'  # Update this to match your user service container name
+INTERNAL_API_KEY = 'your-internal-api-key' 
+
+USER_SERVICE_TIMEOUT = 5  # seconds
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'authService': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+    },
+}

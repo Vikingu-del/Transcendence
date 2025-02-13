@@ -3,18 +3,19 @@ from django.db.models import Q
 from django.contrib.auth.models import User
 
 class Profile(models.Model):
+    DEFAULT_AVATAR_PATH = 'default.png'
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     display_name = models.CharField(max_length=100)
-    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True)
+    avatar = models.ImageField(upload_to='avatars/', null=True, blank=True, default=DEFAULT_AVATAR_PATH)
     is_online = models.BooleanField(default=False)
     blocked_users = models.ManyToManyField(User, related_name='blocked_users')
 
     DEFAULT_AVATAR_PATH = 'default.png'
 
     def get_avatar_url(self):
-        if self.avatar:
-            return self.avatar.url
-        return f"/media/{self.DEFAULT_AVATAR_PATH}"
+        if self.avatar and hasattr(self.avatar, 'url'):
+            return f'/api/user{self.avatar.url}'
+        return f'/api/user/media/{self.DEFAULT_AVATAR_PATH}'
 
     def get_friends(self):
         friendships = Friendship.objects.filter(
