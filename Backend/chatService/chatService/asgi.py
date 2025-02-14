@@ -1,5 +1,5 @@
 """
-ASGI config for userService project.
+ASGI config for chatService project.
 
 It exposes the ASGI callable as a module-level variable named ``application``.
 
@@ -14,10 +14,7 @@ from channels.auth import AuthMiddlewareStack
 from channels.security.websocket import AllowedHostsOriginValidator
 from .routing import websocket_urlpatterns
 
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'userService.settings')
-
-# Apply ASGI middleware here
-django_asgi_app = get_asgi_application()
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'chatService.settings')
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),

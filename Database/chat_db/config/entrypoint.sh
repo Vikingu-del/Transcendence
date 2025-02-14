@@ -2,8 +2,8 @@
 set -e
 
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/user_db/role_id"
-SECRET_ID_FILE="/vault/approle/user_db/secret_id"
+ROLE_ID_FILE="/vault/approle/chat_db/role_id"
+SECRET_ID_FILE="/vault/approle/chat_db/secret_id"
 
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
     echo "❌ Credentials missing"
@@ -25,12 +25,12 @@ fi
 echo "✅ Successfully authenticated with Vault"
 
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/user_db)
+    $VAULT_ADDR/v1/secret/data/chat_db)
 
 # Get application credentials from Vault
-APP_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_USER)
-APP_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_PASSWORD)
-APP_DB=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_NAME)
+APP_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_USER)
+APP_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_PASSWORD)
+APP_DB=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_NAME)
 
 # Set PostgreSQL environment variables
 export POSTGRES_USER="postgres"

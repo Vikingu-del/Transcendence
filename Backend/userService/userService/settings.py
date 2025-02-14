@@ -1,7 +1,10 @@
 from pathlib import Path
 from dotenv import load_dotenv, dotenv_values
+import logging
 import os
 
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -17,12 +20,16 @@ SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    "localhost",
-    "user",
-    "10.12.12.5",
-    "0.0.0.0"
-]
+ALLOWED_HOSTS = ['*']  # For development only
+
+# Host configuration
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.12.12.5', 'user_service', 'user', 'user_db', 'gateway']
+
+
+# Add these settings
+USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 # Application definition
 
@@ -36,9 +43,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'userService',  # userService app
     'rest_framework',  # django_rest_framework
-	'rest_framework.authtoken',  # django_rest_framework
-	'channels',  # django_channels
-	'corsheaders',  # django_cors_headers
+    'rest_framework.authtoken',  # django_rest_framework
+    'channels',  # django_channels
+    'corsheaders',  # django_cors_headers
     'crispy_forms',
     'crispy_bootstrap4',
 ]
@@ -114,6 +121,13 @@ DATABASES = {
     }
 }
 
+# After DATABASES configuration
+db_config = DATABASES['default']
+logger.warning("=== Final Database Configuration ===")
+logger.warning(f"Using database name: {db_config['NAME']}")
+logger.warning(f"Using database user: {db_config['USER']}")
+logger.warning(f"Using database host: {db_config['HOST']}")
+
 # # Debug final configuration
 # db_config = DATABASES['default']
 # print("\n=== Final Database Configuration ===")
@@ -174,7 +188,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-MEDIA_URL = '/media/'
+MEDIA_URL = '/api/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
@@ -186,14 +200,19 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 CORS_ORIGIN_ALLOW_ALL = True  # Development only
 
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost:5173",
-    "https://localhost:5173",
-    "http://10.12.12.5:5173",
-    "https://10.12.12.5:5173",
-    "http://localhost",
-    "https://localhost",
-    "http://10.12.12.5",
-    "https://10.12.12.5"
+    'https://10.12.12.5',
+    'https://localhost',
+    'http://localhost:8000',
+    'http://127.0.0.1:8000'
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^https?://\w+\.10\.12\.12\.5$",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "https://10.12.12.5",
+    "https://localhost"
 ]
 
 CORS_ALLOW_CREDENTIALS = True

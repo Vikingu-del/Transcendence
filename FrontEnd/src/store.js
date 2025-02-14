@@ -1,10 +1,10 @@
 import { createStore } from 'vuex';
+import { getBaseUrl, getAuthEndpoints } from '@/services/ApiService';
 import router from './router';
 import axios from 'axios';
 
-const getBaseUrl = () => window.location.hostname === 'localhost' 
-  ? 'http://localhost:8000' 
-  : 'https://10.12.12.5';
+const baseUrl = getBaseUrl();
+const authEndpoints = getAuthEndpoints(baseUrl);
 
 const api = axios.create({
   baseURL: getBaseUrl(),
@@ -20,7 +20,8 @@ const store = createStore({
     token: localStorage.getItem('authToken') || null,
     isAuthenticated: false,
     user: null,
-    api: api
+    api: api,
+    errorMessage: null
   },
 
   mutations: {
@@ -29,7 +30,7 @@ const store = createStore({
       state.isAuthenticated = !!token;
       if (token) {
         localStorage.setItem('authToken', token);
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        api.defaults.headers.common['Authorization'] = `Token ${token}`;
       } else {
         localStorage.removeItem('authToken');
         delete api.defaults.headers.common['Authorization'];
@@ -45,6 +46,14 @@ const store = createStore({
       state.isAuthenticated = !!token;
     },
     
+    setError(state, message) {
+      state.errorMessage = message;
+    },
+
+    clearError(state) {
+      state.errorMessage = null;
+    },
+
     clearAuth(state) {
       state.token = null;
       state.user = null;
@@ -55,36 +64,81 @@ const store = createStore({
   },
 
   actions: {
-    async loginAction({ commit }, { username, password }) {
+    async loginAction({ commit }, credentials) {
+      commit('clearError');
       try {
-        console.log('Attempting login with username:', username);
-        const response = await api.post('/api/login/', {
-          username,
-          password
-        });
+        const response = await api.post(authEndpoints.login, credentials);
         
-        const { token, user } = response.data;
-        commit('setToken', token);
-        commit('setUser', user);
-        
-        await router.push({ name: 'Profile' });
-        return response.data;
+        if (response.data && response.data.token) {
+          commit('setToken', response.data.token);
+          commit('setUser', response.data.user);
+          await router.push('/');
+          return response.data;
+        } else {
+          throw new Error('Invalid response format');
+        }
       } catch (error) {
-        console.error('Login error:', error.response?.status);
-        console.error('Error details:', error.response?.data);
-        commit('clearAuth');
-        throw error.response?.data || { message: 'Login failed' };
+        const errorMessage = error.response?.data?.message || error.message || 'Login failed';
+        commit('setError', errorMessage);
+        console.error('Login error:', errorMessage);
+        throw new Error(errorMessage);
       }
     },
 
     async logoutAction({ commit }) {
       try {
-        await api.post('/api/logout/');
+        await api.post(authEndpoints.logout);
       } catch (error) {
-        console.error('Logout failed:', error);
+        console.error('Logout error:', error);
       } finally {
         commit('clearAuth');
-        await router.push({ name: 'Login' });
+        await router.push('/login');
+      }
+    },
+
+    async registerAction({ commit }, userData) {
+      commit('clearError');
+      try {
+        const response = await api.post(authEndpoints.register, userData);
+        
+        if (response.status === 201 || response.status === 200) {
+          await router.push('/login');
+          return response.data;
+        }
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || error.message || 'Registration failed';
+        commit('setError', errorMessage);
+        throw new Error(errorMessage);
+      }
+    },
+
+    async checkAuthAction({ commit }) {
+      const token = localStorage.getItem('authToken');
+      if (!token) {
+        commit('clearAuth');
+        return false;
+      }
+
+      try {
+        const response = await api.get('/api/user/profile/');
+        commit('setUser', response.data);
+        commit('setToken', token);
+        return true;
+      } catch (error) {
+        commit('clearAuth');
+        return false;
+      }
+    },
+
+    async updateProfileAction({ commit }, profileData) {
+      try {
+        const response = await api.put('/api/user/profile/', profileData);
+        commit('setUser', response.data);
+        return response.data;
+      } catch (error) {
+        const errorMessage = error.response?.data?.message || 'Profile update failed';
+        commit('setError', errorMessage);
+        throw new Error(errorMessage);
       }
     },
 
@@ -111,25 +165,34 @@ const store = createStore({
   getters: {
     isAuthenticated: state => state.isAuthenticated,
     currentUser: state => state.user,
-    getToken: state => state.token
+    getToken: state => state.token,
+    getError: state => state.errorMessage,
+    getApi: state => state.api
   }
 });
 
-api.interceptors.request.use(config => {
-  config.baseURL = getBaseUrl(); // Dynamic base URL
-  const token = store.state.token;
-  if (token) {
-    config.headers.Authorization = `Token ${token}`; // Change here too
+// Request interceptor
+api.interceptors.request.use(
+  config => {
+    config.baseURL = getBaseUrl();
+    const token = store.state.token;
+    if (token) {
+      config.headers.Authorization = `Token ${token}`;
+    }
+    return config;
+  },
+  error => {
+    return Promise.reject(error);
   }
-  return config;
-});
+);
 
+// Response interceptor
 api.interceptors.response.use(
   response => response,
   error => {
     if (error.response?.status === 401) {
       store.commit('clearAuth');
-      router.push({ name: 'Login' });
+      router.push('/login');
     }
     return Promise.reject(error);
   }

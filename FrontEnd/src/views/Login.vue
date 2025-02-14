@@ -20,6 +20,7 @@
 
 <script>
 import { mapActions } from 'vuex';
+import { getAuthEndpoints, getBaseUrl } from '@/services/ApiService';
 
 export default {
   data() {
@@ -27,13 +28,19 @@ export default {
       username: '',
       password: '',
       error: '',
-      loading: false
+      loading: false,
+      authEndpoints: null
     };
+  },
+  created() {
+    const baseUrl = getBaseUrl();
+    this.authEndpoints = getAuthEndpoints(baseUrl);
   },
   methods: {
     ...mapActions(['loginAction']),
 
     async login() {
+      if (this.loading) return;
       this.loading = true;
       this.error = '';
       
@@ -42,16 +49,13 @@ export default {
           username: this.username,
           password: this.password
         });
-        
-        // Login successful - redirect handled in store
+        // Redirect to home page after successful login
+        this.$router.push('/');
       } catch (error) {
-        if (error.response?.data?.message) {
-          this.error = error.response.data.message;
-        } else {
-          this.error = 'Login failed. Please try again.';
-        }
+        console.error('Login error:', error);
+        this.error = error.message || 'Login failed. Please try again.';
       } finally {
-        this.loading = true;
+        this.loading = false;  // Fixed: Was setting to true instead of false
       }
     }
   }

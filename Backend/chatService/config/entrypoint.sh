@@ -2,8 +2,8 @@
 set -e
 
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/user/role_id"
-SECRET_ID_FILE="/vault/approle/user/secret_id"
+ROLE_ID_FILE="/vault/approle/chat/role_id"
+SECRET_ID_FILE="/vault/approle/chat/secret_id"
 
 # Check credentials exist
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
@@ -28,19 +28,14 @@ echo "✅ Successfully authenticated with Vault"
 
 # Get secrets
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/user)
+    $VAULT_ADDR/v1/secret/data/chat)
 
 # Export variables
-export DB_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_USER)
-echo "DB_USER=$DB_USER"
-export DB_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_PASSWORD)
-echo "DB_PASSWORD=$DB_PASSWORD"
-export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_NAME)
-echo "DB_NAME=$DB_NAME"
-export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_HOST)
-echo "DB_HOST=$DB_HOST"
-export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_PORT)
-echo "DB_PORT=$DB_PORT"
+export DB_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_USER)
+export DB_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_PASSWORD)
+export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_NAME)
+export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_HOST)
+export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_PORT)
 
 # Wait for PostgreSQL
 MAX_RETRIES=30
@@ -57,4 +52,4 @@ done
 
 echo "✅ Database ready"
 python manage.py migrate
-exec python manage.py runserver 0.0.0.0:8000
+exec python manage.py runserver 0.0.0.0:8001

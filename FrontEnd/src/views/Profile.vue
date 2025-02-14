@@ -203,6 +203,8 @@
 
 <script>
 import { mapGetters } from 'vuex';
+import { WebSocketService } from '../services/WebSocketService';
+import { getApiEndpoints } from '../services/ApiService';
 
 export default {
   name: 'Profile',
@@ -222,8 +224,8 @@ export default {
       
       // Avatar Upload
       defaultAvatarUrl: window.location.hostname === 'localhost' 
-      ? 'http://localhost:8000/media/default.png' 
-      : 'https://10.12.12.5/media/default.png',
+      ? 'http://localhost:8000/api/user/media/default_avatar.png' 
+      : '/api/user/media/default_avatar.png',
 
       // Profile Search
       searchQuery: '',
@@ -250,7 +252,9 @@ export default {
       newMessage: '',
 
       // Status Message
-      statusMessage: null
+      statusMessage: null,
+      wsService: null,
+      apiEndpoints: null
     };
   },
 
@@ -275,19 +279,39 @@ export default {
   },
 
   async created() {
-    if (this.isInitialized) return;
-    
-    const authInitialized = await this.$store.dispatch('initializeAuth');
-    
-    if (!authInitialized || !this.getToken) {
+    try {
+      if (this.isInitialized) return;
+      
+      // Initialize WebSocket service
+      this.wsService = new WebSocketService();
+      this.wsService.addListener('chat', 'message', this.handleChatMessage);
+      this.wsService.addListener('user', 'message', this.handleUserEvent);
+      this.apiEndpoints = getApiEndpoints(this.getBaseUrl);
+      
+      // Initialize authentication
+      const authInitialized = await this.$store.dispatch('initializeAuth');
+      
+      if (!authInitialized || !this.getToken) {
+        this.$router.push('/login');
+        return;
+      }
+      
+      // Connect WebSocket after auth is confirmed
+      this.wsService.connect(this.getToken);
+      
+      this.isInitialized = true;
+      const profile = await this.fetchProfile();
+
+      // Only set currentUserId if profile fetch was successful
+      if (profile && profile.id) {
+        this.currentUserId = profile.id;
+        await this.fetchIncomingRequests();
+      }
+    } catch (error) {
+      console.error('Error in created hook:', error);
+      this.wsService?.disconnect(); // Cleanup WebSocket if initialization fails
       this.$router.push('/login');
-      return;
     }
-    
-    this.isInitialized = true;
-    await this.fetchProfile();
-    this.currentUserId = this.profile.id;
-    this.fetchIncomingRequests();
   },
 
   mounted() {
@@ -297,15 +321,21 @@ export default {
   methods: {
     handleImageError(e) {
       console.error('Image faile to load:', e.target.src);
+       // Prevent infinite loop by checking if already using default
+      if (e.target.src.includes('default.png')) {
+        console.warn('Default image also failed to load');
+        return;
+      }
       e.target.src = this.defaultAvatarUrl;
     },
 
     getBaseUrl() {
-      const isLocalhost = window.location.hostname === 'localhost';
+      // Get protocol and hostname
       const protocol = window.location.protocol;
-      return isLocalhost 
-        ? 'http://localhost:8000'
-        : `${protocol}//15.12.12.8`;  // Use same protocol as page
+      const hostname = window.location.hostname;
+      return hostname === 'localhost' 
+        ? 'http://localhost:8000' 
+        : `${protocol}//${hostname}`;
     },
 
     showStatus(message, variables = {}, type = 'success') {
@@ -332,40 +362,59 @@ export default {
 
     async fetchProfile() {
       try {
-        console.log('Fetching profile from:', `${this.getBaseUrl()}/api/profile/`);
+        this.loading = true;
+        this.error = null;
         
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
+        const response = await fetch(this.apiEndpoints.profile, {
           method: 'GET',
           headers: {
             'Authorization': `Token ${this.$store.state.token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
           },
-          credentials: 'include',
-          mode: 'cors'  // Enable CORS
+          credentials: 'include'
         });
         
-        if (!response.ok) {
-          if (response.status === 401) {
-            await this.$store.dispatch('logoutAction');
-            this.$router.push('/login');
-            return;
-          }
-          throw new Error('Failed to fetch profile');
-        }
-        const profile = await response.json();
-    console.log('Fetched profile:', profile);
+        // Log response status for debugging
+        console.log('Profile fetch response status:', response.status);
 
-    // Ensure avatar URL uses correct protocol and domain
-      if (profile.avatar) {
-        profile.avatar = this.buildAvatarUrl(profile.avatar);
-      }
-    
+        // Handle unauthorized first
+        if (response.status === 401) {
+          console.log('Unauthorized access, logging out...');
+          await this.$store.dispatch('logoutAction');
+          this.$router.push('/login');
+          return null;
+        }
+
+        // Handle other non-200 responses
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Error response:', errorText);
+          throw new Error(`Failed to fetch profile: ${response.status}`);
+        }
+
+        // Get response as text first for debugging
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+
+        // Parse JSON response
+        const profile = JSON.parse(responseText);
+        console.log('Parsed profile:', profile);
+
+        // Handle avatar URL with new API path
+        if (profile.avatar) {
+          profile.avatar = this.buildAvatarUrl(profile.avatar);
+        }
+      
+        // Update component data
         this.profile = profile;
         this.error = null;
+        return profile;
       } catch (error) {
         console.error('Profile fetch error:', error);
         this.error = error.message;
+        this.profile = null;
+        throw error; // Rethrow for created hook
       } finally {
         this.loading = false;
       }
@@ -379,10 +428,11 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
-          method: 'PUT',
+        const response = await fetch(this.apiEndpoints.profile, {
+          method: 'POST',
           headers: {
-            'Authorization': `Token ${this.getToken}`
+            'Authorization': `Token ${this.getToken}`,
+            'Accept': 'application/json',
           },
           body: formData,
           credentials: 'include'
@@ -413,7 +463,7 @@ export default {
 
     async deleteAvatar() {
       try {
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
+        const response = await fetch(this.apiEndpoints.profile, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -444,35 +494,48 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/`, {
+        const response = await fetch(this.apiEndpoints.profile, {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
+          credentials: 'include',
           body: JSON.stringify({
             display_name: this.displayName
           })
         });
 
-        if (!response.ok) {
-          const data = await response.json();
-          if (response.status === 400) {
-            this.displayNameError = data.message;
-            return;
+        // Log the raw response
+        console.log('Response status:', response.status);
+        const responseText = await response.text();
+        console.log('Response text:', responseText);
+
+        // Try to parse JSON only if there's content
+        let data;
+        if (responseText) {
+          try {
+            data = JSON.parse(responseText);
+          } catch (e) {
+            console.error('JSON parse error:', e);
+            throw new Error('Invalid server response format');
           }
-          throw new Error('Failed to update display name');
+        }
+        if (!response.ok) {
+          throw new Error(data?.message || 'Failed to update display name');
         }
 
         // Update profile with new data
-        const updatedProfile = await response.json();
-        this.profile = updatedProfile;
+        this.profile = data;
         this.displayNameError = null;
         this.isUpdateDisabled = true;
+        this.showStatus('Profile updated successfully', {}, 'success');
 
       } catch (error) {
         console.error('Display name update error:', error);
         this.displayNameError = error.message;
+        this.showStatus(error.message, {}, 'error');
       }
     },
 
@@ -496,11 +559,12 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-        `${this.getBaseUrl()}/api/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
+        `${this.apiEndpoints.search}?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
-              'Content-Type': 'application/json'
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
             },
             credentials: 'include'
           }
@@ -532,10 +596,11 @@ export default {
     async blockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/${profileId}/block/`, {
+        const response = await fetch(`${this.apiEndpoints.profile}${profileId}/block/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
+            'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
         });
@@ -558,10 +623,11 @@ export default {
     async unblockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/${profileId}/block/`, {
+        const response = await fetch(`${this.apiEndpoints.profile}${profileId}/block/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`,
+            'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
         });
@@ -584,11 +650,12 @@ export default {
     async sendFriendRequest(friendId) {
       try {
         const friend = this.searchResults.find(p => p.id === friendId);
-        const response = await fetch(`${this.getBaseUrl()}/api/profile/add_friend/`, {
+        const response = await fetch(`${this.apiEndpoints.profile}add_friend/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -624,10 +691,11 @@ export default {
     },
 
     async sendAcceptRequest(userId) {
-      const response = await fetch('/api/profile/friend-requests/accept/', {
+      const response = await fetch(`${this.apiEndpoints.friendRequests}accept/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
@@ -659,10 +727,11 @@ export default {
     },
 
     async sendDeclineRequest(userId) {
-      const response = await fetch('/api/profile/friend-requests/decline/', {
+      const response = await fetch(`${this.apiEndpoints.friendRequests}decline/`, {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
+          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
@@ -684,11 +753,12 @@ export default {
     async removeFriend(friendId) {
       try {
         const friend = this.profile.friends.find(f => f.id === friendId);
-        const response = await fetch('/api/profile/remove_friend/', {
+        const response = await fetch(`${this.apiEndpoints.profile}remove_friend/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -715,10 +785,11 @@ export default {
       try {
         console.log('Starting fetch of incoming requests');
         
-        const response = await fetch('/api/profile/friend-requests/', {
+        const response = await fetch(this.apiEndpoints.friendRequests, {
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         });
 
@@ -761,16 +832,19 @@ export default {
     buildAvatarUrl(avatarPath) {
       if (!avatarPath) {
         console.log('No avatar path, using default');
-        return this.defaultAvatarUrl;
+        return `${this.getBaseUrl()}/api/user/media/default_avatar.png`;
       }
-      let url;
+      // If it's an absolute URL
       if (avatarPath.startsWith('http')) {
-          url = window.location.protocol === 'https:' 
-            ? avatarPath.replace('http://', 'https://') 
-            : avatarPath;
-      } 
-      const baseUrl = this.getBaseUrl();
-      return `${baseUrl}${avatarPath}`;
+        // Force HTTPS in production
+        return window.location.protocol === 'https:'
+          ? avatarPath.replace('http://', 'https://')
+          : avatarPath;
+      }
+
+          // For relative paths, ensure proper API prefix
+      const filename = avatarPath.split('/').pop(); // Get just the filename
+      return `${this.getBaseUrl()}/api/user/media/${filename}`;
     },
 
     formatDate(timestamp) {
@@ -800,11 +874,12 @@ export default {
         this.chatId = chatId;
 
         // Fetch existing messages
-        const response = await fetch(`api/profile/chat/${friend.id}/`, {
+        const response = await fetch(`${this.apiEndpoints.chat}${friend.id}/`, {
           method: 'GET',
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         });
 
@@ -832,7 +907,7 @@ export default {
         }
 
         const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${window.location.host}/ws/chat/${this.chatId}/?token=${this.getToken}`;
+        const wsUrl = `${wsScheme}://${window.location.host}/api/chat/ws/${this.chatId}/?token=${this.getToken}`;
         
         console.log('Chat WebSocket URL:', wsUrl);
         
@@ -952,7 +1027,7 @@ export default {
       const token = this.getToken;
       const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const wsHost = window.location.hostname;
-      const wsUrl = `${wsScheme}://${wsHost}/ws/profile/notifications/?token=${this.$store.state.token}`;
+      const wsUrl = `${wsScheme}://${wsHost}/api/user/ws/notifications/?token=${this.getToken}`;
       console.log('Attempting WebSocket connection:', wsUrl);
       this.notificationSocket = new WebSocket(wsUrl);
       this.notificationSocket.onopen = () => {

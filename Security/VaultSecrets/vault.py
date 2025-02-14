@@ -77,10 +77,12 @@ def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", toke
         # Store credentials securely to the specified mounted paths in Vault
         secret_path = f"/vault/approle/{role_name}"
         os.makedirs(secret_path, exist_ok=True)
-        with open(f"{secret_path}/role_id", "w") as f:
+        with open(f"{secret_path}/role_id", "w") as f: {
             f.write(role_id)
-        with open(f"{secret_path}/secret_id", "w") as f:
+        }
+        with open(f"{secret_path}/secret_id", "w") as f: {
             f.write(secret_id)
+        }
         print(f"✅ AppRole '{role_name}' created and stored in '{secret_path}'")
         return role_id, secret_id
     except hvac.exceptions.VaultError as e:
@@ -89,25 +91,34 @@ def create_approle(role_name, policies, secret_id_ttl="1h", token_ttl="1h", toke
 
 
 # Write secrets under "user_db" path
-secrets_to_store_db = {
-    "DB_USER": env_vars.get("DB_USER"),
-    "DB_PASSWORD": env_vars.get("DB_PASSWORD"),
-    "DB_HOST": env_vars.get("DB_HOST"),
-    "DB_PORT": env_vars.get("DB_PORT"),
-    "DB_NAME": env_vars.get("DB_NAME"),
+secrets_to_store_user = {
+    "USER_DB_USER": env_vars.get("USER_DB_USER"),
+    "USER_DB_PASSWORD": env_vars.get("USER_DB_PASSWORD"),
+    "USER_DB_HOST": env_vars.get("USER_DB_HOST"),
+    "USER_DB_PORT": env_vars.get("USER_DB_PORT"),
+    "USER_DB_NAME": env_vars.get("USER_DB_NAME"),
 }
 
-write_secret_to_vault("user_db", secrets_to_store_db)
+secrets_to_store_chat = {
+    "CHAT_DB_USER": env_vars.get("CHAT_DB_USER"),
+    "CHAT_DB_PASSWORD": env_vars.get("CHAT_DB_PASSWORD"),
+    "CHAT_DB_HOST": env_vars.get("CHAT_DB_HOST"),
+    "CHAT_DB_PORT": env_vars.get("CHAT_DB_PORT"),
+    "CHAT_DB_NAME": env_vars.get("CHAT_DB_NAME"),
+}
 
 secrets_to_store_gateway = {
     "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
 }
 
+write_secret_to_vault("user_db", secrets_to_store_user)
 write_secret_to_vault("gateway", secrets_to_store_gateway)
-write_secret_to_vault("user", secrets_to_store_db)
+write_secret_to_vault("user", secrets_to_store_user)
+write_secret_to_vault("chat_db", secrets_to_store_chat)
+write_secret_to_vault("chat", secrets_to_store_chat)
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

@@ -11,7 +11,7 @@ echo "🔒 Testing Security Setup on Localhost..."
 # Base URL and auth token from successful login
 BASE_URL="http://localhost:8000"
 AUTH_TOKEN=$(curl -s -X POST -H "Content-Type: application/json" \
-    -d '{"username": "my_username", "password": "my_password"}' \
+    -d '{"username": "2", "password": "2"}' \
     "${BASE_URL}/api/login/" | jq -r '.auth_token')
 
 test_security() {

@@ -4,13 +4,13 @@ echo "[$(date)] Starting healthcheck..." >> /var/log/postgresql/healthcheck.log
 
 # Get credentials from Vault
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/user_db/role_id"
-SECRET_ID_FILE="/vault/approle/user_db/secret_id"
+ROLE_ID_FILE="/vault/approle/chat_db/role_id"
+SECRET_ID_FILE="/vault/approle/chat_db/secret_id"
 
 # Check if files exist
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
     echo "[$(date)] Missing credential files" >> /var/log/postgresql/healthcheck.log
-    ls -la /vault/approle/user_db >> /var/log/postgresql/healthcheck.log
+    ls -la /vault/approle/chat_db >> /var/log/postgresql/healthcheck.log
     exit 1
 fi
 
@@ -31,10 +31,10 @@ fi
 
 # Get DB credentials
 DB_USER=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/user_db | jq -r .data.data.USER_DB_USER)
+    $VAULT_ADDR/v1/secret/data/chat_db | jq -r .data.data.CHAT_DB_USER)
 
 DB_NAME=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/user_db | jq -r .data.data.USER_DB_NAME)
+    $VAULT_ADDR/v1/secret/data/chat_db | jq -r .data.data.CHAT_DB_NAME)
 
 if [ -z "$DB_USER" ] || [ "$DB_USER" = "null" ] || [ -z "$DB_NAME" ] || [ "$DB_NAME" = "null" ]; then
     echo "[$(date)] Failed to get database credentials" >> /var/log/postgresql/healthcheck.log

@@ -24,6 +24,7 @@
 </template>
 
 <script>
+import { getAuthEndpoints, getBaseUrl } from '@/services/ApiService';
 export default {
   data() {
     return {
@@ -31,53 +32,67 @@ export default {
       password: '',
       passwordConfirm: '',
       message: '',
-      errors: []
+      errors: [],
+      authEndpoints: null,
+      isSubmitting: false
     };
   },
+
+  created() {
+    const baseUrl = getBaseUrl();
+    this.authEndpoints = getAuthEndpoints(baseUrl);
+  },
+
   methods: {
     async register() {
-      const baseUrl = window.location.hostname === 'localhost' 
-      ? 'http://localhost:8000' 
-      : 'https://10.12.12.5';
       if (this.password !== this.passwordConfirm) {
-        this.message = 'Passwords do not match!';
-        this.errors = [];
-        return;
+          this.message = 'Passwords do not match!';
+          this.errors = [];
+          return;
       }
 
+      this.isSubmitting = true;
       try {
-        const response = await fetch(`${baseUrl}/api/register/`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            username: this.username,
-            password1: this.password,
-            password2: this.passwordConfirm
-          })
-        });
+          console.log('Registering with endpoint:', this.authEndpoints.register);
+          const response = await fetch(this.authEndpoints.register, {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                  username: this.username,
+                  password1: this.password,
+                  password2: this.passwordConfirm
+              }),
+              credentials: 'include'
+          });
 
-        const contentType = response.headers.get('content-type');
-        if (contentType && contentType.includes('application/json')) {
-          const data = await response.json();
-          if (response.ok) {
-            this.message = 'Registration successful!';
-            this.errors = [];
-            this.$router.push('/login');
+          const contentType = response.headers.get('content-type');
+          if (contentType && contentType.includes('application/json')) {
+              const data = await response.json();
+              if (response.ok) {
+                  this.message = 'Registration successful!';
+                  this.errors = [];
+                  setTimeout(() => {
+                      this.$router.push('/login');
+                  }, 1500);
+              } else {
+                  this.message = data.error || 'Registration failed!';
+                  this.errors = data.details ? Object.values(data.details).flat() : [];
+              }
           } else {
-            this.message = data.error || 'Registration failed!';
-            this.errors = data.details ? Object.values(data.details).flat() : [];
+              const text = await response.text();
+              console.error('Non-JSON response:', text);
+              this.message = 'Unexpected response from server.';
+              this.errors = [text];
           }
-        } else {
-          this.message = 'Unexpected response from server.';
-          this.errors = [];
-          console.error('Non-JSON response:', await response.text());
-        }
       } catch (error) {
-        this.message = 'An error occurred. Please try again.';
-        this.errors = [];
-        console.error(error);
+          console.error('Registration error:', error);
+          this.message = 'An error occurred. Please try again.';
+          this.errors = [error.message];
+      } finally {
+          this.isSubmitting = false;
       }
     }
   }

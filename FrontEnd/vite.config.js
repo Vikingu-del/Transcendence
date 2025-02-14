@@ -27,13 +27,13 @@ export default defineConfig({
       usePolling: true
     },
     proxy: {
-      '/api': {
+      '/api/user': {
         target: 'http://user:8000', // Used to be 'http://localhost:8000' which allows access only from container but http://user:8000 Uses Docker service name, accessible across containers
         changeOrigin: true,
         // rewrite: (path) => path.replace(/^\/api/, '') Since the backend URLs already include /api/ prefix: Removed the rewrite rule:
       },
-      '/vault': {
-        target: 'http://localhost:8200',
+      '/api/chat': {
+        target: 'http://chat:8001',
         changeOrigin: true,
       },
     }
