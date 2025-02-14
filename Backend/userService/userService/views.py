@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/13 19:12:31 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/14 14:24:08 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -80,30 +80,6 @@ class SyncTokenView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-# class CreateUserProfileView(APIView):
-#     authentication_classes = [TokenAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     def post(self, request):
-#         try:
-#             # Create user profile
-#             profile = Profile.objects.create(
-#                 user=request.user,
-#                 display_name=request.data.get('display_name', request.user.username),
-#                 # Add other fields as needed
-#             )
-            
-#             return Response({
-#                 'id': profile.id,
-#                 'username': request.user.username,
-#                 'display_name': profile.display_name,
-#                 'avatar': 'localhost:8000' + profile.get_avatar_url(),  # Use the helper method
-#             }, status=status.HTTP_201_CREATED)
-            
-#         except Exception as e:
-#             return Response({
-#                 'detail': str(e)
-#             }, status=status.HTTP_400_BAD_REQUEST)
 
 logger = logging.getLogger(__name__)
 
@@ -136,21 +112,21 @@ class ProfileView(APIView):
     def delete(self, request):
         """Handle avatar deletion"""
         try:
-            user_profile = request.user.profile
+            profile = request.user.profile
             
-            if not user_profile.avatar:
+            if not profile.avatar:
                 return Response(
                     {"message": "Already using default avatar"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            user_profile.avatar.delete(save=False)
-            user_profile.avatar = None
-            user_profile.save()
+            profile.avatar.delete(save=False)
+            profile.avatar = None
+            profile.save()
             
             logger.info(f"Reset avatar to default for user {request.user.username}")
             
-            serializer = UserProfileSerializer(user_profile, context={"request": request})
+            serializer = UserProfileSerializer(profile, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
@@ -164,7 +140,7 @@ class ProfileView(APIView):
         if not request.user.is_authenticated:
             return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
 
-        user_profile = request.user.profile
+        profile = request.user.profile
         data = request.data
 
         if 'display_name' in data:
@@ -172,7 +148,7 @@ class ProfileView(APIView):
 
             if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
                 return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
-            user_profile.display_name = display_name
+            profile.display_name = display_name
             logger.info(f"Updated display name for user {request.user.username}")
             
         if 'avatar' in request.FILES:
@@ -193,16 +169,16 @@ class ProfileView(APIView):
                     )
 
                 # Delete old avatar if exists
-                if user_profile.avatar:
-                    user_profile.avatar.delete(save=False)
+                if profile.avatar:
+                    profile.avatar.delete(save=False)
                 
-                user_profile.avatar = avatar
+                profile.avatar = avatar
                 logger.info(f"Updated avatar for user {request.user.username}")
 
-        user_profile.save()
+        profile.save()
         
         # Return updated profile data
-        serializer = UserProfileSerializer(user_profile, context={"request": request})
+        serializer = UserProfileSerializer(profile, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
 
 

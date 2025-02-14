@@ -19,7 +19,7 @@ from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
 from .views import (
-    CreateUserProfileView, ProfileView, SearchProfilesView, AddFriendView,
+    ProfileView, SearchProfilesView, AddFriendView,
     RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
     IncomingFriendRequestsView, BlockUserView, SyncTokenView
 )
@@ -29,7 +29,6 @@ urlpatterns = [
     path('api/user/sync-token/', SyncTokenView.as_view(), name='sync-token'),
     
     # Profile endpoints
-    # path('api/profile/create/', CreateUserProfileView.as_view(), name='create-profile'),
     path('api/user/profile/', ProfileView.as_view(), name='profile'),
     path('api/user/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
     

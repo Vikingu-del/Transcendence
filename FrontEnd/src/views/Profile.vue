@@ -7,17 +7,25 @@
     <div class="profile-card" v-if="profile">
       <!-- Avatar Section with Upload/Delete -->
       <div class="avatar-container">
+        <!-- Если аватар не найден, показываем текст -->
         <img 
-            :src="profile.avatar || defaultAvatarUrl" 
-            :alt="profile.display_name"
-            class="profile-picture"
-            @error="handleAvatarError"
+          v-if="!avatarLoadError"
+          :src="profile ? buildAvatarUrl(profile.avatar) : defaultAvatarUrl"
+          @error="handleAvatarError"
+          class="profile-picture"
+          alt="Profile Picture"
         />
+        
+        <!-- Если возникла ошибка при загрузке аватара, показываем текст -->
+        <span v-if="avatarLoadError" class="avatar-text">
+          {{ profile.display_name.charAt(0).toUpperCase() }} <!-- Показываем первую букву имени пользователя -->
+        </span>
+
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
           <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
           <button 
-            v-if="profile.avatar && profile.avatar !== defaultAvatarUrl" 
+            v-if="!isDefaultAvatar" 
             @click="deleteAvatar" 
             class="btn secondary-btn"
           >
@@ -25,6 +33,7 @@
           </button>
         </div>
       </div>
+
 
       <!-- Profile Info Section with Edit -->
       <div class="profile-section">
@@ -138,6 +147,53 @@
     <div v-if="loading">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
 
+    <!-- Add this after the search section -->
+    <div v-if="profile" class="debug-section">
+      <h3>Debug Information</h3>
+      <div class="debug-info">
+        <pre>
+    User Profile:
+    -------------
+    ID: {{ profile.id }}
+    Display Name: {{ profile.display_name }}
+    Avatar URL: {{ profile.avatar }}
+    Is Online: {{ profile.is_online }}
+    Default Avatar: {{ isDefaultAvatar }}
+
+    Friends List:
+    -------------
+    <template v-if="profile.friends && profile.friends.length">
+    <span v-for="friend in profile.friends" :key="friend.id">
+    Friend ID: {{ friend.id }}
+    Name: {{ friend.display_name }}
+    Status: {{ friend.is_online ? 'Online' : 'Offline' }}
+    Avatar: {{ friend.avatar }}
+    -------------------
+    </span>
+    </template>
+    <template v-else>No friends</template>
+
+    WebSocket:
+    -------------
+    Connected: {{ wsConnected }}
+    Current User ID: {{ currentUserId }}
+
+    Pending Requests:
+    -------------
+    <template v-if="incomingFriendRequests.length">
+    <span v-for="request in incomingFriendRequests" :key="request.id">
+    Request ID: {{ request.id }}
+    From User: {{ request.from_user.display_name }}
+    Status: {{ request.status }}
+    -------------------
+    </span>
+    </template>
+    <template v-else>No pending requests</template>
+        </pre>
+      </div>
+    </div>
+
+
     <!-- Logout Button -->
     <nav>
       <button @click="logout" class="btn secondary-btn">Logout</button>
@@ -165,8 +221,8 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: '/api/user/media/default.png',
-
+      defaultAvatarUrl: 'https://localhost/api/user/media/avatars/default.png',
+      avatarLoadError: false,
       // Profile Search
       searchQuery: '',
       searchResults: [],
@@ -199,8 +255,8 @@ export default {
       return !!this.token;
     },
     isDefaultAvatar() {
-      return !this.profile?.avatar || this.profile.avatar === this.defaultAvatarUrl;
-    },
+      return this.profile.avatar === '/api/user/media/default.png';
+    }
   },
 
   watch: {
@@ -209,14 +265,13 @@ export default {
     },
     messages: {
       handler() {
-        this.scrollToBottom(); // Add scroll when messages update
+        this.scrollToBottom();
       },
       deep: true
     }
   },
 
   // Update the created hook:
-
   async created() {
     try {
       const token = localStorage.getItem('token');
@@ -306,7 +361,7 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch('http://localhost:8000/api/user/profile/', {
+        const response = await fetch('https://localhost/api/user/profile/', { // Removed port 8000
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -330,7 +385,7 @@ export default {
 
     async deleteAvatar() {
       try {
-        const response = await fetch('http://localhost:8000/api/user/profile/', {
+        const response = await fetch('https://localhost/api/user/profile/', {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -361,7 +416,7 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch('http://localhost:8000/api/user/profile/', {
+        const response = await fetch('http://localhost/api/user/profile/', {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`,
@@ -413,7 +468,7 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-          `http://localhost:8000/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
+          `http://localhost/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
@@ -646,7 +701,7 @@ export default {
           throw new Error('Invalid response format');
         }
 
-        const baseUrl = 'http://localhost:8000';
+        const baseUrl = 'http://localhost';
         
         // Map with validation
         const validRequests = data
@@ -676,31 +731,32 @@ export default {
     },
 
     // Helper method for avatar URL
-    buildAvatarUrl(avatarPath, baseUrl) {
-      // If no avatar path provided, return default avatar
-      if (!avatarPath) return this.defaultAvatarUrl;
-      
-      // If it's already a full URL, return it
-      if (avatarPath.startsWith('http')) return avatarPath;
-      
-      // If it's a path starting with /media
-      if (avatarPath.startsWith('/media')) {
-        return `/api/user${avatarPath}`; // Add /api/user prefix
-      }
-      
-      // For relative paths in the avatars directory
-      return `/api/user/media/avatars/${avatarPath}`;
-    },
-
     handleAvatarError(e) {
       console.warn('Avatar failed to load:', e.target.src);
-      if (e.target.src !== this.defaultAvatarUrl) {
-        e.target.src = this.defaultAvatarUrl;
-      } else {
-        // Fallback to inline SVG
-        e.target.src = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI+PHBhdGggZD0iTTEyIDJDNi40OCAyIDIgNi40OCAyIDEyczQuNDggMTAgMTAgMTAgMTAtNC40OCAxMC0xMFMxNy41MiAyIDEyIDJ6bTAgM2MyLjY3IDAgNC42NyAyIDQuNjcgNC42N2MwIDIuNjctMiA0LjY3LTQuNjcgNC42N3MtNC42Ny0yLTQuNjctNC42N0M3LjMzIDcgOS4zMyA1IDEyIDV6bTAgMTIuNTVjLTMuNDcgMC02LjMzLTIuMTMtNy41LTUuMTNDNi40NSAxMC42OCA5LjUzIDEwIDEyIDEwczUuNTUuNjggNi41IDIuNDJjLTEuMTcgMy0zLjAzIDUuMTMtNi41IDUuMTN6Ii8+PC9zdmc+';
-      }
+      e.target.src = this.defaultAvatarUrl;
+      this.avatarLoadError = true;
     },
+
+    // Update the buildAvatarUrl method
+    buildAvatarUrl(avatarPath) {
+      if (!avatarPath || avatarPath === 'default.png') {
+        return this.defaultAvatarUrl;
+      }
+
+      // If it's already a full URL
+      if (avatarPath.startsWith('http')) {
+        return avatarPath;
+      }
+
+      // If it's a relative path, make it absolute
+      if (avatarPath.startsWith('/')) {
+        return `https://localhost${avatarPath}`; // Removed port 8000
+      }
+
+      // Default case
+      return `https://localhost/api/user/media/avatars/${avatarPath}`; // Removed port 8000
+    },
+
 
     formatDate(timestamp) {
       if (!timestamp) return '';
@@ -744,7 +800,7 @@ export default {
     initNotificationSocket() {
       const token = this.getToken;
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsHost = 'localhost:8000'; // Use direct service URL
+      const wsHost = 'localhost'; // Use direct service URL
       const wsUrl = `${wsProtocol}//${wsHost}/ws/profile/notifications/?token=${token}`;
       
       this.notificationSocket = new WebSocket(wsUrl);
@@ -762,7 +818,7 @@ export default {
                 from_user: {
                     id: data.from_user_id,
                     display_name: data.from_user_name,
-                    avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost:8000'),
+                    avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost'),
                     is_online: true // Assume online since they just sent request
                 }
             });

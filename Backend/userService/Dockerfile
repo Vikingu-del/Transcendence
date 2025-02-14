@@ -15,6 +15,9 @@ COPY config/requirements.txt config/requirements.txt
 COPY config/entrypoint.sh /bin/entrypoint.sh
 RUN chmod +x /bin/entrypoint.sh
 
+RUN mkdir -p /app/media
+COPY config/default.png /app/media/default.png
+
 # Install the dependencies
 RUN pip install --no-cache-dir -r config/requirements.txt
 

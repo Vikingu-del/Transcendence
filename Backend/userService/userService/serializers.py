@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/13 18:49:34 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/14 14:54:11 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -56,10 +56,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
                  'friend_request_status', 'requested_by_current_user', 'isBlocked']
 
     def get_avatar(self, obj):
-        request = self.context.get('request')
-        if obj.avatar:
-            return f'/api/user{obj.avatar.url}'
-        return f'/api/user/media/{Profile.DEFAULT_AVATAR_PATH}'
+        return obj.get_avatar_url()
     
     def get_is_friend(self, obj):
         user = self.context['request'].user

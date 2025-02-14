@@ -66,7 +66,7 @@ services:
       - "8000:8000"
     volumes:
       - ./Backend/userService:/app
-      - ./Backend/userService/media:/app/media
+      - user_media_data:/app/media
     environment:
       - DJANGO_SETTINGS_MODULE=userService.settings
       - DB_NAME=postgres
@@ -81,7 +81,7 @@ services:
     networks:
       - backtier
       - user_network
-    command: sh -c "pip install -r config/requirements.txt && python manage.py migrate && daphne -b 0.0.0.0 -p 8000 userService.asgi:application"
+    command: sh -c "pip install -r config/requirements.txt && python manage.py migrate && uvicorn userService.asgi:application --host 0.0.0.0 --port 8000 --reload"
   
   chat:
     build:
@@ -92,6 +92,7 @@ services:
     volumes:
       - ./Backend/chatService:/app
       - ./Backend/userService/media:/app/media
+      - user_media_data:/app/media
     environment:
       DB_NAME: "postgres"
       DB_USER: "postgres"
@@ -157,8 +158,8 @@ services:
       - frontend
     volumes:
       - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ApiGateway/ssl:/etc/nginx/ssl
-      - ./Backend/userService/media:/app/media
+      - user_media_data:/app/media
+      - ./ApiGateway/ssl:/etc/nginx/ssl:ro # Mount SSL certificates
     networks:
       - backtier
 
@@ -183,6 +184,7 @@ volumes:
   chat_db_data:
   frontend_dist:
   auth_db_data:
+  user_media_data:
 
 networks:
   user_network:

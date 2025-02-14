@@ -10,3 +10,4 @@ channels>=3.0
 daphne>=3.0
 django-cors-headers>=3.7
 Pillow>=8.3
+uvicorn>=0.15
