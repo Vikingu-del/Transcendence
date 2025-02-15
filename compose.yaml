@@ -206,6 +206,77 @@ services:
     networks:
       - frontier
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.17.2
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+    ports:
+      - "9200:9200"
+    networks:
+      - backtier
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9200/"]
+      interval: 30s
+      retries: 5
+      start_period: 30s
+      timeout: 10s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.2
+    container_name: logstash
+    volumes:
+      - ./elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5044:5044"
+    networks:
+      - backtier
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.2
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    depends_on:
+      - elasticsearch
+    networks:
+      - backtier
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.2
+    container_name: filebeat
+    user: root
+    volumes:
+      - ./elk/filebeat.yml:/usr/share/filebeat/filebeat.yml
+      - /../../goinfre/amehrotr/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - logstash
+    networks:
+      - backtier
+
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:8.17.2
+    container_name: metricbeat
+    user: root
+    volumes:
+      - ./elk/metricbeat.yml:/usr/share/metricbeat/metricbeat.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    environment:
+      - DOCKER_HOST=unix:///var/run/docker.sock  # Tell Metricbeat to use Docker socket
+    depends_on:
+      - elasticsearch
+      - kibana
+    networks:
+      - backtier
+
+
 volumes:
   vault_data:
   vault_token:
