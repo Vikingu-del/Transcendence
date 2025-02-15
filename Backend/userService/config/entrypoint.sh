@@ -32,15 +32,10 @@ VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
 
 # Export variables
 export DB_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_USER)
-echo "DB_USER=$DB_USER"
 export DB_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_PASSWORD)
-echo "DB_PASSWORD=$DB_PASSWORD"
 export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_NAME)
-echo "DB_NAME=$DB_NAME"
 export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_HOST)
-echo "DB_HOST=$DB_HOST"
 export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.USER_DB_PORT)
-echo "DB_PORT=$DB_PORT"
 
 # Wait for PostgreSQL
 MAX_RETRIES=30

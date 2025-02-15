@@ -39,6 +39,10 @@ services:
       - approle_user:/vault/approle/user
       - approle_user_db:/vault/approle/user_db  
       - approle_gateway:/vault/approle/gateway
+      - approle_chat:/vault/approle/chat
+      - approle_chat_db:/vault/approle/chat_db
+      - approle_auth:/vault/approle/auth
+      - approle_auth_db:/vault/approle/auth_db
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -66,6 +70,8 @@ services:
       - approle_gateway:/vault/approle/gateway
       - approle_chat:/vault/approle/chat
       - approle_chat_db:/vault/approle/chat_db
+      - approle_auth:/vault/approle/auth
+      - approle_auth_db:/vault/approle/auth_db
 
   user:
     container_name: user
@@ -80,7 +86,7 @@ services:
     environment:
       - DJANGO_SETTINGS_MODULE=userService.settings
       - API_PREFIX=/api/user
-      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,10.12.12.5,user_service,user,user_db,gateway
+      # - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,10.12.12.5,user_service,user,user_db,gateway
     depends_on:
       vault:
         condition: service_started
@@ -121,7 +127,7 @@ services:
       context: ./Backend/chatService
       dockerfile: Dockerfile
     ports:
-      - "8001:8001"
+      - "8002:8002"
     volumes:
       - ./Backend/chatService:/app
       - approle_chat:/vault/approle/chat:ro
@@ -161,6 +167,56 @@ services:
       - chat_db_data:/var/lib/postgresql/data
     networks:
       - backtier
+
+  auth:
+    container_name: auth
+    build:
+      context: ./Backend/authService
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./Backend/authService:/app
+      - approle_auth:/vault/approle/auth:ro
+    environment:
+      - DJANGO_SETTINGS_MODULE=authService.settings
+      - USER_SERVICE_URL=http://user:8000  # For service communication
+      - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,auth,gateway,0.0.0.0 #AddddDDDED IVAN
+      - DEBUG=1 #AddddDDDED IVAN
+    depends_on:
+      vault:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
+      auth_db:
+        condition: service_healthy
+    networks:
+      - backtier
+
+  auth_db:
+    container_name: auth_db
+    build:
+      context: ./Database/auth_db
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5434:5432"
+    volumes:
+      - approle_auth_db:/vault/approle/auth_db:ro
+      - auth_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
     
 
   gateway:
@@ -176,6 +232,8 @@ services:
       - vault_secrets
       - user
       - frontend
+      - chat
+      - auth
     volumes:
       - approle_gateway:/vault/approle/gateway:ro
       - ./ApiGateway/config/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
@@ -214,8 +272,11 @@ volumes:
   approle_gateway:
   user_db_data:
   chat_db_data:
+  auth_db_data:
   approle_chat:
   approle_chat_db:
+  approle_auth:
+  approle_auth_db:
 
 networks:
   user_network:

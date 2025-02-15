@@ -19,8 +19,7 @@
 </template>
 
 <script>
-import { mapActions } from 'vuex';
-import { getAuthEndpoints, getBaseUrl } from '@/services/ApiService';
+import { auth } from '@/utils/auth';
 
 export default {
   data() {
@@ -29,34 +28,65 @@ export default {
       password: '',
       error: '',
       loading: false,
-      authEndpoints: null
+      redirect: null
     };
   },
+  
   created() {
-    const baseUrl = getBaseUrl();
-    this.authEndpoints = getAuthEndpoints(baseUrl);
+    // Get redirect path from query params if it exists
+    this.redirect = this.$route.query.redirect || '/profile';
   },
-  methods: {
-    ...mapActions(['loginAction']),
 
+  methods: {
     async login() {
       if (this.loading) return;
       this.loading = true;
       this.error = '';
       
       try {
-        await this.loginAction({
-          username: this.username,
-          password: this.password
-        });
-        // Redirect to home page after successful login
-        this.$router.push('/');
+          const response = await fetch('/api/auth/login/', {
+              method: 'POST',
+              headers: { 
+                  'Content-Type': 'application/json',
+                  'Accept': 'application/json'
+              },
+              body: JSON.stringify({
+                  username: this.username,
+                  password: this.password
+              })
+          });
+
+          const data = await response.json();
+          console.log('Login response:', data);
+
+          if (response.ok && data.token) {
+              // Use auth helper instead of direct localStorage access
+              await this.$store.dispatch('loginAction', data.token);
+              
+              this.password = '';
+              await this.$nextTick();
+              
+              const redirectPath = this.redirect || '/profile';
+              console.log('Redirecting to:', redirectPath);
+              await this.$router.push(redirectPath);
+          } else {
+              this.error = data.error || 'Login failed';
+              this.password = '';
+          }
       } catch (error) {
-        console.error('Login error:', error);
-        this.error = error.message || 'Login failed. Please try again.';
+          console.error('Login error:', error);
+          this.error = 'Network error occurred';
+          this.password = '';
       } finally {
-        this.loading = false;  // Fixed: Was setting to true instead of false
+          this.loading = false;
       }
+    },
+
+    resetForm() {
+      this.username = '';
+      this.password = '';
+      this.error = '';
+      this.loading = false;
     }
   }
 };
@@ -126,6 +156,27 @@ button.submit-btn:hover {
 
 button:disabled {
   background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.reset-btn {
+  width: 100%;
+  padding: 8px;
+  margin-top: 10px;
+  background-color: #666;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.reset-btn:hover {
+  background-color: #555;
+}
+
+input:disabled {
+  background-color: #f5f5f5;
   cursor: not-allowed;
 }
 </style>

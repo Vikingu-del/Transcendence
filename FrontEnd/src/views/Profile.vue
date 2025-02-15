@@ -7,18 +7,33 @@
     <div class="profile-card" v-if="profile">
       <!-- Avatar Section with Upload/Delete -->
       <div class="avatar-container">
+        <!-- Если аватар не найден, показываем текст -->
         <img 
-          :src="profile?.avatar ? buildAvatarUrl(profile.avatar) : defaultAvatarUrl" 
-          :alt="profile?.display_name || 'Profile'"
+          v-if="!avatarLoadError"
+          :src="profile ? buildAvatarUrl(profile.avatar) : defaultAvatarUrl"
+          @error="handleAvatarError"
           class="profile-picture"
-          @error="handleImageError"
+          alt="Profile Picture"
         />
+        
+        <!-- Если возникла ошибка при загрузке аватара, показываем текст -->
+        <span v-if="avatarLoadError" class="avatar-text">
+          {{ profile.display_name.charAt(0).toUpperCase() }} <!-- Показываем первую букву имени пользователя -->
+        </span>
+
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
           <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
-          <button v-if="!isDefaultAvatar" @click="deleteAvatar" class="btn secondary-btn">Delete Avatar</button>
+          <button 
+            v-if="!isDefaultAvatar" 
+            @click="deleteAvatar" 
+            class="btn secondary-btn"
+          >
+            Delete Avatar
+          </button>
         </div>
       </div>
+
 
       <!-- Profile Info Section with Edit -->
       <div class="profile-section">
@@ -126,73 +141,58 @@
           </div>
         </div>
       </div>
-
-      <!-- Friends Section with Chat -->
-      <div class="profile-section">
-        <h3>Friends</h3>
-        <div v-if="profile.friends && profile.friends.length > 0">
-          <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
-            <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
-            <span class="profile-name">{{ friend.display_name }}</span>
-            <span :class="['status', friend.is_online ? 'online' : 'offline']">
-              {{ friend.is_online ? 'Online' : 'Offline' }}
-            </span>
-            <div class="friend-actions">
-              <button @click="startChat(friend)" class="btn primary-btn">Chat</button>
-              <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
-            </div>
-          </div>
-        </div>
-        <p v-else>No friends yet</p>
-      </div>
-
-      <!-- Chat Section -->
-      <div v-if="showChat" class="chat-container">
-        <div class="chat-header">
-          <h4 class="chat-title">Chat with {{ activeChat }}</h4>
-          <button @click="closeChat" class="btn secondary-btn">Close</button>
-        </div>
-        <div class="chat-messages" ref="chatMessages">
-          <div v-for="message in messages" 
-            :key="message.id" 
-            :class="['message', { 
-              'message-sent': message.sender === parseInt(currentUserId),
-              'message-received': message.sender !== parseInt(currentUserId)
-            }]">
-            <div class="message-content" :class="{ 
-              'content-sent': parseInt(message.sender) === parseInt(currentUserId),
-              'content-received': parseInt(message.sender) !== parseInt(currentUserId)
-            }">
-              <div class="message-header">
-                <small class="message-sender">
-                  {{ parseInt(message.sender) === parseInt(currentUserId) ? '' : activeChat }} <!-- Hide sender name for own messages -->
-                </small>
-              </div>
-              <span class="message-text">{{ message.text }}</span>
-              <div class="message-footer">
-                <small class="message-time">{{ formatDate(message.created_at) }}</small>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="chat-input">
-          <input 
-            v-model="newMessage" 
-            @keyup.enter="sendMessage" 
-            placeholder="Type your message..."
-            class="input-field"
-          />
-          <button @click="sendMessage" class="btn primary-btn">Send</button>
-        </div>
-      </div>
-
-
     </div>
 
     <!-- Loading and Error States -->
     <div v-if="loading">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
+
+    <!-- Add this after the search section -->
+    <div v-if="profile" class="debug-section">
+      <h3>Debug Information</h3>
+      <div class="debug-info">
+        <pre>
+    User Profile:
+    -------------
+    ID: {{ profile.id }}
+    Display Name: {{ profile.display_name }}
+    Avatar URL: {{ profile.avatar }}
+    Is Online: {{ profile.is_online }}
+    Default Avatar: {{ isDefaultAvatar }}
+
+    Friends List:
+    -------------
+    <template v-if="profile.friends && profile.friends.length">
+    <span v-for="friend in profile.friends" :key="friend.id">
+    Friend ID: {{ friend.id }}
+    Name: {{ friend.display_name }}
+    Status: {{ friend.is_online ? 'Online' : 'Offline' }}
+    Avatar: {{ friend.avatar }}
+    -------------------
+    </span>
+    </template>
+    <template v-else>No friends</template>
+
+    WebSocket:
+    -------------
+    Connected: {{ wsConnected }}
+    Current User ID: {{ currentUserId }}
+
+    Pending Requests:
+    -------------
+    <template v-if="incomingFriendRequests.length">
+    <span v-for="request in incomingFriendRequests" :key="request.id">
+    Request ID: {{ request.id }}
+    From User: {{ request.from_user.display_name }}
+    Status: {{ request.status }}
+    -------------------
+    </span>
+    </template>
+    <template v-else>No pending requests</template>
+        </pre>
+      </div>
+    </div>
+
 
     <!-- Logout Button -->
     <nav>
@@ -203,8 +203,6 @@
 
 <script>
 import { mapGetters } from 'vuex';
-import { WebSocketService } from '../services/WebSocketService';
-import { getApiEndpoints } from '../services/ApiService';
 
 export default {
   name: 'Profile',
@@ -223,10 +221,8 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: window.location.hostname === 'localhost' 
-      ? 'http://localhost:8000/api/user/media/default_avatar.png' 
-      : '/api/user/media/default_avatar.png',
-
+      defaultAvatarUrl: 'https://localhost/api/user/media/avatars/default.png',
+      avatarLoadError: false,
       // Profile Search
       searchQuery: '',
       searchResults: [],
@@ -242,27 +238,24 @@ export default {
       // Friend Requests
       incomingFriendRequests: JSON.parse(localStorage.getItem('incomingRequests') || '[]'),
 
-      // Chat
-      showChat: false,
-      activeChat: null,
-      chatId: null,
-      chatSocket: null,
-      currentFriendId: null,
-      messages: [],
-      newMessage: '',
-
       // Status Message
       statusMessage: null,
-      wsService: null,
-      apiEndpoints: null
+
+      //Auth Token
+      token: localStorage.getItem('token'),
     };
   },
 
   computed: {
-    ...mapGetters(['getToken', 'isAuthenticated']),
-
+    // Remove mapGetters and add direct token getter
+    getToken() {
+      return this.token;
+    },
+    isAuthenticated() {
+      return !!this.token;
+    },
     isDefaultAvatar() {
-      return !this.profile || this.profile.avatar === this.defaultAvatarUrl;
+      return this.profile.avatar === '/api/user/media/default.png';
     }
   },
 
@@ -272,45 +265,26 @@ export default {
     },
     messages: {
       handler() {
-        this.scrollToBottom(); // Add scroll when messages update
+        this.scrollToBottom();
       },
       deep: true
     }
   },
 
+  // Update the created hook:
   async created() {
     try {
-      if (this.isInitialized) return;
+      const token = localStorage.getItem('token');
+      console.log('Initial token:', token);
       
-      // Initialize WebSocket service
-      this.wsService = new WebSocketService();
-      this.wsService.addListener('chat', 'message', this.handleChatMessage);
-      this.wsService.addListener('user', 'message', this.handleUserEvent);
-      this.apiEndpoints = getApiEndpoints(this.getBaseUrl);
-      
-      // Initialize authentication
-      const authInitialized = await this.$store.dispatch('initializeAuth');
-      
-      if (!authInitialized || !this.getToken) {
-        this.$router.push('/login');
+      if (!token) {
+        await this.$router.push('/login');
         return;
       }
       
-      // Connect WebSocket after auth is confirmed
-      this.wsService.connect(this.getToken);
-      
-      this.isInitialized = true;
-      const profile = await this.fetchProfile();
-
-      // Only set currentUserId if profile fetch was successful
-      if (profile && profile.id) {
-        this.currentUserId = profile.id;
-        await this.fetchIncomingRequests();
-      }
+      await this.fetchProfile();
     } catch (error) {
-      console.error('Error in created hook:', error);
-      this.wsService?.disconnect(); // Cleanup WebSocket if initialization fails
-      this.$router.push('/login');
+      console.error('Profile initialization error:', error);
     }
   },
 
@@ -319,24 +293,6 @@ export default {
   },
 
   methods: {
-    handleImageError(e) {
-      console.error('Image faile to load:', e.target.src);
-       // Prevent infinite loop by checking if already using default
-      if (e.target.src.includes('default.png')) {
-        console.warn('Default image also failed to load');
-        return;
-      }
-      e.target.src = this.defaultAvatarUrl;
-    },
-
-    getBaseUrl() {
-      // Get protocol and hostname
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return hostname === 'localhost' 
-        ? 'http://localhost:8000' 
-        : `${protocol}//${hostname}`;
-    },
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
@@ -362,61 +318,38 @@ export default {
 
     async fetchProfile() {
       try {
-        this.loading = true;
-        this.error = null;
-        
-        const response = await fetch(this.apiEndpoints.profile, {
+        const token = localStorage.getItem('token');
+        console.log('Fetching profile with token:', token);
+
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+
+        const response = await fetch('/api/user/profile/', {
           method: 'GET',
           headers: {
-            'Authorization': `Token ${this.$store.state.token}`,
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
+            'Authorization': `Token ${token}`,
+            'Content-Type': 'application/json',
           },
           credentials: 'include'
         });
-        
-        // Log response status for debugging
-        console.log('Profile fetch response status:', response.status);
 
-        // Handle unauthorized first
-        if (response.status === 401) {
-          console.log('Unauthorized access, logging out...');
-          await this.$store.dispatch('logoutAction');
-          this.$router.push('/login');
-          return null;
-        }
-
-        // Handle other non-200 responses
         if (!response.ok) {
           const errorText = await response.text();
-          console.error('Error response:', errorText);
-          throw new Error(`Failed to fetch profile: ${response.status}`);
+          console.error(`Profile fetch failed: ${response.status}`, errorText);
+          throw new Error(errorText);
         }
 
-        // Get response as text first for debugging
-        const responseText = await response.text();
-        console.log('Raw response:', responseText);
-
-        // Parse JSON response
-        const profile = JSON.parse(responseText);
-        console.log('Parsed profile:', profile);
-
-        // Handle avatar URL with new API path
-        if (profile.avatar) {
-          profile.avatar = this.buildAvatarUrl(profile.avatar);
-        }
-      
-        // Update component data
-        this.profile = profile;
-        this.error = null;
-        return profile;
+        const data = await response.json();
+        this.profile = data;
+        this.loading = false;
       } catch (error) {
         console.error('Profile fetch error:', error);
-        this.error = error.message;
-        this.profile = null;
-        throw error; // Rethrow for created hook
-      } finally {
-        this.loading = false;
+        if (error.message.includes('Invalid token')) {
+          localStorage.removeItem('token');
+          await this.$router.push('/login');
+        }
+        throw error;
       }
     },
 
@@ -428,42 +361,31 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch(this.apiEndpoints.profile, {
-          method: 'POST',
+        const response = await fetch('https://localhost/api/user/profile/', { // Removed port 8000
+          method: 'PUT',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Accept': 'application/json',
+            'Authorization': `Token ${this.getToken}`
           },
-          body: formData,
-          credentials: 'include'
+          body: formData
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to upload avatar');
+          throw new Error('Failed to upload avatar');
         }
 
         // Update profile with new data including avatar
         const updatedProfile = await response.json();
-
-        // Ensure avatar URL uses HTTPS in production
-        if (window.location.hostname !== 'localhost') {
-          updatedProfile.avatar = updatedProfile.avatar.replace('http://', 'https://');
-        }
-
         this.profile = updatedProfile;
-        this.showStatus('Avatar updated successfully', {}, 'success');
 
       } catch (error) {
         console.error('Avatar upload error:', error);
         this.error = error.message;
-        this.showStatus(error.message, {}, 'error');
       }
     },
 
     async deleteAvatar() {
       try {
-        const response = await fetch(this.apiEndpoints.profile, {
+        const response = await fetch('https://localhost/api/user/profile/', {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`
@@ -494,48 +416,35 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch(this.apiEndpoints.profile, {
+        const response = await fetch('http://localhost/api/user/profile/', {
           method: 'PUT',
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Content-Type': 'application/json'
           },
-          credentials: 'include',
           body: JSON.stringify({
             display_name: this.displayName
           })
         });
 
-        // Log the raw response
-        console.log('Response status:', response.status);
-        const responseText = await response.text();
-        console.log('Response text:', responseText);
-
-        // Try to parse JSON only if there's content
-        let data;
-        if (responseText) {
-          try {
-            data = JSON.parse(responseText);
-          } catch (e) {
-            console.error('JSON parse error:', e);
-            throw new Error('Invalid server response format');
-          }
-        }
         if (!response.ok) {
-          throw new Error(data?.message || 'Failed to update display name');
+          const data = await response.json();
+          if (response.status === 400) {
+            this.displayNameError = data.message;
+            return;
+          }
+          throw new Error('Failed to update display name');
         }
 
         // Update profile with new data
-        this.profile = data;
+        const updatedProfile = await response.json();
+        this.profile = updatedProfile;
         this.displayNameError = null;
         this.isUpdateDisabled = true;
-        this.showStatus('Profile updated successfully', {}, 'success');
 
       } catch (error) {
         console.error('Display name update error:', error);
         this.displayNameError = error.message;
-        this.showStatus(error.message, {}, 'error');
       }
     },
 
@@ -559,14 +468,12 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-        `${this.apiEndpoints.search}?q=${encodeURIComponent(this.searchQuery.trim())}`,
+          `http://localhost/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
               'Authorization': `Token ${this.getToken}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            credentials: 'include'
+              'Content-Type': 'application/json'
+            }
           }
         );
 
@@ -596,11 +503,10 @@ export default {
     async blockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`${this.apiEndpoints.profile}${profileId}/block/`, {
+        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
         });
@@ -623,11 +529,10 @@ export default {
     async unblockUser(profileId) {
       try {
         const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`${this.apiEndpoints.profile}${profileId}/block/`, {
+        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'DELETE',
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Accept': 'application/json',
             'Content-Type': 'application/json'
           }
         });
@@ -650,12 +555,11 @@ export default {
     async sendFriendRequest(friendId) {
       try {
         const friend = this.searchResults.find(p => p.id === friendId);
-        const response = await fetch(`${this.apiEndpoints.profile}add_friend/`, {
+        const response = await fetch('/api/user/profile/add_friend/', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -691,11 +595,10 @@ export default {
     },
 
     async sendAcceptRequest(userId) {
-      const response = await fetch(`${this.apiEndpoints.friendRequests}accept/`, {
+      const response = await fetch('/api/user/profile/friend-requests/accept/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
-          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
@@ -727,11 +630,10 @@ export default {
     },
 
     async sendDeclineRequest(userId) {
-      const response = await fetch(`${this.apiEndpoints.friendRequests}decline/`, {
+      const response = await fetch('/api/user/profile/friend-requests/decline/', {
         method: 'POST',
         headers: {
           'Authorization': `Token ${this.getToken}`,
-          'Accept': 'application/json',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
@@ -753,12 +655,11 @@ export default {
     async removeFriend(friendId) {
       try {
         const friend = this.profile.friends.find(f => f.id === friendId);
-        const response = await fetch(`${this.apiEndpoints.profile}remove_friend/`, {
+        const response = await fetch('/api/user/profile/remove_friend/', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${this.getToken}`,
             'Content-Type': 'application/json',
-            'Accept': 'application/json'
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -785,11 +686,10 @@ export default {
       try {
         console.log('Starting fetch of incoming requests');
         
-        const response = await fetch(this.apiEndpoints.friendRequests, {
+        const response = await fetch('/api/user/profile/friend-requests/', {
           headers: {
             'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
+            'Content-Type': 'application/json'
           }
         });
 
@@ -800,6 +700,8 @@ export default {
         if (!Array.isArray(data)) {
           throw new Error('Invalid response format');
         }
+
+        const baseUrl = 'http://localhost';
         
         // Map with validation
         const validRequests = data
@@ -829,23 +731,32 @@ export default {
     },
 
     // Helper method for avatar URL
+    handleAvatarError(e) {
+      console.warn('Avatar failed to load:', e.target.src);
+      e.target.src = this.defaultAvatarUrl;
+      this.avatarLoadError = true;
+    },
+
+    // Update the buildAvatarUrl method
     buildAvatarUrl(avatarPath) {
-      if (!avatarPath) {
-        console.log('No avatar path, using default');
-        return `${this.getBaseUrl()}/api/user/media/default_avatar.png`;
-      }
-      // If it's an absolute URL
-      if (avatarPath.startsWith('http')) {
-        // Force HTTPS in production
-        return window.location.protocol === 'https:'
-          ? avatarPath.replace('http://', 'https://')
-          : avatarPath;
+      if (!avatarPath || avatarPath === 'default.png') {
+        return this.defaultAvatarUrl;
       }
 
-          // For relative paths, ensure proper API prefix
-      const filename = avatarPath.split('/').pop(); // Get just the filename
-      return `${this.getBaseUrl()}/api/user/media/${filename}`;
+      // If it's already a full URL
+      if (avatarPath.startsWith('http')) {
+        return avatarPath;
+      }
+
+      // If it's a relative path, make it absolute
+      if (avatarPath.startsWith('/')) {
+        return `https://localhost${avatarPath}`; // Removed port 8000
+      }
+
+      // Default case
+      return `https://localhost/api/user/media/avatars/${avatarPath}`; // Removed port 8000
     },
+
 
     formatDate(timestamp) {
       if (!timestamp) return '';
@@ -857,150 +768,9 @@ export default {
       }
     },
 
-    async startChat(friend) {
-      try {
-        this.activeChat = friend.display_name;
-        this.showChat = true;
-
-        // Get chat ID by combining sorted user IDs
-        const chatId = [this.currentUserId.toString(), friend.id.toString()]
-          .sort()
-          .join('_');
-
-        if (!chatId.includes('_')) {
-          throw new Error('Invalid chat ID format');
-        }
-
-        this.chatId = chatId;
-
-        // Fetch existing messages
-        const response = await fetch(`${this.apiEndpoints.chat}${friend.id}/`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-
-
-        // Parse and set existing messages
-        
-        // Parse and set existing messages
-        const data = await response.json();
-        console.log('Messages data:', {
-          currentUserId: this.currentUserId,
-          friendId: friend.id,
-          messages: data.messages
-        });
-        
-        this.messages = data.messages.map(msg => ({
-          id: msg.id,
-          chat: msg.chat,
-          sender: msg.sender,
-          text: msg.text,
-          created_at: msg.created_at
-        }));
-        // Initialize WebSocket connection
-        if (this.chatSocket) {
-          this.chatSocket.close();
-        }
-
-        const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsScheme}://${window.location.host}/api/chat/ws/${this.chatId}/?token=${this.getToken}`;
-        
-        console.log('Chat WebSocket URL:', wsUrl);
-        
-        this.chatSocket = new WebSocket(wsUrl);
-        
-        // Handle incoming messages with correct structure
-        this.chatSocket.onmessage = (event) => {
-          const data = JSON.parse(event.data);
-          if (data.type === 'chat.message') {
-            // Format incoming message to match loaded messages structure
-            const newMessage = {
-              id: data.message.id,
-              chat: data.message.chat,
-              sender: parseInt(data.message.sender),
-              text: data.message.text,
-              created_at: data.message.created_at || new Date().toISOString()
-            };
-            
-            console.log('Received WebSocket message:', {
-              message: newMessage,
-              currentUserId: this.currentUserId
-            });
-
-            this.messages.push(newMessage);
-            this.$nextTick(() => {
-              this.scrollToBottom();
-            });
-          }
-        };
-
-        this.chatSocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-        };
-      } catch (error) {
-        console.error('Error starting chat:', error);
-        this.showStatus('Failed to start chat', {}, 'error');
-      }
-    },
-
-    closeChat() {
-      if (this.chatSocket) {
-        this.chatSocket.close();
-        this.chatSocket = null;
-        //Console log to check if chatSocket is closed
-        console.log('Chat socket closed');
-      }
-
-      
-      this.showChat = false;
-      this.activeChat = null;
-      this.chatId = null;
-      this.messages = [];
-      this.newMessage = '';
-    },
-
-    async sendMessage() {
-      if (!this.newMessage.trim() || !this.chatSocket) return;
-      
-      if (this.chatSocket.readyState !== WebSocket.OPEN) {
-        console.error('WebSocket is not connected');
-        return;
-      }
-
-      try {
-        const messageData = {
-          type: 'chat_message',
-          message: {
-            chat: this.chatId,
-            text: this.newMessage,
-            sender: this.currentUserId
-          }
-        };
-
-        console.log('Sending message data:', {
-          messageContent: messageData,
-          socketState: this.chatSocket.readyState,
-          currentUserId: this.currentUserId,
-          chatId: this.chatId,
-          timestamp: new Date().toISOString()
-        });
-
-        this.chatSocket.send(JSON.stringify(messageData));
-        this.scrollToBottom();
-        this.newMessage = '';
-      } catch (error) {
-        console.error('Error sending message:', error);
-      }
-    },
-
-
     async logout() {
       try {
-        // Send offline status
+        // Send offline status via WebSocket
         if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
           this.notificationSocket.send(JSON.stringify({
             type: 'friend_status',
@@ -1011,10 +781,15 @@ export default {
           this.notificationSocket.close();
         }
 
+        // Clear local storage
+        await this.$store.dispatch('logoutAction');
         localStorage.removeItem('incomingRequests');
         
-        // Clear store and redirect
-        await this.$store.dispatch('logoutAction');
+        // Reset component state
+        this.token = null;
+        this.profile = null;
+        
+        // Redirect to login
         this.$router.push('/login');
       } catch (error) {
         console.error('Logout error:', error);
@@ -1023,16 +798,14 @@ export default {
 
     // WebSocket methods
     initNotificationSocket() {
-      //Get token from store
       const token = this.getToken;
-      const wsScheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      const wsHost = window.location.hostname;
-      const wsUrl = `${wsScheme}://${wsHost}/api/user/ws/notifications/?token=${this.getToken}`;
-      console.log('Attempting WebSocket connection:', wsUrl);
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = 'localhost'; // Use direct service URL
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/profile/notifications/?token=${token}`;
+      
       this.notificationSocket = new WebSocket(wsUrl);
       this.notificationSocket.onopen = () => {
         this.wsConnected = true;
-        console.log('WebSocket connected');
       };
       this.notificationSocket.onmessage = (e) => {
         console.log('WebSocket message received:', e.data);  // Debug logging
@@ -1045,7 +818,7 @@ export default {
                 from_user: {
                     id: data.from_user_id,
                     display_name: data.from_user_name,
-                    avatar: this.buildAvatarUrl(data.from_user_avatar, this.getBaseUrl()),
+                    avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost'),
                     is_online: true // Assume online since they just sent request
                 }
             });
@@ -1094,15 +867,6 @@ export default {
       this.notificationSocket.onclose = () => {
         this.wsConnected = false;
       };
-    },
-
-    scrollToBottom() {
-      this.$nextTick(() => {
-        const chatMessages = this.$refs.chatMessages;
-        if (chatMessages) {
-          chatMessages.scrollTop = chatMessages.scrollHeight;
-        }
-      });
     },
 
     // Cleanup on component destruction
@@ -1313,122 +1077,6 @@ nav {
 
 nav .btn {
   margin: 1em 0;
-}
-
-.chat-container {
-  height: 500px;
-  display: flex;
-  flex-direction: column;
-  border-radius: 10px;
-  box-shadow: 2px 2px 30px #03a670;
-}
-
-.chat-header {
-  padding: 1rem;
-  background: #2d2d2d;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  color: #ffffff;
-  border-radius: 10px;
-}
-
-.chat-header h4 {
-  color: #ffffff;
-  font-size: 1.1rem;
-  font-weight: 500;
-  margin: 0;
-  padding: 0;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.chat-messages {
-  flex-grow: 1;
-  overflow: auto;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
-  background: #1a1a1a;
-  scroll-behavior: smooth;
-}
-
-.message {
-  display: flex;
-  max-width: 70%;
-  margin-bottom: 1rem;
-}
-
-.message-sent {
-  margin-left: auto;
-  margin-right: 1%;
-}
-
-.message-received {
-  margin-right: auto;
-  margin-left: 1%;
-  text-align: left;
-}
-
-.message-sender {
-  font-weight: bold;
-  margin-bottom: 4px;
-  
-}
-
-.message-content {
-  padding: 1rem;
-  border-radius: 1rem;
-  position: relative;
-  min-width: 100px;
-}
-
-.content-sent {
-  background: #03a670;
-  color: #ffffff;
-  border-radius: 1rem 1rem 0 1rem;
-}
-
-.content-received {
-  background: #333333;
-  color: #ffffff;
-  border-radius: 1rem 1rem 1rem 0;
-}
-
-.message-time {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin-top: 0.5rem;
-  display: block;
-  text-align: left;
-}
-
-.message-text {
-  word-break: break-word;
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.chat-input {
-  padding: 1rem;
-  background: #2d2d2d;
-  border-top: 1px solid #404040;
-  border-radius: 10px;
-  display: flex;
-  gap: 0.5rem;
-}
-
-.input-field {
-  flex-grow: 1;
-  border: 1px solid #404040;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  background: #1a1a1a;
-  color: #ffffff;
-}
-
-.input-field::placeholder {
-  color: #808080;
 }
 
 .status-text {

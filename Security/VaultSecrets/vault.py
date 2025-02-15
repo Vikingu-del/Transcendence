@@ -107,18 +107,28 @@ secrets_to_store_chat = {
     "CHAT_DB_NAME": env_vars.get("CHAT_DB_NAME"),
 }
 
+secrets_to_store_auth = {
+    "AUTH_DB_USER": env_vars.get("AUTH_DB_USER"),
+    "AUTH_DB_PASSWORD": env_vars.get("AUTH_DB_PASSWORD"),
+    "AUTH_DB_HOST": env_vars.get("AUTH_DB_HOST"),
+    "AUTH_DB_PORT": env_vars.get("AUTH_DB_PORT"),
+    "AUTH_DB_NAME": env_vars.get("AUTH_DB_NAME"),
+}
+
 secrets_to_store_gateway = {
     "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
 }
 
-write_secret_to_vault("user_db", secrets_to_store_user)
 write_secret_to_vault("gateway", secrets_to_store_gateway)
+write_secret_to_vault("user_db", secrets_to_store_user)
 write_secret_to_vault("user", secrets_to_store_user)
 write_secret_to_vault("chat_db", secrets_to_store_chat)
 write_secret_to_vault("chat", secrets_to_store_chat)
+write_secret_to_vault("auth_db", secrets_to_store_auth)
+write_secret_to_vault("auth", secrets_to_store_auth)
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user', 'chat_db', 'chat']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

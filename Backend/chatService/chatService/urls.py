@@ -19,6 +19,6 @@ from django.urls import path
 from .views import ChatListView, ChatDetailView
 
 urlpatterns = [
-    path('chats/', ChatListView.as_view(), name='chat_list'),
-    path('chat/<str:id>/', ChatDetailView.as_view(), name='chat_detail'),
+    path('api/chats/', ChatListView.as_view(), name='chat_list_view'),
+    path('api/chats/<str:id>/', ChatDetailView.as_view(), name='chat_view'),  # Changed from int to str
 ]

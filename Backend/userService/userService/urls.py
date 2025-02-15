@@ -18,42 +18,30 @@ Including another URLconf
 from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
-from django.views.static import serve
-from django.http import JsonResponse
 from .views import (
-    RegisterView, LoginView, ProfileView, LogoutView, SearchProfilesView,
-    AddFriendView, RemoveFriendView, AcceptFriendRequestView,
-    DeclineFriendRequestView, IncomingFriendRequestsView,
-    ChatListView, ChatDetailView, BlockUserView
+    ProfileView, SearchProfilesView, AddFriendView,
+    RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
+    IncomingFriendRequestsView, BlockUserView, SyncTokenView
 )
 
 urlpatterns = [
-    # # Health check endpoint
-    # path('health/', health_check, name='health_check'),
-    
-    # Auth endpoints
-    path('api/register/', RegisterView.as_view(), name='register'),
-    path('api/login/', LoginView.as_view(), name='login'),
-    path('api/logout/', LogoutView.as_view(), name='logout'),
+    # Sync token endpoint
+    path('api/user/sync-token/', SyncTokenView.as_view(), name='sync-token'),
     
     # Profile endpoints
-    path('api/profile/', ProfileView.as_view(), name='profile'),
-    path('api/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
+    path('api/user/profile/', ProfileView.as_view(), name='profile'),
+    path('api/user/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
     
-    # Friend management
-    path('api/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
-    path('api/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
-    path('api/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
-    path('api/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
-    path('api/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
-    
-    # Chat endpoints
-    path('api/profile/chats/', ChatListView.as_view(), name='chat_list'),
-    path('api/profile/chat/<int:id>/', ChatDetailView.as_view(), name='chat_detail'),
-    
-    # Media serving
-    re_path(r'^api/media/(?P<path>.*)$', serve, {'document_root': settings.MEDIA_ROOT}),
-]
+    # Friend management endpoints
+    path('api/user/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),
+    path('api/user/profile/remove_friend/', RemoveFriendView.as_view(), name='remove_friend'),
+    path('api/user/profile/friend-requests/', IncomingFriendRequestsView.as_view(), name='friend_requests'),
+    path('api/user/profile/friend-requests/accept/', AcceptFriendRequestView.as_view(), name='accept_friend_request'),
+    path('api/user/profile/friend-requests/decline/', DeclineFriendRequestView.as_view(), name='decline_friend_request'),
 
+    # Block management endpoints
+    path('api/user/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
+
+]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

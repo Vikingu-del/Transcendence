@@ -1,12 +1,6 @@
 from pathlib import Path
-from dotenv import load_dotenv, dotenv_values
-import logging
 import os
-
-
-logger = logging.getLogger(__name__)
-
-load_dotenv()
+import shutil
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -20,37 +14,29 @@ SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['*']  # For development only
-
-# Host configuration
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '10.12.12.5', 'user_service', 'user', 'user_db', 'gateway']
-
-
-# Add these settings
-USE_X_FORWARDED_HOST = True
-USE_X_FORWARDED_PORT = True
-SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+ALLOWED_HOSTS = ["localhost", "user", "0.0.0.0"]
 
 # Application definition
 
 INSTALLED_APPS = [
     'django.contrib.admin',
-    'daphne',  # Add Daphne here
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'userService',  # userService app
-    'rest_framework',  # django_rest_framework
-    'rest_framework.authtoken',  # django_rest_framework
-    'channels',  # django_channels
-    'corsheaders',  # django_cors_headers
+    'rest_framework',
+    'rest_framework.authtoken',
+    'channels',
+    'corsheaders',
     'crispy_forms',
     'crispy_bootstrap4',
+    'userService',
 ]
 
+# Crispy Forms Settings
 CRISPY_TEMPLATE_PACK = 'bootstrap4'
+CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap4'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -92,52 +78,16 @@ CHANNEL_LAYERS = {
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-# # Debug database environment variables
-# print("=== Database Environment Variables ===")
-# print(f"DB_NAME: {os.environ.get('DB_NAME')}")
-# print(f"DB_USER: {os.environ.get('DB_USER')}")
-# print(f"DB_PASSWORD: {os.environ.get('DB_PASSWORD')}")
-# print(f"DB_HOST: {os.environ.get('DB_HOST')}")
-# print(f"DB_PORT: {os.environ.get('DB_PORT')}")
-# print("================================")
-
-# # Validate required environment variables
-# required_db_vars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT']
-# missing_vars = [var for var in required_db_vars if not os.environ.get(var)]
-# if missing_vars:
-#     print("❌ Missing required database environment variables:")
-#     for var in missing_vars:
-#         print(f"   - {var}")
-#     raise Exception("Missing required database configuration")
-
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': os.getenv('DB_NAME', 'postgres'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+        'HOST': os.getenv('DB_HOST', 'user_db'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
-
-# After DATABASES configuration
-db_config = DATABASES['default']
-logger.warning("=== Final Database Configuration ===")
-logger.warning(f"Using database name: {db_config['NAME']}")
-logger.warning(f"Using database user: {db_config['USER']}")
-logger.warning(f"Using database host: {db_config['HOST']}")
-
-# # Debug final configuration
-# db_config = DATABASES['default']
-# print("\n=== Final Database Configuration ===")
-# print(f"ENGINE: {db_config['ENGINE']}")
-# print(f"NAME: {db_config['NAME']}")
-# print(f"USER: {db_config['USER']}")
-# print(f"PASSWORD: {'*' * len(str(db_config['PASSWORD'])) if db_config['PASSWORD'] else 'None'}")
-# print(f"HOST: {db_config['HOST']}")
-# print(f"PORT: {db_config['PORT']}")
-# print("================================")
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -164,11 +114,19 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
 ]
 
+INTERNAL_API_KEY = 'your-internal-api-key'
+
+AUTH_SERVICE_URL = 'http://auth:8001'
+
 # Django Rest Framework
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
         'rest_framework.authentication.TokenAuthentication',
     ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
 }
 
 # Internationalization
@@ -188,7 +146,7 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-MEDIA_URL = '/api/media/'
+MEDIA_URL = '/api/user/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Default primary key field type
@@ -196,26 +154,13 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# CORS Settings
-CORS_ORIGIN_ALLOW_ALL = True  # Development only
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
 
 CORS_ALLOWED_ORIGINS = [
-    'https://10.12.12.5',
-    'https://localhost',
-    'http://localhost:8000',
-    'http://127.0.0.1:8000'
+    "https://localhost",
+    "https://localhost:8080",
 ]
-
-CORS_ALLOWED_ORIGIN_REGEXES = [
-    r"^https?://\w+\.10\.12\.12\.5$",
-]
-
-CSRF_TRUSTED_ORIGINS = [
-    "https://10.12.12.5",
-    "https://localhost"
-]
-
-CORS_ALLOW_CREDENTIALS = True
 
 CORS_ALLOW_METHODS = [
     'DELETE',
@@ -237,3 +182,5 @@ CORS_ALLOW_HEADERS = [
     'x-csrftoken',
     'x-requested-with',
 ]
+
+CORS_EXPOSE_HEADERS = ['*']

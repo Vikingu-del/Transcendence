@@ -9,7 +9,7 @@ import axios from 'axios'
 const app = createApp(App)
 
 // Configure Axios
-axios.defaults.baseURL = 'https://10.12.12.5' // Used to be 'http://localhost:8000' but updated to the schools IP address
+axios.defaults.baseURL = 'https://localhost/'
 axios.defaults.headers['Content-Type'] = 'application/json'
 app.config.globalProperties.$axios = axios
 

@@ -1,30 +1,64 @@
 <template>
   <div class="form-container">
-    <h2>Register</h2>
-    <form @submit.prevent="register">
-      <div class="form-group">
-        <label for="username">Username</label>
-        <input id="username" v-model="username" type="text" placeholder="Enter username" required />
-      </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" v-model="password" type="password" placeholder="Enter password" required />
-      </div>
-      <div class="form-group">
-        <label for="passwordConfirm">Confirm Password</label>
-        <input id="passwordConfirm" v-model="passwordConfirm" type="password" placeholder="Confirm password" required />
-      </div>
-      <button type="submit" class="submit-btn">Register</button>
-    </form>
-    <p v-if="message" class="message">{{ message }}</p>
-    <ul v-if="errors.length" class="errors">
+    <div v-if="!isRegistrationSuccessful">
+      <h2>Register</h2>
+      <form @submit.prevent="register">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input 
+            id="username" 
+            v-model="username" 
+            type="text" 
+            placeholder="Enter username" 
+            required 
+            :disabled="loading"
+          />
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input 
+            id="password" 
+            v-model="password" 
+            type="password" 
+            placeholder="Enter password" 
+            required 
+            :disabled="loading"
+          />
+        </div>
+        <div class="form-group">
+          <label for="passwordConfirm">Confirm Password</label>
+          <input 
+            id="passwordConfirm" 
+            v-model="passwordConfirm" 
+            type="password" 
+            placeholder="Confirm password" 
+            required 
+            :disabled="loading"
+          />
+        </div>
+        <button type="submit" class="submit-btn" :disabled="loading">
+          {{ loading ? 'Registering...' : 'Register' }}
+        </button>
+      </form>
+    </div>
+
+    <div v-else class="success-container">
+      <h2>Registration Successful!</h2>
+      <p>Redirecting to login page...</p>
+      <div class="loader"></div>
+    </div>
+    
+    <p v-if="message" :class="['message', messageType]">{{ message }}</p>
+    <ul v-if="errors.length" class="errors-list">
       <li v-for="error in errors" :key="error">{{ error }}</li>
     </ul>
   </div>
 </template>
 
 <script>
-import { getAuthEndpoints, getBaseUrl } from '@/services/ApiService';
+
+import { SERVICE_URLS } from '@/config/services';
+
 export default {
   data() {
     return {
@@ -32,72 +66,80 @@ export default {
       password: '',
       passwordConfirm: '',
       message: '',
+      messageType: '',
       errors: [],
-      authEndpoints: null,
-      isSubmitting: false
+      loading: false,
+      isRegistrationSuccessful: false
     };
   },
-
-  created() {
-    const baseUrl = getBaseUrl();
-    this.authEndpoints = getAuthEndpoints(baseUrl);
-  },
-
   methods: {
+    resetForm() {
+      this.username = '';
+      this.password = '';
+      this.passwordConfirm = '';
+      this.message = '';
+      this.messageType = '';
+      this.errors = [];
+      this.loading = false;
+    },
+
     async register() {
-      if (this.password !== this.passwordConfirm) {
-          this.message = 'Passwords do not match!';
-          this.errors = [];
-          return;
-      }
-
-      this.isSubmitting = true;
       try {
-          console.log('Registering with endpoint:', this.authEndpoints.register);
-          const response = await fetch(this.authEndpoints.register, {
-              method: 'POST',
-              headers: {
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json'
-              },
-              body: JSON.stringify({
-                  username: this.username,
-                  password1: this.password,
-                  password2: this.passwordConfirm
-              }),
-              credentials: 'include'
-          });
+        // 1. Register with auth service
+        const authResponse = await fetch('/api/auth/register/', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({
+            username: this.username,
+            password1: this.password,
+            password2: this.passwordConfirm
+          }),
+        });
 
-          const contentType = response.headers.get('content-type');
-          if (contentType && contentType.includes('application/json')) {
-              const data = await response.json();
-              if (response.ok) {
-                  this.message = 'Registration successful!';
-                  this.errors = [];
-                  setTimeout(() => {
-                      this.$router.push('/login');
-                  }, 1500);
-              } else {
-                  this.message = data.error || 'Registration failed!';
-                  this.errors = data.details ? Object.values(data.details).flat() : [];
-              }
+        const authData = await authResponse.json();
+        console.log('Registration response:', authData);
+
+        if (authResponse.ok) {
+          this.isRegistrationSuccessful = true;
+          this.message = 'Registration successful! Redirecting to login...';
+          this.messageType = 'success';
+          
+          // Clear sensitive data
+          this.password = '';
+          this.passwordConfirm = '';
+          
+          // Delay redirect to show success message
+          setTimeout(() => {
+            this.$router.push('/login');
+          }, 1500);
+        } else {
+          // Handle auth service error
+          if (authData.non_field_errors) {
+            this.errors = Array.isArray(authData.non_field_errors) 
+              ? authData.non_field_errors 
+              : [authData.non_field_errors];
+          } else if (authData.detail) {
+            this.message = authData.detail;
           } else {
-              const text = await response.text();
-              console.error('Non-JSON response:', text);
-              this.message = 'Unexpected response from server.';
-              this.errors = [text];
+            this.message = 'Registration failed';
           }
+          this.messageType = 'error';
+        }
       } catch (error) {
-          console.error('Registration error:', error);
-          this.message = 'An error occurred. Please try again.';
-          this.errors = [error.message];
+        console.error('Registration error:', error);
+        this.message = 'Registration failed: ' + error.message;
+        this.messageType = 'error';
       } finally {
-          this.isSubmitting = false;
+        this.loading = false;
       }
     }
   }
 };
 </script>
+
 
 <style scoped>
 .form-container {
@@ -148,19 +190,65 @@ button.submit-btn:hover {
 }
 
 .message {
-  color: #f44336;
   text-align: center;
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.message.error {
+  color: #f44336;
+  background-color: #ffebee;
+}
+
+.message.success {
+  color: #4CAF50;
+  background-color: #E8F5E9;
+}
+
+.errors-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0;
+  color: #ff1100;
+  background-color: #ffebee;
+  border-radius: 4px;
+  padding: 10px;
+}
+
+.errors-list li {
+  margin: 5px 0;
+  text-align: center;
+}
+
+.message {
   margin-top: 10px;
 }
 
-.errors {
+.message.error {
+  margin-top: 10px;
   color: #f44336;
-  list-style-type: none;
-  padding: 0;
-  text-align: center;
+  background-color: #ffebee;
 }
 
-.errors li {
-  margin-top: 5px;
+.success-container {
+  text-align: center;
+  padding: 20px;
+}
+
+.loader {
+  display: inline-block;
+  width: 30px;
+  height: 30px;
+  border: 3px solid #f3f3f3;
+  border-radius: 50%;
+  border-top: 3px solid #4CAF50;
+  animation: spin 1s linear infinite;
+  margin-top: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 </style>

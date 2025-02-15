@@ -1,11 +1,9 @@
 #!/bin/bash
 set -e
 
-sleep 1000000
-
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/chat/role_id"
-SECRET_ID_FILE="/vault/approle/chat/secret_id"
+ROLE_ID_FILE="/vault/approle/auth/role_id"
+SECRET_ID_FILE="/vault/approle/auth/secret_id"
 
 # Check credentials exist
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
@@ -20,7 +18,7 @@ echo "Retrieved AppRole credentials"
 # Get Vault token
 VAULT_TOKEN=$(curl -s --request POST \
     --data "{\"role_id\":\"$ROLE_ID\",\"secret_id\":\"$SECRET_ID\"}" \
-    $VAULT_ADDR/v1/chat/approle/login | jq -r .chat.client_token)
+    $VAULT_ADDR/v1/auth/approle/login | jq -r .auth.client_token)
 
 if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
     echo "❌ Failed to authenticate with Vault"
@@ -30,14 +28,20 @@ echo "✅ Successfully authenticated with Vault"
 
 # Get secrets
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/chat)
+    $VAULT_ADDR/v1/secret/data/auth)
 
 # Export variables
-export DB_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_USER)
-export DB_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_PASSWORD)
-export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_NAME)
-export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_HOST)
-export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.CHAT_DB_PORT)
+export DB_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_USER)
+export DB_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_PASSWORD)
+export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_NAME)
+export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_HOST)
+export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_PORT)
+
+echo "DB_USER: $DB_USER"
+echo "DB_PASSWORD: $DB_PASSWORD"
+echo "DB_NAME: $DB_NAME"
+echo "DB_HOST: $DB_HOST"
+echo "DB_PORT: $DB_PORT"
 
 # Wait for PostgreSQL
 MAX_RETRIES=30

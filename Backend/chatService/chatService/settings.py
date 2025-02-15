@@ -11,11 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
-from dotenv import load_dotenv, dotenv_values
 import os
-import logging
-
-logger = logging.getLogger(__name__)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -23,14 +19,8 @@ SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7
 
 DEBUG = True
 
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '10.12.12.5',  # Your current host IP
-    'backend',     # Container name
-    'chat',        # Service name from docker-compose
-    'chat_db',     # Database host
-]
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+
 
 INSTALLED_APPS = [
     'daphne',
@@ -63,20 +53,13 @@ ASGI_APPLICATION = 'chatService.asgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME'),
-        'USER': os.environ.get('DB_USER'),
-        'PASSWORD': os.environ.get('DB_PASSWORD'),
-        'HOST': os.environ.get('DB_HOST'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'NAME': os.getenv('DB_NAME', 'postgres'),
+        'USER': os.getenv('DB_USER', 'postgres'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
+        'HOST': os.getenv('DB_HOST', 'chat_db'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
-
-# After DATABASES configuration
-db_config = DATABASES['default']
-logger.warning("=== Final Database Configuration ===")
-logger.warning(f"Using database name: {db_config['NAME']}")
-logger.warning(f"Using database user: {db_config['USER']}")
-logger.warning(f"Using database host: {db_config['HOST']}")
 
 CHANNEL_LAYERS = {
     'default': {
@@ -110,22 +93,22 @@ REST_FRAMEWORK = {
     ]
 }
 
-# # Enable debug logging
-# LOGGING = {
-#     'version': 1,
-#     'disable_existing_loggers': False,
-#     'handlers': {
-#         'console': {
-#             'class': 'logging.StreamHandler',
-#         },
-#     },
-#     'loggers': {
-#         'chatService': {
-#             'handlers': ['console'],
-#             'level': 'DEBUG',
-#         },
-#     },
-# }
+# Enable debug logging
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'chatService': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
 
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
