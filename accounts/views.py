@@ -7,7 +7,7 @@ from .forms import RegisterForm, LoginForm
 from .authentication import CookieJWTAuthentication
 from django.contrib import messages
 import requests
-import time
+from .utilities import is_token_valid, refresh_tokens, store_tokens_in_cookies
 from rest_framework.exceptions import AuthenticationFailed
 
 # Create your views here.
@@ -57,19 +57,10 @@ class LogoutView(View):
 class HomeView(TemplateView):
 	template_name = 'home.html'
 	def get(self, request, *args, **kwargs):
-		try:
-			authentication = CookieJWTAuthentication()
-			result = authentication.authenticate(request)
-		except AuthenticationFailed:
-			return redirect('login')
-		
-		try:
-			user, _ = result
-		except AuthenticationFailed:
-			messages.error(request, "Authentication Failed. Please log in again.")
-			return redirect('login')
-
-		if user is None:
-			messages.error(request, "User not found. Please log in again.")
+		is_valid, user = is_token_valid(request)
+		if not is_valid:
+			tokens = refresh_tokens(request)
+			if tokens:
+				return store_tokens_in_cookies(tokens, request)
 			return redirect('login')
 		return super().get(request, *args, **kwargs)
