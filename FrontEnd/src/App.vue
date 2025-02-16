@@ -59,6 +59,7 @@ onMounted(async () => {
         <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/friends">Friends</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/game">Game</RouterLink>
       </nav>
     </div>
   </header>

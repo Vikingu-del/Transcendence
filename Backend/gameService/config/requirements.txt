@@ -1,0 +1,13 @@
+# requirements.txt
+
+Django>=4.2
+psycopg2-binary>=2.8
+djangorestframework
+django-crispy-forms>=2.3
+crispy-bootstrap4>=2024.10
+django-filter>=2.4
+channels>=3.0
+daphne>=3.0
+django-cors-headers>=3.7
+Pillow>=8.3
+uvicorn>=0.15

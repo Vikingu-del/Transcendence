@@ -4,6 +4,7 @@ import Login from '../views/Login.vue';
 import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
 import Friends from '../views/Friends.vue';
+import Game from '../views/Game.vue'
 import store from '../store';
 
 const router = createRouter({
@@ -38,6 +39,12 @@ const router = createRouter({
       name: 'Friends',
       component: Friends,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/game',
+      name: 'Game',
+      component: Game,
+      meta: { requiresAuth: false }
     }
   ]
 });

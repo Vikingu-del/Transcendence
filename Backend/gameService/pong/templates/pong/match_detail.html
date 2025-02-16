@@ -1,0 +1,6 @@
+<h2>Match Details</h2>
+<p><strong>Date:</strong> {{ game.ended_at|date:"M d, Y H:i" }}</p>
+<p><strong>Player 1:</strong> {{ game.player1.username }} ({{ game.player1_score }})</p>
+<p><strong>Player 2:</strong> {{ game.player2.username }} ({{ game.player2_score }})</p>
+<p><strong>Winner:</strong> {{ game.winner.username|default:"Draw" }}</p>
+<a href="{% url 'match_history' %}">⬅ Back to Match History</a>

@@ -1,0 +1,43 @@
+<!-- <h2>Match History</h2>
+
+<table>
+    <tr>
+        <th>Player 1</th>
+        <th>Player 2</th>
+        <th>Winner</th>
+        <th>Score</th>
+        <th>Date</th>
+    </tr>
+    {% for match in matches %}
+    <tr>
+        <td>{{ match.player1.username }}</td>
+        <td>{{ match.player2.username }}</td>
+        <td>{{ match.winner.username|default:"Draw" }}</td>
+        <td>{{ match.player1_score }} - {{ match.player2_score }}</td>
+        <td>{{ match.ended_at|date:"Y-m-d H:i" }}</td>
+    </tr>
+    {% endfor %}
+</table> -->
+<h2>📜 Past Matches</h2>
+<table>
+    <tr>
+        <th>Date</th>
+        <th>Player 1</th>
+        <th>Player 2</th>
+        <th>Score</th>
+        <th>Winner</th>
+        <th>Details</th>
+    </tr>
+    {% for match in matches %}
+    <tr>
+        <td>{{ match.ended_at|date:"M d, Y H:i" }}</td>
+        <td>{{ match.player1.username }}</td>
+        <td>{{ match.player2.username }}</td>
+        <td>{{ match.player1_score }} - {{ match.player2_score }}</td>
+        <td>{{ match.winner.username|default:"Draw" }}</td>
+        <td><a href="{% url 'match_detail' match.id %}">View</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="6">No matches played yet.</td></tr>
+    {% endfor %}
+</table>

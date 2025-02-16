@@ -46,7 +46,7 @@ services:
       POSTGRES_USER: "postgres"
       POSTGRES_PASSWORD: "postgres"
     ports:
-      - "5434:5432"  # Different port from other DBs
+      - "5:5432"  # Different port from other DBs
     volumes:
       - auth_db_data:/var/lib/postgresql/data
     networks:
@@ -179,12 +179,51 @@ services:
       - backtier
       - frontier
 
+  game:
+    build:
+      context: ./Backend/gameService
+      dockerfile: Dockerfile
+    ports:
+      - "8005:8005"
+    environment:
+      DB_NAME: "postgres"
+      DB_USER: "postgres"
+      DB_PASSWORD: "postgres"
+      DB_HOST: "game_db"
+      DB_PORT: "5435"
+    depends_on:
+      - vault
+      - game_db
+    networks:
+      - backtier
+
+  game_db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      POSTGRES_DB: "postgres"
+    ports:
+      - "5435:5432"  # Note: Different port from user_db
+    volumes:
+      - game_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  
+
 volumes:
   user_db_data:
   chat_db_data:
   frontend_dist:
   auth_db_data:
   user_media_data:
+  game_db_data:
 
 networks:
   user_network:
