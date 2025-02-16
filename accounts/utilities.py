@@ -8,12 +8,10 @@ def refresh_tokens(request):
 	refresh_token = request.COOKIES.get('refresh_token')
 	if not refresh_token:
 		return None
-
 	response = requests.post(
 		'http://127.0.0.1:8000/accounts/api/token/refresh',
 		data={'refresh': refresh_token}
 	)
- 
 	if response.status_code == 200:
 		return response.json()
 	return None

@@ -12,3 +12,6 @@ class RegisterForm(UserCreationForm):
 class LoginForm(forms.Form):
 	username = forms.CharField(max_length=150, required=True)
 	password = forms.CharField(widget=forms.PasswordInput, required=True)
+
+class OTPForm(forms.Form):
+	otp = forms.CharField(label='Enter OTP', max_length=6, required=True)
