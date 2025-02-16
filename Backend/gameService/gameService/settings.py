@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -19,17 +20,16 @@ ALLOWED_HOSTS = ["localhost", "127.0.0.1", "game", "0.0.0.0", "0.0.0.0:8005", "g
 # Application definition
 
 INSTALLED_APPS = [
-    'daphne',
-    'channels',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'chat',
+    'channels',
     'pong',
     'pong_ws',
+    'chat',
 ]
 
 MIDDLEWARE = [
@@ -42,7 +42,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'test_proj.urls'
+ROOT_URLCONF = 'gameService.urls'
 
 TEMPLATES = [
     {
@@ -60,28 +60,27 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'test_proj.wsgi.application'
-ASGI_APPLICATION = 'test_proj.asgi.application'
+WSGI_APPLICATION = 'gameService.wsgi.application'
+ASGI_APPLICATION = 'gameService.asgi.application'
 
+# Channel Layers
 CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-        },
-    },
+    'default': {
+        'BACKEND': 'channels.layers.InMemoryChannelLayer'
+    }
 }
 
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
+# Database
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
         'NAME': os.getenv('DB_NAME', 'postgres'),
         'USER': os.getenv('DB_USER', 'postgres'),
         'PASSWORD': os.getenv('DB_PASSWORD', 'postgres'),
-        'HOST': os.getenv('DB_HOST', 'chat_db'),
+        'HOST': os.getenv('DB_HOST', 'game_db'),
         'PORT': os.getenv('DB_PORT', '5432'),
     }
 }
@@ -152,6 +151,7 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
 STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
