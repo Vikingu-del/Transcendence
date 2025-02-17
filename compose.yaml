@@ -72,6 +72,7 @@ services:
       - DB_HOST=user_db
       - DB_PORT=5432
       - AUTH_SERVICE_URL=http://auth:8001
+      - INTERNAL_API_KEY=your-secure-key-here
     depends_on:
       user_db:
         condition: service_healthy

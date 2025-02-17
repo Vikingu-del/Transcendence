@@ -57,7 +57,7 @@ export default {
           });
 
           const data = await response.json();
-          console.log('Login response:', data);
+          console.log('Login response WE ARE HERE:', data);
 
           if (response.ok && data.token) {
               // Use auth helper instead of direct localStorage access

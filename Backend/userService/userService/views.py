@@ -27,6 +27,9 @@ from .models import Profile, Friendship, UserJWTToken
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.conf import settings
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +40,24 @@ class SyncTokenView(APIView):
     def post(self, request):
         logger.debug(f"Received sync token request: {request.data}")
         
+        # Verify internal API key
         if request.headers.get('Internal-API-Key') != settings.INTERNAL_API_KEY:
-            logger.error("Invalid API key")
+            logger.error("Invalid Internal API key")
             return Response(
                 {'error': 'Invalid API key'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         user_id = request.data.get('user_id')
-        token_key = request.data.get('token')
+        token = request.data.get('token')
         username = request.data.get('username')
+
+        if not all([user_id, token, username]):
+            logger.error("Missing required fields")
+            return Response(
+                {'error': 'Missing required fields'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             # Get or create user
@@ -54,54 +65,58 @@ class SyncTokenView(APIView):
                 id=user_id,
                 defaults={'username': username}
             )
-            
-            # Create or update JWT token
-            token, _ = UserJWTToken.objects.update_or_create(
-                user=user,
-                defaults={'token': token_key}
-            )
-            # if token.key != token_key:
-            #     token.key = token_key
-            #     token.save()
 
-            # Create profile if it doesn't exist
-            Profile.objects.get_or_create(
+            # Store token reference
+            UserJWTToken.objects.update_or_create(  # how to update the token currectly in the database of auth_db # we are also duplicating the users inside auth and also inside the user services
+                user=user,
+                defaults={'token': token}
+            )
+
+            # Create or update profile
+            profile, _ = Profile.objects.get_or_create(
                 user=user,
                 defaults={'display_name': username}
             )
-            
-            logger.info(f"Successfully synced token for user {user.username}")
-            return Response({'status': 'success'})
+
+            logger.info(f"Successfully synced token for user {username}")
+            return Response({
+                'status': 'success',
+                'user_id': user.id,
+                'profile_id': profile.id
+            })
 
         except Exception as e:
-            logger.error(f"Error in sync token: {str(e)}", exc_info=True)
+            logger.error(f"Sync token error: {str(e)}", exc_info=True)
             return Response(
-                {'error': str(e)},
+                {'error': 'Token synchronization failed'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
-logger = logging.getLogger(__name__)
-
 class ProfileView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]  # Changed from TokenAuthentication
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            logger.debug(f"Auth header: {request.headers.get('Authorization')}")
             profile = Profile.objects.get(user=request.user)
             
             data = {
                 'id': profile.id,
                 'display_name': profile.display_name,
                 'avatar': profile.get_avatar_url(),
-                'is_online': profile.is_online
+                'is_online': profile.is_online,
+                'friends': []  # Add an empty friends list if needed
             }
             
             logger.debug(f"Returning profile data: {data}")
             return Response(data)
             
+        except Profile.DoesNotExist:
+            logger.error(f"Profile not found for user {request.user.id}")
+            return Response(
+                {"detail": "Profile not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             logger.error(f"Profile fetch error: {str(e)}", exc_info=True)
             return Response(

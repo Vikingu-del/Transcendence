@@ -67,15 +67,14 @@ class LoginView(APIView):
             if user:
                 # Generate JWT token
                 refresh = RefreshToken.for_user(user)
-                # token, _ = Token.objects.get_or_create(user=user) // This was for the default token authentication which is was not a jwt token but a simple token
+                access_token = str(refresh.access_token)
                 
                 # Sync token with user service
                 response = requests.post(
                     f"{settings.USER_SERVICE_URL}/api/user/sync-token/",
                     json={
                         'user_id': user.id,
-                        # 'token': token.key, // this was for the default token authentication
-                        'token': str(refresh.access_token), 
+                        'token': access_token,
                         'username': user.username
                     },
                     headers={
@@ -84,8 +83,6 @@ class LoginView(APIView):
                     }
                 )
                 
-                logger.debug(f"Sync token response: {response.status_code} - {response.text}")
-                
                 if not response.ok:
                     logger.error(f"Failed to sync token: {response.text}")
                     return Response({
@@ -93,7 +90,7 @@ class LoginView(APIView):
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 return Response({
-                    'token': str(refresh.access_token),
+                    'token': access_token,
                     'refresh': str(refresh),
                     'user': {
                         'id': user.id,
@@ -108,7 +105,7 @@ class LoginView(APIView):
         except Exception as e:
             logger.error(f"Login error: {str(e)}", exc_info=True)
             return Response({
-                'error': 'Internal server error'
+                'error': 'Authentication failed'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
