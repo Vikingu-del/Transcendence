@@ -52,5 +52,7 @@ class Friendship(models.Model):
 #     created_at = models.DateTimeField(auto_now_add=True)
 #     updated_at = models.DateTimeField(auto_now=True)
 
-#     def __str__(self):
-#         return f"Token for {self.user.username}"
+class UserJWTToken(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    token = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)

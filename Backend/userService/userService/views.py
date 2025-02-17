@@ -66,12 +66,6 @@ class SyncTokenView(APIView):
                 defaults={'username': username}
             )
 
-            # Store token reference
-            UserJWTToken.objects.update_or_create(  # how to update the token currectly in the database of auth_db # we are also duplicating the users inside auth and also inside the user services
-                user=user,
-                defaults={'token': token}
-            )
-
             # Create or update profile
             profile, _ = Profile.objects.get_or_create(
                 user=user,
@@ -93,11 +87,16 @@ class SyncTokenView(APIView):
             )
 
 class ProfileView(APIView):
-    authentication_classes = [JWTAuthentication]  # Changed from TokenAuthentication
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
+            # Log the token for debugging
+            auth_header = request.headers.get('Authorization', '')
+            logger.debug(f"Auth header: {auth_header}")
+            
+            # Get profile directly from authenticated user
             profile = Profile.objects.get(user=request.user)
             
             data = {
@@ -105,10 +104,9 @@ class ProfileView(APIView):
                 'display_name': profile.display_name,
                 'avatar': profile.get_avatar_url(),
                 'is_online': profile.is_online,
-                'friends': []  # Add an empty friends list if needed
+                'friends': []
             }
             
-            logger.debug(f"Returning profile data: {data}")
             return Response(data)
             
         except Profile.DoesNotExist:
