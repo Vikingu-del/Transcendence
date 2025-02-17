@@ -45,3 +45,12 @@ class Friendship(models.Model):
 
     class Meta:
         unique_together = ('from_profile', 'to_profile')
+
+class UserJWTToken(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    token = models.TextField()  # Changed from CharField to TextField to accommodate JWT length
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Token for {self.user.username}"

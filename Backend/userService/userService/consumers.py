@@ -2,9 +2,10 @@ import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from rest_framework_simplejwt.tokens import AccessToken
+from urllib.parse import parse_qs
 from django.contrib.auth.models import AnonymousUser
 from rest_framework.authtoken.models import Token
-from urllib.parse import parse_qs
 from .models import Profile
 from django.utils import timezone
 from asgiref.sync import sync_to_async
@@ -22,7 +23,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 await self.close(code=4001)
                 return
 
-            self.user = await self.get_user_from_token(token_key)
+            self.user = await self.get_user_from_jwt(token_key)
             if not self.user or not hasattr(self.user, 'profile'):
                 await self.close(code=4002)
                 return
@@ -143,10 +144,13 @@ class NotificationConsumer(AsyncWebsocketConsumer):
             logger.error(f'Error sending friend request notification: {str(e)}')
 
     @database_sync_to_async
-    def get_user_from_token(self, token_key):
+    def get_user_from_jwt(self, token):
         try:
-            return Token.objects.select_related('user', 'user__profile').get(key=token_key).user
-        except Token.DoesNotExist:
+            access_token = AccessToken(token)
+            user_id = access_token['user_id']
+            return Token.objects.select_related('user', 'user__profile').get(id=user_id)
+        except Exception as e:
+            logger.error(f'JWT verification failed: {str(e)}')
             return None
 
     @database_sync_to_async

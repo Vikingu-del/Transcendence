@@ -10,6 +10,7 @@ const store = createStore({
     token: localStorage.getItem('token') || null,
     user: null,
     isAuthenticated: false,
+    isAbleToPlay: true,
     profile: null
   },
 
@@ -32,6 +33,10 @@ const store = createStore({
 
     setProfile(state, profile) {
       state.profile = profile;
+    },
+
+    setPlayerMode(state, isAbleToPlay) {
+      state.isAbleToPlay = isAbleToPlay;
     }
   },
 
@@ -49,9 +54,9 @@ const store = createStore({
       }
       return false;
     },
-    async loginAction({ commit }, token) {
-      commit('setToken', token)
-      localStorage.setItem('token', token)
+    async loginAction({ commit }, { accessToken, refreshToken }) {
+      commit('setToken', accessToken);
+      localStorage.setItem('refreshToken', refreshToken);
     },
     async logoutAction({ commit }) {
       commit('setToken', null)
@@ -65,7 +70,8 @@ const store = createStore({
     getToken: state => state.token,
     isAuthenticated: state => state.isAuthenticated,
     currentUser: state => state.user,
-    userProfile: state => state.profile
+    userProfile: state => state.profile,
+    isAbleToPlay: state => state.isAbleToPlay
   }
 });
 

@@ -1,6 +1,8 @@
 from rest_framework import status, generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from rest_framework_simplejwt.tokens import RefreshToken # Eric Added
+from rest_framework_simplejwt.authentication import JWTAuthentication # Eric Added
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authtoken.models import Token
@@ -63,14 +65,17 @@ class LoginView(APIView):
             user = authenticate(username=username, password=password)
             
             if user:
-                token, _ = Token.objects.get_or_create(user=user)
+                # Generate JWT token
+                refresh = RefreshToken.for_user(user)
+                # token, _ = Token.objects.get_or_create(user=user) // This was for the default token authentication which is was not a jwt token but a simple token
                 
                 # Sync token with user service
                 response = requests.post(
                     f"{settings.USER_SERVICE_URL}/api/user/sync-token/",
                     json={
                         'user_id': user.id,
-                        'token': token.key,
+                        # 'token': token.key, // this was for the default token authentication
+                        'token': str(refresh.access_token), 
                         'username': user.username
                     },
                     headers={
@@ -88,7 +93,8 @@ class LoginView(APIView):
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 return Response({
-                    'token': token.key,
+                    'token': str(refresh.access_token),
+                    'refresh': str(refresh),
                     'user': {
                         'id': user.id,
                         'username': user.username
@@ -107,7 +113,8 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    # authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -132,7 +139,7 @@ class LogoutView(APIView):
             )
 
             # Delete auth token
-            request.user.auth_token.delete()
+            # request.user.auth_token.delete() // For JWT, we don't need to delete the token as they are stateless instead the might want to add the toke to a blacklist or let it expire naturyally
             
             return Response({"message": "Successfully logged out."}, 
                           status=status.HTTP_200_OK)

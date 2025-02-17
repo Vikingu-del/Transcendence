@@ -9,9 +9,9 @@ import axios from 'axios'
 const app = createApp(App)
 
 // Configure Axios
-axios.defaults.baseURL = 'https://localhost/'
+axios.defaults.baseURL = 'https://localhost/'  // Change this to our server's URL
 axios.defaults.headers['Content-Type'] = 'application/json'
-app.config.globalProperties.$axios = axios
+app.config.globalProperties.$axios = axios // Make axios available globally through all components
 
 // Setup app with plugins
 app.use(router)
@@ -24,3 +24,11 @@ store.dispatch('initializeAuth').then(() => {
   console.error('Auth initialization failed:', error)
   app.mount('#app')
 })
+
+// Execution Flow
+// 1. Imports are processed
+// 2. Vue app is created
+// 3. Global configurations are set
+// 4. Plugins are installed
+// 5. Auth is initialized
+// 6. App is mounted to DOM

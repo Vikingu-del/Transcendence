@@ -23,7 +23,7 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404
 import logging
 from .serializers import UserProfileSerializer, FriendRequestSerializer
-from .models import Profile, Friendship
+from .models import Profile, Friendship, UserJWTToken
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.conf import settings
@@ -55,14 +55,14 @@ class SyncTokenView(APIView):
                 defaults={'username': username}
             )
             
-            # Create or update token
-            token, _ = Token.objects.get_or_create(
+            # Create or update JWT token
+            token, _ = UserJWTToken.objects.update_or_create(
                 user=user,
-                defaults={'key': token_key}
+                defaults={'token': token_key}
             )
-            if token.key != token_key:
-                token.key = token_key
-                token.save()
+            # if token.key != token_key:
+            #     token.key = token_key
+            #     token.save()
 
             # Create profile if it doesn't exist
             Profile.objects.get_or_create(

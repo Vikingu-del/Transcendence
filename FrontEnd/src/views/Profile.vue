@@ -328,7 +328,7 @@ export default {
         const response = await fetch('/api/user/profile/', {
           method: 'GET',
           headers: {
-            'Authorization': `Token ${token}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
           credentials: 'include'

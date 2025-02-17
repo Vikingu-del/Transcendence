@@ -92,6 +92,7 @@ export default {
         <div id="player2-paddle" class="paddle"></div>
         <div id="ball"></div>
     </div>
+    
     <div id="score">0 - 0</div>
 
 </template>

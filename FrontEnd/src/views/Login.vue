@@ -61,7 +61,12 @@ export default {
 
           if (response.ok && data.token) {
               // Use auth helper instead of direct localStorage access
-              await this.$store.dispatch('loginAction', data.token);
+              // await this.$store.dispatch('loginAction', data.token); when was not with jwt
+
+              await this.$store.dispatch('loginAction', {
+                accessToken: data.token,
+                refreshToken: data.refresh
+              });
               
               this.password = '';
               await this.$nextTick();
