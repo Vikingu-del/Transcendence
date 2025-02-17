@@ -87,7 +87,7 @@ http {
 
         # Auth Service proxy
         location /api/auth/ {
-            proxy_pass http://auth:8001/;  # Added trailing slash
+            proxy_pass http://auth:8001/api/auth/;  # Added trailing slash
             proxy_http_version 1.1;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -111,10 +111,14 @@ http {
             proxy_connect_timeout 60s;
             proxy_send_timeout 60s;
             proxy_read_timeout 60s;
+
+            # Error handling
             proxy_intercept_errors on;
             error_page 502 = @auth_down;
 
             # Debug headers
+            add_header X-Debug-Target "auth:8001" always;
+            add_header X-Debug-Path "$request_uri" always;
             add_header X-Debug-Message "Proxying to auth service" always;
         }
 
@@ -204,7 +208,7 @@ http {
         }
 
         location @auth_down {
-            add_header Content-Type application/json;
+            add_header Content-Type application/json always;
             return 502 '{"error": "Auth service unavailable", "status": 502}';
         }
 

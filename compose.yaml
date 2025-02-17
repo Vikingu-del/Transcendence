@@ -182,8 +182,9 @@ services:
       - DJANGO_SETTINGS_MODULE=authService.settings
       - USER_SERVICE_URL=http://user:8000  # For service communication
       - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
-      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,auth,gateway,0.0.0.0 #AddddDDDED IVAN
+      - DJANGO_ALLOWED_HOSTS=localhost,127.0.0.1,auth,gateway,0.0.0.0,* #AddddDDDED IVAN
       - DEBUG=1 #AddddDDDED IVAN
+      - PORT=8001 #AddddDDDED IVAN
     depends_on:
       vault:
         condition: service_started
@@ -263,6 +264,8 @@ services:
     command: npm run dev -- --host
     networks:
       - frontier
+
+ 
 
 volumes:
   vault_data:
