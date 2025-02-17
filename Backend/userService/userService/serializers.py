@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/14 14:54:11 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/17 22:15:31 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -108,4 +108,3 @@ class FriendRequestSerializer(serializers.ModelSerializer):
             'avatar': obj.from_profile.get_avatar_url(),
             'is_online': obj.from_profile.is_online
         }
-

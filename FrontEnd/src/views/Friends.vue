@@ -135,18 +135,33 @@ export default {
     ...mapGetters(['getToken', 'isAuthenticated']),
   },
 
+  
+  // async created() {
+  //   try {
+  //     const token = localStorage.getItem('token');
+  //     console.log('Initial token:', token);
+      
+  //     if (!token) {
+  //       await this.$router.push('/login');
+  //       return;
+  //     }
+      
+  //     await this.fetchProfile();
+  //   } catch (error) {
+  //     console.error('Profile initialization error:', error);
+  //   }
+  // },
+
   async created() {
     try {
-      if (this.isInitialized) return;
+      const token = localStorage.getItem('token');
+      console.log('Initial token:', token);
       
-      const authInitialized = await this.$store.dispatch('initializeAuth');
-      
-      if (!authInitialized || !this.getToken) {
-        this.$router.push('/login');
+      if (!token) {
+        await this.$router.push('/login');
         return;
       }
       
-      this.isInitialized = true;
       await this.fetchProfile();
       this.initNotificationSocket();
     } catch (error) {
@@ -159,23 +174,38 @@ export default {
     
   async fetchProfile() {
     try {
-      const response = await fetch('http://localhost:8000/api/user/profile/', {
+      const token = localStorage.getItem('token');
+      console.log('Fetching profile with token:', token);
+
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+
+      const response = await fetch('/api/user/profile/', {
+        method: 'GET',
         headers: {
-          'Authorization': `Token ${this.getToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
+        // credentials: 'include'
       });
-      
+
       if (!response.ok) {
-        console.error('Profile fetch failed:', response.status);
-        throw new Error(`Failed to fetch profile: ${response.status}`);
+        const errorText = await response.text();
+        console.error(`Profile fetch failed: ${response.status}`, errorText);
+        throw new Error(errorText);
       }
-      
-      this.profile = await response.json();
-      this.currentUserId = this.profile.id; // Set currentUserId here
+
+      const data = await response.json();
+      this.profile = data;
+      this.loading = false;
     } catch (error) {
       console.error('Profile fetch error:', error);
-      this.$router.push('/login'); // Redirect on error
+      if (error.message.includes('token_not_valid')) {
+        // Token expired or invalid - redirect to login
+        this.$router.push('/login');
+      }
+      throw error;
     }
   },
 

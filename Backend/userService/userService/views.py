@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/14 14:24:08 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/17 22:11:41 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -150,49 +150,39 @@ class ProfileView(APIView):
             )
 
     def put(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
         profile = request.user.profile
         data = request.data
 
-        if 'display_name' in data:
-            display_name = data['display_name'].strip()
-
-            if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
-                return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
-            profile.display_name = display_name
-            logger.info(f"Updated display name for user {request.user.username}")
-            
-        if 'avatar' in request.FILES:
-                avatar = request.FILES['avatar']
-                
-                # Validate file type
-                if not avatar.content_type.startswith('image/'):
-                    return Response(
-                        {"message": "Invalid file type. Please upload an image"}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                # Validate file size (5MB limit)
-                if avatar.size > 5 * 1024 * 1024:
-                    return Response(
-                        {"message": "File too large. Maximum size is 5MB"}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-
-                # Delete old avatar if exists
-                if profile.avatar:
+        try:
+            if 'avatar' in request.FILES:
+                # Delete old avatar if it exists and is not default
+                if profile.avatar and 'default.png' not in profile.avatar.name:
                     profile.avatar.delete(save=False)
                 
-                profile.avatar = avatar
-                logger.info(f"Updated avatar for user {request.user.username}")
+                # Save new avatar
+                profile.avatar = request.FILES['avatar']
+                profile.save()
 
-        profile.save()
-        
-        # Return updated profile data
-        serializer = UserProfileSerializer(profile, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            if 'display_name' in data:
+                profile.display_name = data['display_name']
+                profile.save()
+
+            # Return updated profile data with full avatar URL
+            serializer = UserProfileSerializer(profile, context={"request": request})
+            response_data = serializer.data
+            
+            # Ensure avatar URL is absolute
+            if response_data['avatar']:
+                response_data['avatar'] = request.build_absolute_uri(response_data['avatar'])
+
+            return Response(response_data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Profile update error: {str(e)}")
+            return Response(
+                {"error": "Failed to update profile"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @permission_classes([IsAuthenticated])
@@ -257,52 +247,69 @@ class BlockUserView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
-@permission_classes([IsAuthenticated])
 class AddFriendView(APIView):
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [TokenAuthentication]
+
     def post(self, request):
         from_profile = request.user.profile
-        to_profile_id = request.data.get('friend_profile_id')  # Adjust key as per frontend
+        to_profile_id = request.data.get('friend_profile_id')
+
+        # Add debug logging
+        logger.debug(f"Add friend request: from_profile={from_profile.id}, to_profile_id={to_profile_id}")
 
         if not to_profile_id:
-            return Response({'error': 'Friend profile ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Friend profile ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             to_profile = Profile.objects.get(id=to_profile_id)
+            
+            # Check if users are already friends
+            existing_friendship = Friendship.objects.filter(
+                Q(from_profile=from_profile, to_profile=to_profile) |
+                Q(from_profile=to_profile, to_profile=from_profile)
+            ).first()
+
+            if existing_friendship:
+                logger.debug(f"Existing friendship found: status={existing_friendship.status}")
+                if existing_friendship.status == 'accepted':
+                    return Response(
+                        {'message': 'Already friends'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                return Response(
+                    {'message': 'Friend request already pending'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create new friendship request
+            friendship = Friendship.objects.create(
+                from_profile=from_profile,
+                to_profile=to_profile,
+                status='pending'
+            )
+
+            logger.debug(f"Created new friendship: id={friendship.id}")
+            return Response(
+                {'message': 'Friend request sent successfully'}, 
+                status=status.HTTP_201_CREATED
+            )
+
         except Profile.DoesNotExist:
-            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Check if friendship already exists or if there's a pending request
-        existing_friendship = Friendship.objects.filter(
-            Q(from_profile=from_profile, to_profile=to_profile) |
-            Q(from_profile=to_profile, to_profile=from_profile)
-        ).first()
-
-        if existing_friendship:
-            if existing_friendship.status == 'accepted':
-                return Response({'message': 'You are already friends'}, status=status.HTTP_200_OK)
-            elif existing_friendship.status == 'pending':
-                return Response({'message': 'Friend request already sent or received'}, status=status.HTTP_200_OK)
-
-        # Create a new friendship request
-        Friendship.objects.create(from_profile=from_profile, to_profile=to_profile, status='pending')
-
-        # Send a WebSocket notification to the recipient
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{to_profile.user.id}",
-            {
-                'type': 'send_notification',
-                'message': {
-                    'type': 'friend_request',
-                    'from_user_id': from_profile.user.id,
-                    'from_user_name': from_profile.display_name,
-                    'from_user_avatar': from_profile.get_avatar_url(), # Use the helper method
-                }
-            }
-        )
-
-        return Response({'message': 'Friend request sent successfully'}, status=status.HTTP_201_CREATED)
+            logger.error(f"Profile not found: id={to_profile_id}")
+            return Response(
+                {'error': 'Profile not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error creating friend request: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 @permission_classes([IsAuthenticated])
 class IncomingFriendRequestsView(APIView):

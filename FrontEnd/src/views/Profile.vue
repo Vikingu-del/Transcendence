@@ -122,26 +122,38 @@
       </div>
 
       <!-- Incoming Friend Requests -->
+    </div>
       <div class="profile-section">
-        <div v-if="incomingFriendRequests.length">Incoming Friend Requests</div>
-        <div v-for="request in incomingFriendRequests" 
-            :key="request.id" 
-            class="profile-item">
-          <img :src="request.from_user.avatar" :alt="request.from_user.display_name" class="profile-avatar">
-          <span class="profile-name">{{ request.from_user.display_name }}</span>
-          <div class="action-buttons">
-            <button @click="acceptFriendRequest(request)" 
-                    class="btn accept-btn">
-              Accept
-            </button>
-            <button @click="declineFriendRequest(request)" 
-                    class="btn decline-btn">
-              Decline
-            </button>
+        <h3 v-if="incomingFriendRequests.length" class="section-title">
+          Incoming Friend Requests ({{ incomingFriendRequests.length }})
+        </h3>
+        <div class="friend-requests-list">
+          <div v-for="request in incomingFriendRequests" 
+              :key="request.id" 
+              class="request-item">
+            <div class="request-user-info">
+              <img 
+                :src="buildAvatarUrl(request.from_user.avatar)" 
+                :alt="request.from_user.display_name"
+                class="request-avatar"
+                @error="handleAvatarError"
+              >
+              <span class="request-name">{{ request.from_user.display_name }}</span>
+            </div>
+            <div class="request-actions">
+              <button @click="acceptFriendRequest(request)" 
+                      class="btn accept-btn">
+                Accept
+              </button>
+              <button @click="declineFriendRequest(request)" 
+                      class="btn decline-btn">
+                Decline
+              </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+
 
     <!-- Loading and Error States -->
     <div v-if="loading">Loading...</div>
@@ -283,6 +295,7 @@ export default {
       }
       
       await this.fetchProfile();
+      await this.fetchIncomingRequests();
     } catch (error) {
       console.error('Profile initialization error:', error);
     }
@@ -343,6 +356,10 @@ export default {
         const data = await response.json();
         this.profile = data;
         this.loading = false;
+
+        // Set display name for editing
+        await this.fetchIncomingRequests();
+        
       } catch (error) {
         console.error('Profile fetch error:', error);
         if (error.message.includes('token_not_valid')) {
@@ -355,6 +372,12 @@ export default {
 
     async onFileChange(e) {
       try {
+        const token = localStorage.getItem('token');
+        console.log('Fetching profile with token:', token);
+
+        if (!token) {
+          throw new Error('No auth token found');
+        }
         const file = e.target.files[0];
         if (!file) return;
 
@@ -364,7 +387,7 @@ export default {
         const response = await fetch('https://localhost/api/user/profile/', { // Removed port 8000
           method: 'PUT',
           headers: {
-            'Authorization': `Token ${this.getToken}`
+            'Authorization': `Bearer ${token}`
           },
           body: formData
         });
@@ -376,19 +399,30 @@ export default {
         // Update profile with new data including avatar
         const updatedProfile = await response.json();
         this.profile = updatedProfile;
+        
+        // Reset avatar load error flag
+        this.avatarLoadError = false;
+        
+        // Force image reload by adding timestamp
+        if (this.profile.avatar) {
+          this.profile.avatar = `${this.profile.avatar}?t=${Date.now()}`;
+        }
 
+        this.showStatus('Avatar updated successfully', {}, 'success');
       } catch (error) {
         console.error('Avatar upload error:', error);
-        this.error = error.message;
+        this.showStatus(error.message, {}, 'error');
       }
     },
 
     async deleteAvatar() {
       try {
+        const token = localStorage.getItem('token');
+
         const response = await fetch('https://localhost/api/user/profile/', {
           method: 'DELETE',
           headers: {
-            'Authorization': `Token ${this.getToken}`
+            'Authorization': `Bearer ${token}`
           }
         });
 
@@ -399,6 +433,15 @@ export default {
         // Update profile with new data including default avatar
         const updatedProfile = await response.json();
         this.profile = updatedProfile;
+
+        // Reset avatar to defualt avatar
+        this.profile.avatar = '/api/user/media/avatars/default.png';
+        this.avatarLoadError = false;
+        // Refresh Page
+        this.$router.go();
+        this.showStatus('Avatar deleted successfully', {}, 'success');
+
+
 
       } catch (error) {
         console.error('Avatar deletion error:', error);
@@ -416,11 +459,17 @@ export default {
 
     async updatedisplayName() {
       try {
-        const response = await fetch('http://localhost/api/user/profile/', {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+
+        const response = await fetch('/api/user/profile/', {
           method: 'PUT',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({
             display_name: this.displayName
@@ -457,7 +506,15 @@ export default {
     },
 
     async searchProfiles() {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        this.showStatus('Please log in to search', {}, 'warning');
+        return;
+      }
+
       try {
+
+
         if (!this.searchQuery.trim()) {
           this.searchResults = [];
           this.showStatus('Please enter a search term', {}, 'warning');
@@ -468,11 +525,12 @@ export default {
         this.searchError = null;
 
         const response = await fetch(
-          `http://localhost/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
+          `/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
           {
             headers: {
-              'Authorization': `Token ${this.getToken}`,
-              'Content-Type': 'application/json'
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
             }
           }
         );
@@ -502,12 +560,18 @@ export default {
 
     async blockUser(profileId) {
       try {
+        // Token
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No auth token found');
+        }
         const profile = this.searchResults.find(p => p.id === profileId);
         const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'POST',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         });
 
@@ -528,12 +592,18 @@ export default {
 
     async unblockUser(profileId) {
       try {
+        // Token
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No auth token found');
+        }
         const profile = this.searchResults.find(p => p.id === profileId);
         const response = await fetch(`/api/user/profile/${profileId}/block/`, {
           method: 'DELETE',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
-            'Content-Type': 'application/json'
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
           }
         });
 
@@ -554,52 +624,112 @@ export default {
 
     async sendFriendRequest(friendId) {
       try {
+        const token = localStorage.getItem('token');
+        console.log('Fetching profile with token:', token);
+
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+        // Find friend in search results
         const friend = this.searchResults.find(p => p.id === friendId);
+        if (!friend) {
+          throw new Error('Friend not found in search results');
+        }
+
+        // Make API request
         const response = await fetch('/api/user/profile/add_friend/', {
           method: 'POST',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
-          body: JSON.stringify({ friend_profile_id: friendId }),
+          body: JSON.stringify({ friend_profile_id: friendId })
         });
-        if (response.ok) {
-          this.showStatus('Friend request sent to {name}', { name: friend.display_name }, 'success');
-          // Update the search results to reflect the pending status
-          this.searchResults = this.searchResults.map(profile => {
-            if (profile.id === friendId) {
-              profile.friend_request_status = 'pending';
-              profile.requested_by_current_user = true;
-            }
-            return profile;
-          });
-        } else {
-          console.error('Failed to send friend request');
+
+        console.log('Friend request response:', response); // Debug log
+
+        // Parse response
+        const data = await response.json();
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to send friend request');
         }
+
+        // Update UI
+        this.searchResults = this.searchResults.map(profile => {
+          if (profile.id === friendId) {
+            return {
+              ...profile,
+              friend_request_status: 'pending',
+              requested_by_current_user: true
+            };
+          }
+          return profile;
+        });
+
+        // Show success message
+        this.showStatus('Friend request sent to {name}', { name: friend.display_name }, 'success');
+        
+        // Refresh profile to update friend lists
+        await this.fetchProfile();
+
       } catch (error) {
         console.error('Error sending friend request:', error);
+        this.showStatus(error.message || 'Failed to send friend request', {}, 'error');
       }
     },
 
     async acceptFriendRequest(request) {
-      try {
-        const userId = this.extractUserId(request);
-        await this.sendAcceptRequest(userId);
-        this.updateLocalRequests(userId);
-        this.showStatus('Friend request accepted', {}, 'success');
-        await this.fetchProfile();
-      } catch (error) {
-        console.error('Accept error:', error);
-        this.showStatus('Error: {msg}', { msg: error.message }, 'error');
-      }
-    },
-
-    async sendAcceptRequest(userId) {
+    try {
+      const userId = request.from_user.id;
+      const token = localStorage.getItem('token');
+      
       const response = await fetch('/api/user/profile/friend-requests/accept/', {
         method: 'POST',
         headers: {
-          'Authorization': `Token ${this.getToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from_user_id: userId })
+      });
+
+      if (!response.ok) throw new Error('Failed to accept friend request');
+
+      // Remove request from list
+      this.incomingFriendRequests = this.incomingFriendRequests
+        .filter(req => req.id !== request.id);
+      
+      // Update localStorage
+      localStorage.setItem('incomingRequests', 
+        JSON.stringify(this.incomingFriendRequests));
+
+      // Show success message
+      this.showStatus(
+        'Friend request from {name} accepted', 
+        { name: request.from_user.display_name }, 
+        'success'
+      );
+
+      // Refresh profile to update friends list
+      await this.fetchProfile();
+    } catch (error) {
+      console.error('Error accepting friend request:', error);
+      this.showStatus('Failed to accept friend request', {}, 'error');
+    }
+  },
+
+    async sendAcceptRequest(userId) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+      const response = await fetch('/api/user/profile/friend-requests/accept/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
       });
@@ -611,30 +741,76 @@ export default {
     },
 
     async declineFriendRequest(request) {
-      try {
-        const userId = this.extractUserId(request);
-        await this.sendDeclineRequest(userId);
-        this.updateLocalRequests(userId);
-        this.showStatus('Friend request declined', {}, 'success');
-      } catch (error) {
-        console.error('Decline error:', error);
-        this.showStatus('Error: {msg}', { msg: error.message }, 'error');
-      }
-    },
-
-    // Helper methods
-    extractUserId(request) {
-      const userId = request.from_user_id || request.from_user?.id;
-      if (!userId) throw new Error('Invalid request data');
-      return userId;
-    },
-
-    async sendDeclineRequest(userId) {
+    try {
+      const userId = request.from_user.id;
+      const token = localStorage.getItem('token');
+      
       const response = await fetch('/api/user/profile/friend-requests/decline/', {
         method: 'POST',
         headers: {
-          'Authorization': `Token ${this.getToken}`,
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ from_user_id: userId })
+      });
+
+      if (!response.ok) throw new Error('Failed to decline friend request');
+
+      // Remove request from list
+      this.incomingFriendRequests = this.incomingFriendRequests
+        .filter(req => req.id !== request.id);
+      
+      // Update localStorage
+      localStorage.setItem('incomingRequests', 
+        JSON.stringify(this.incomingFriendRequests));
+
+      // Show success message
+      this.showStatus(
+        'Friend request from {name} declined', 
+        { name: request.from_user.display_name }, 
+        'success'
+      );
+    } catch (error) {
+      console.error('Error declining friend request:', error);
+      this.showStatus('Failed to decline friend request', {}, 'error');
+    }
+  },
+
+    // Helper methods
+    extractUserId(request) {
+  // Handle both object formats and direct ID input
+  if (typeof request === 'number') {
+    return request;
+  }
+
+  if (!request) {
+    throw new Error('Request object is required');
+  }
+
+  // Try different possible paths to get the user ID
+  const userId = request.from_user_id || // Direct ID
+                (request.from_user && request.from_user.id) || // Nested user object
+                request.id; // Direct profile ID
+
+  if (!userId) {
+    console.error('Invalid request structure:', request);
+    throw new Error('Invalid request data: User ID not found');
+  }
+
+  return userId;
+},
+
+    async sendDeclineRequest(userId) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No auth token found');
+      }
+      const response = await fetch('/api/user/profile/friend-requests/decline/', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
         },
         body: JSON.stringify({ from_user_id: userId })
       });
@@ -653,13 +829,18 @@ export default {
     },
 
     async removeFriend(friendId) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No auth token found');
+      }
       try {
         const friend = this.profile.friends.find(f => f.id === friendId);
         const response = await fetch('/api/user/profile/remove_friend/', {
           method: 'POST',
           headers: {
-            'Authorization': `Token ${this.getToken}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
+            'Accept': 'application/json'
           },
           body: JSON.stringify({ friend_profile_id: friendId }),
         });
@@ -684,49 +865,26 @@ export default {
 
     async fetchIncomingRequests() {
       try {
-        console.log('Starting fetch of incoming requests');
-        
+        const token = localStorage.getItem('token');
+        if (!token) throw new Error('No auth token found');
+
         const response = await fetch('/api/user/profile/friend-requests/', {
           headers: {
-            'Authorization': `Token ${this.getToken}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           }
         });
 
+        if (!response.ok) throw new Error('Failed to fetch friend requests');
+
         const data = await response.json();
-        console.log('Raw API response:', data);
-
-        // Validate data before processing
-        if (!Array.isArray(data)) {
-          throw new Error('Invalid response format');
-        }
-
-        const baseUrl = 'http://localhost';
+        this.incomingFriendRequests = data;
         
-        // Map with validation
-        const validRequests = data
-          .filter(request => {
-            const isValid = request && request.from_user;
-            if (!isValid) console.warn('Invalid request:', request);
-            return isValid;
-          })
-          .map(request => ({
-            id: request.id,
-            from_user: {
-              id: request.from_user.id,
-              display_name: request.from_user.display_name,
-              avatar: this.buildAvatarUrl(request.from_user.avatar, baseUrl),
-              is_online: !!request.from_user.is_online
-            },
-            status: request.status
-          }));
-
-        console.log('Processed requests:', validRequests);
-        this.incomingFriendRequests = validRequests;
-
+        // Store in localStorage for persistence
+        localStorage.setItem('incomingRequests', JSON.stringify(data));
       } catch (error) {
-        console.error('Fetch error:', error);
-        this.incomingFriendRequests = []; // Reset on error
+        console.error('Error fetching friend requests:', error);
+        this.showStatus('Failed to load friend requests', {}, 'error');
       }
     },
 
@@ -750,11 +908,11 @@ export default {
 
       // If it's a relative path, make it absolute
       if (avatarPath.startsWith('/')) {
-        return `https://localhost${avatarPath}`; // Removed port 8000
+        return `https://localhost${avatarPath}`;
       }
 
       // Default case
-      return `https://localhost/api/user/media/avatars/${avatarPath}`; // Removed port 8000
+      return `https://localhost/api/user/media/avatars/${avatarPath}`;
     },
 
 
