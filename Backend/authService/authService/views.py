@@ -14,6 +14,7 @@ import logging
 from .serializers import UserSerializer, RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+import random  # Add this at the top with other imports
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +54,6 @@ class RegisterView(generics.CreateAPIView):
             "details": serializer.errors
         }, status=status.HTTP_400_BAD_REQUEST)
 
-import random  # Add this at the top with other imports
 
 
 class LoginView(APIView):

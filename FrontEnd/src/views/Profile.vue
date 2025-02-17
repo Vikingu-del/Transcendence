@@ -331,7 +331,7 @@ export default {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          credentials: 'include'
+          // credentials: 'include'
         });
 
         if (!response.ok) {
@@ -345,9 +345,9 @@ export default {
         this.loading = false;
       } catch (error) {
         console.error('Profile fetch error:', error);
-        if (error.message.includes('Invalid token')) {
-          localStorage.removeItem('token');
-          await this.$router.push('/login');
+        if (error.message.includes('token_not_valid')) {
+          // Token expired or invalid - redirect to login
+          this.$router.push('/login');
         }
         throw error;
       }
