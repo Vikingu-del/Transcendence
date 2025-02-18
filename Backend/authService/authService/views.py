@@ -14,7 +14,7 @@ import logging
 from .serializers import UserSerializer, RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import random  # Add this at the top with other imports
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +22,7 @@ class RegisterView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
 
     def post(self, request, *args, **kwargs):
-        logger.debug("Received registration data: %s", request.data)
         serializer = self.get_serializer(data=request.data)
-        
         if serializer.is_valid():
             username = serializer.validated_data['username']
             if User.objects.filter(username=username).exists():
@@ -47,7 +45,6 @@ class RegisterView(generics.CreateAPIView):
                 'message': 'Registration successful',
                 'user': user_data
             }, status=status.HTTP_201_CREATED)
-        
         logger.debug("Registration errors: %s", serializer.errors)
         return Response({
             "error": "Registration failed", 

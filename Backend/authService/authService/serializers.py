@@ -59,9 +59,6 @@ class UserSerializer(serializers.ModelSerializer):
                 user.delete()
             logger.error(f"User creation error: {str(e)}")
             raise serializers.ValidationError(str(e))
-    
-from rest_framework import serializers
-from django.contrib.auth.models import User
 
 class RegistrationSerializer(serializers.ModelSerializer):
     password1 = serializers.CharField(write_only=True)
@@ -71,10 +68,49 @@ class RegistrationSerializer(serializers.ModelSerializer):
         model = User
         fields = ('id', 'username', 'password1', 'password2')
 
+    def validate_username(self, value):
+        # Check minimum length
+        if len(value) < 3:
+            raise serializers.ValidationError("Username must be at least 3 characters long")
+        # Check if username exists
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("This username is already taken")
+        return value
+
+    def validate_password1(self, value):
+        # Check minimum length
+        if len(value) < 6:
+            raise serializers.ValidationError(
+                "Password must be at least 6 characters long"
+            )
+        # Check for lowercase
+        if not any(char.islower() for char in value):
+            raise serializers.ValidationError(
+                "Password must contain at least one lowercase letter"
+            )
+        # Check for uppercase
+        if not any(char.isupper() for char in value):
+            raise serializers.ValidationError(
+                "Password must contain at least one uppercase letter"
+            )
+        # Check for digit
+        if not any(char.isdigit() for char in value):
+            raise serializers.ValidationError(
+                "Password must contain at least one number"
+            )
+        # Check for symbol
+        symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?"
+        if not any(char in symbols for char in value):
+            raise serializers.ValidationError(
+                "Password must contain at least one symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)"
+            )
+        return value
+        
     def validate(self, data):
         if data['password1'] != data['password2']:
             raise serializers.ValidationError("Passwords do not match")
         return data
+
 
     def create(self, validated_data):
         user = User.objects.create_user(
