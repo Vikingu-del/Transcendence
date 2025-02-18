@@ -15,10 +15,15 @@
       </button>
     </form>
     <p v-if="error" class="message error">{{ error }}</p>
+    <!-- <form v-if="tfa" @submit.prevent="verifyTFA"> // for walid
+      <label for="ottp">Username</label> // for walid
+        <input id="ottp" v-model="username" type="digit" placeholder="Enter the code" required /> // for walid
+    </form>>   //for walid -->  
   </div>
 </template>
 
 <script>
+import router from '@/router';
 import { auth } from '@/utils/auth';
 
 export default {
@@ -28,7 +33,8 @@ export default {
       password: '',
       error: '',
       loading: false,
-      redirect: null
+      redirect: null,
+      // tfa: true, for walid
     };
   },
   
@@ -38,6 +44,28 @@ export default {
   },
 
   methods: {
+    // async verifyTFA() { // for walid
+    //   try {
+    //       const response = await fetch('/api/auth/login/', {
+    //           method: 'POST',
+    //           headers: { 
+    //               'Content-Type': 'application/json',
+    //               'Accept': 'application/json'
+    //           },
+    //           body: JSON.stringify({
+    //               username: this.username,
+    //               password: this.password
+    //           })
+    //       });
+    //       await router.push('/profile');
+    //     } catch (error) {
+    //       console.error('Login error:', error);
+    //       this.error = 'Network error occurred';
+    //       this.password = '';
+    //     } finally {
+    //       this.loading = false;
+    //     }  
+    // },
     async login() {
       if (this.loading) return;
       this.loading = true;
@@ -60,9 +88,6 @@ export default {
           console.log('Login response WE ARE HERE:', data);
 
           if (response.ok && data.token) {
-              // Use auth helper instead of direct localStorage access
-              // await this.$store.dispatch('loginAction', data.token); when was not with jwt
-
               await this.$store.dispatch('loginAction', {
                 accessToken: data.token,
                 refreshToken: data.refresh
@@ -74,6 +99,7 @@ export default {
               const redirectPath = this.redirect || '/profile';
               console.log('Redirecting to:', redirectPath);
               await this.$router.push(redirectPath);
+              // tfa = true;
           } else {
               this.error = data.error || 'Login failed';
               this.password = '';

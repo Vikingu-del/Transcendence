@@ -179,9 +179,9 @@ class ProfileView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                if profile.avatar:
+                if profile.avatar and profile.avatar.name != settings.DEFAULT_AVATAR_PATH:
                     # I dont want to delete phisically the file
-                    profile.avatar.delete(save=False)
+                    profile.delete_avatar() # here was the problem before you were using profile.avatar.delete()
                     
                     
                 
