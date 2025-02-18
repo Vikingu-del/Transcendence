@@ -63,7 +63,8 @@ services:
       - "8000:8000"
     volumes:
       - ./Backend/userService:/app
-      - user_media_data:/app/media
+      - user_static:/app/static
+      - user_media:/app/media
     environment:
       - DJANGO_SETTINGS_MODULE=userService.settings
       - DB_NAME=postgres
@@ -222,6 +223,8 @@ volumes:
   auth_db_data:
   user_media_data:
   game_db_data:
+  user_static:
+  user_media:
 
 networks:
   backtier:

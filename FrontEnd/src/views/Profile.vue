@@ -233,7 +233,7 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: 'https://localhost/api/user/media/avatars/default.png',
+      defaultAvatarUrl: 'https://localhost/api/user/static/default/default.png',
       avatarLoadError: false,
       // Profile Search
       searchQuery: '',
@@ -267,8 +267,9 @@ export default {
       return !!this.token;
     },
     isDefaultAvatar() {
-      return this.profile.avatar === '/api/user/media/default.png';
-    }
+      return !this.profile.avatar || 
+            this.profile.avatar === '/api/user/static/default/default.png';
+    },
   },
 
   watch: {
@@ -419,7 +420,7 @@ export default {
       try {
         const token = localStorage.getItem('token');
 
-        const response = await fetch('https://localhost/api/user/profile/', {
+        const response = await fetch('/api/user/profile/', {
           method: 'DELETE',
           headers: {
             'Authorization': `Bearer ${token}`
@@ -438,7 +439,7 @@ export default {
         this.profile.avatar = '/api/user/media/avatars/default.png';
         this.avatarLoadError = false;
         // Refresh Page
-        this.$router.go();
+        // this.$router.go();
         this.showStatus('Avatar deleted successfully', {}, 'success');
 
 
@@ -897,24 +898,16 @@ export default {
 
     // Update the buildAvatarUrl method
     buildAvatarUrl(avatarPath) {
-      if (!avatarPath || avatarPath === 'default.png') {
+      if (!avatarPath || avatarPath.includes('/static/default/')) {
         return this.defaultAvatarUrl;
       }
 
-      // If it's already a full URL
       if (avatarPath.startsWith('http')) {
         return avatarPath;
       }
 
-      // If it's a relative path, make it absolute
-      if (avatarPath.startsWith('/')) {
-        return `https://localhost${avatarPath}`;
-      }
-
-      // Default case
-      return `https://localhost/api/user/media/avatars/${avatarPath}`;
+      return `https://localhost${avatarPath}`;
     },
-
 
     formatDate(timestamp) {
       if (!timestamp) return '';

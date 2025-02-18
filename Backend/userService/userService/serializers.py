@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/17 22:15:31 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/18 12:29:48 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -14,6 +14,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Profile, Friendship
 from django.db.models import Q
+from django.conf import settings
 import random
 
 class UserSerializer(serializers.ModelSerializer):
@@ -41,7 +42,12 @@ class UserSerializer(serializers.ModelSerializer):
         while Profile.objects.filter(display_name=display_name).exists():
             display_name = f"{base_display_name}{random.randint(100000, 999999)}"
 
-        Profile.objects.create(user=user, display_name=display_name, avatar=None)
+        # Create profile with default avatar
+        Profile.objects.create(
+            user=user,
+            display_name=display_name,
+            avatar=settings.DEFAULT_AVATAR_PATH
+        )
         return user
 
 class UserProfileSerializer(serializers.ModelSerializer):

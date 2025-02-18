@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/17 22:11:41 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/18 11:41:11 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -69,7 +69,10 @@ class SyncTokenView(APIView):
             # Create or update profile
             profile, _ = Profile.objects.get_or_create(
                 user=user,
-                defaults={'display_name': username}
+                defaults={
+                    'display_name': username,
+                    'avatar': 'avatars/default.png'
+                }
             )
 
             logger.info(f"Successfully synced token for user {username}")
@@ -123,7 +126,6 @@ class ProfileView(APIView):
             )
     
     def delete(self, request):
-        """Handle avatar deletion"""
         try:
             profile = request.user.profile
             
@@ -133,14 +135,16 @@ class ProfileView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            profile.avatar.delete(save=False)
+            # Only delete the custom avatar file
+            if profile.avatar:
+                profile.avatar.delete(save=False)
+            
+            # Just set avatar to None, will use default
             profile.avatar = None
             profile.save()
             
-            logger.info(f"Reset avatar to default for user {request.user.username}")
-            
             serializer = UserProfileSerializer(profile, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data)
 
         except Exception as e:
             logger.error(f"Avatar deletion error: {str(e)}")
@@ -152,35 +156,49 @@ class ProfileView(APIView):
     def put(self, request, *args, **kwargs):
         profile = request.user.profile
         data = request.data
-
         try:
-            if 'avatar' in request.FILES:
-                # Delete old avatar if it exists and is not default
-                if profile.avatar and 'default.png' not in profile.avatar.name:
+            # Handle display name update
+            if 'display_name' in data:
+                new_display_name = data['display_name'].strip()
+                
+                if Profile.objects.filter(display_name=new_display_name).exclude(user=request.user).exists():
+                    return Response(
+                        {"error": "Display name already in use"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                profile.display_name = new_display_name
+                profile.save()
+                
+            # Handle avatar update
+            elif 'avatar' in request.FILES:
+                avatar = request.FILES['avatar']
+
+                if not avatar.content_type.startswith('image'):
+                    return Response(
+                        {"error": "Invalid image format"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if avatar.size > 5 * 1024 * 1024:  # 5MB limit
+                    return Response(
+                        {"error": "Image size too large"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                if profile.avatar:
                     profile.avatar.delete(save=False)
                 
-                # Save new avatar
-                profile.avatar = request.FILES['avatar']
+                profile.avatar = avatar
                 profile.save()
+                logger.info(f"Updated avatar for user {request.user.username}")
 
-            if 'display_name' in data:
-                profile.display_name = data['display_name']
-                profile.save()
-
-            # Return updated profile data with full avatar URL
             serializer = UserProfileSerializer(profile, context={"request": request})
-            response_data = serializer.data
-            
-            # Ensure avatar URL is absolute
-            if response_data['avatar']:
-                response_data['avatar'] = request.build_absolute_uri(response_data['avatar'])
-
-            return Response(response_data, status=status.HTTP_200_OK)
+            return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Exception as e:
             logger.error(f"Profile update error: {str(e)}")
             return Response(
-                {"error": "Failed to update profile"}, 
+                {"error": str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

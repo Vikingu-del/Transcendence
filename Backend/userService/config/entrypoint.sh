@@ -2,24 +2,24 @@
 
 set -e
 
-# Create media directories with proper structure
-mkdir -p /app/media
+set -e
+
+# Create media directories if they don't exist
 mkdir -p /app/media/avatars
 
-# Copy default avatar if it doesn't exist
+# Ensure default.png exists
 if [ ! -f "/app/media/default.png" ]; then
-    cp /app/config/default.png /app/media/default.png
+    echo "Error: Default avatar file missing!"
+    exit 1
 fi
 
-# Set permissions for media directory structure
-# First set directory permissions
-chmod 755 /app/media
+# Set proper permissions
+chmod -R 755 /app/media
+chmod 644 /app/media/default.png
 chmod 755 /app/media/avatars
 
-# Then set file permissions only if files exist
-find /app/media -type f -name "*.png" -exec chmod 644 {} +
-find /app/media/avatars -type f -exec chmod 644 {} + 2>/dev/null || true
-
+# Ensure proper ownership
+chown -R root:root /app/media
 # Ensure proper ownership
 chown -R root:root /app/media
 

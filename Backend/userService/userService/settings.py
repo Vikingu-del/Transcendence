@@ -153,8 +153,13 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
+# Media files configuration
 MEDIA_URL = '/api/user/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Add default avatar path setting
+DEFAULT_AVATAR_PATH = 'default.png'
+DEFAULT_AVATAR_URL = f'{MEDIA_URL}{DEFAULT_AVATAR_PATH}'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
