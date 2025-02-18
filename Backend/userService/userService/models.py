@@ -18,7 +18,7 @@ class Profile(models.Model):
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
             return f'/api/user/media/{self.avatar.name}'
-        return f'/api/user/media/{settings.DEFAULT_AVATAR_PATH}'
+        return f'{settings.DEFAULT_AVATAR_PATH}'
 
     def get_friends(self):
         friendships = Friendship.objects.filter(

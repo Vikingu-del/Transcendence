@@ -233,7 +233,7 @@ export default {
       isUpdateDisabled: true,
       
       // Avatar Upload
-      defaultAvatarUrl: 'https://localhost/api/user/static/default/default.png',
+      defaultAvatarUrl: '/api/user/media/default.png',
       avatarLoadError: false,
       // Profile Search
       searchQuery: '',
@@ -268,7 +268,8 @@ export default {
     },
     isDefaultAvatar() {
       return !this.profile.avatar || 
-            this.profile.avatar === '/api/user/static/default/default.png';
+            this.profile.avatar === 'default.png' ||
+            this.profile.avatar === '/api/user/media/default.png';
     },
   },
 
@@ -406,7 +407,7 @@ export default {
         
         // Force image reload by adding timestamp
         if (this.profile.avatar) {
-          this.profile.avatar = `${this.profile.avatar}?t=${Date.now()}`;
+          this.profile.avatar = `${this.profile.avatar}`;
         }
 
         this.showStatus('Avatar updated successfully', {}, 'success');
@@ -436,7 +437,7 @@ export default {
         this.profile = updatedProfile;
 
         // Reset avatar to defualt avatar
-        this.profile.avatar = '/api/user/media/avatars/default.png';
+        this.profile.avatar = '/api/user/media/default.png';
         this.avatarLoadError = false;
         // Refresh Page
         // this.$router.go();
@@ -890,23 +891,36 @@ export default {
     },
 
     // Helper method for avatar URL
-    handleAvatarError(e) {
-      console.warn('Avatar failed to load:', e.target.src);
-      e.target.src = this.defaultAvatarUrl;
-      this.avatarLoadError = true;
-    },
+    // handleAvatarError(e) {
+    //   console.warn('Avatar failed to load:', e.target.src);
+    //   e.target.src = this.defaultAvatarUrl;
+    //   console.log('Default avatar loaded:', e.target.src);
+    //   this.avatarLoadError = true;
+    // },
 
-    // Update the buildAvatarUrl method
     buildAvatarUrl(avatarPath) {
-      if (!avatarPath || avatarPath.includes('/static/default/')) {
+      // If no avatar path, return default avatar
+      if (!avatarPath) {
         return this.defaultAvatarUrl;
       }
 
+      // If it's already a full URL
       if (avatarPath.startsWith('http')) {
         return avatarPath;
       }
 
-      return `https://localhost${avatarPath}`;
+      // If it's the default avatar path
+      if (avatarPath === 'default.png' || avatarPath === '/api/user/media/default.png') {
+        return this.defaultAvatarUrl;
+      }
+
+      // For custom uploaded avatars
+      if (avatarPath.startsWith('/api/user/media/')) {
+        return avatarPath;
+      }
+
+      // For any other case, assume it's a relative path
+      return `/api/user/media/${avatarPath}`;
     },
 
     formatDate(timestamp) {

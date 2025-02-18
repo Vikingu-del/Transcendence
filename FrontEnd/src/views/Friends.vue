@@ -441,7 +441,7 @@ export default {
       }
       
       // For relative paths in the avatars directory
-      return `${baseUrl}/media/avatars/${avatarPath}`;
+      return `${baseUrl}/media/${avatarPath}`;
   },
 
 	initNotificationSocket() {

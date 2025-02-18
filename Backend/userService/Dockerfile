@@ -10,9 +10,6 @@ WORKDIR /app
 # Install netcat
 RUN apt-get update && apt-get install -y netcat-openbsd
 
-# Create required directories with proper structure
-RUN mkdir -p /app/media/avatars
-
 # Copy the media folder with default avatar
 COPY media/ /app/media/
 
@@ -26,9 +23,6 @@ COPY config/requirements.txt config/requirements.txt
 COPY config/entrypoint.sh /bin/entrypoint.sh
 RUN chmod +x /bin/entrypoint.sh
 
-RUN mkdir -p /app/media
-COPY config/default.png /app/media/default.png
-
 # Install the dependencies
 RUN pip install --no-cache-dir -r config/requirements.txt
 
@@ -37,9 +31,6 @@ RUN apt-get update && apt-get install -y postgresql-client
 
 # Copy the project files
 COPY . .
-
-# Set proper permissions for media directories
-RUN chmod 755 /app/media && chmod 755 /app/media/avatars
 
 # Set the entrypoint to the entrypoint script
 ENTRYPOINT ["entrypoint.sh"]

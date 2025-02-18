@@ -18,11 +18,6 @@ chmod -R 755 /app/media
 chmod 644 /app/media/default.png
 chmod 755 /app/media/avatars
 
-# Ensure proper ownership
-chown -R root:root /app/media
-# Ensure proper ownership
-chown -R root:root /app/media
-
 # Rest of the script remains unchanged
 postgres_ready() {
     nc -z $DB_HOST $DB_PORT
