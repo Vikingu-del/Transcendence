@@ -1,25 +1,17 @@
 <template>
-  <!-- <div v-if="statusMessage" class="status-message" :class="statusMessage.type">
-    {{ statusMessage.text }}
-  </div> -->
   <div class="profile-container">
     <!-- Profile Card -->
     <div class="profile-card" v-if="profile">
       <!-- Avatar Section with Upload/Delete -->
       <div class="avatar-container">
-        <!-- Если аватар не найден, показываем текст -->
+        <!-- Avatar Image -->
         <img 
-          v-if="!avatarLoadError"
-          :src="profile ? buildAvatarUrl(profile.avatar) : defaultAvatarUrl"
-          @error="handleAvatarError"
-          class="profile-picture"
-          alt="Profile Picture"
+            :src="buildAvatarUrl(profile.avatar)"
+            @error="handleAvatarError"
+            class="profile-picture"
+            alt="Profile Picture"
+            :key="profile.avatar"
         />
-        
-        <!-- Если возникла ошибка при загрузке аватара, показываем текст -->
-        <span v-if="avatarLoadError" class="avatar-text">
-          {{ profile.display_name.charAt(0).toUpperCase() }} <!-- Показываем первую букву имени пользователя -->
-        </span>
 
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
@@ -55,40 +47,7 @@
           </button>
         </form>
       </div>
-
-
-      <!-- Incoming Friend Requests -->
     </div>
-      <div class="profile-section">
-        <h3 v-if="incomingFriendRequests.length" class="section-title">
-          Incoming Friend Requests ({{ incomingFriendRequests.length }})
-        </h3>
-        <div class="friend-requests-list">
-          <div v-for="request in incomingFriendRequests" 
-              :key="request.id" 
-              class="request-item">
-            <div class="request-user-info">
-              <img 
-                :src="buildAvatarUrl(request.from_user.avatar)" 
-                :alt="request.from_user.display_name"
-                class="request-avatar"
-                @error="handleAvatarError"
-              >
-              <span class="request-name">{{ request.from_user.display_name }}</span>
-            </div>
-            <div class="request-actions">
-              <button @click="acceptFriendRequest(request)" 
-                      class="btn accept-btn">
-                Accept
-              </button>
-              <button @click="declineFriendRequest(request)" 
-                      class="btn decline-btn">
-                Decline
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
 
 
     <!-- Loading and Error States -->
@@ -170,7 +129,6 @@ export default {
       
       // Avatar Upload
       defaultAvatarUrl: '/api/user/media/default.png',
-      avatarLoadError: false,
       // Profile Search
       searchQuery: '',
       searchResults: [],
@@ -204,8 +162,8 @@ export default {
     },
     isDefaultAvatar() {
       return !this.profile.avatar || 
-           this.profile.avatar === 'default.png' || 
-           this.profile.avatar === '/api/user/media/default.png' ||
+          //  this.profile.avatar === 'default.png' || 
+          //  this.profile.avatar === '/api/user/media/default.png' ||
            this.profile.avatar.includes('default.png'); // More flexible check
     },
   },
@@ -305,6 +263,11 @@ export default {
       }
     },
 
+    // handleAvatarError(e) {
+    //     console.error('Avatar loading error:', e);
+    //     e.target.src = '/api/user/media/default.png';  // Fallback to default avatar
+    // },
+
     async onFileChange(e) {
       try {
         const token = localStorage.getItem('token');
@@ -322,7 +285,7 @@ export default {
         const response = await fetch('https://localhost/api/user/profile/', { // Removed port 8000
           method: 'PUT',
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
           },
           body: formData
         });
@@ -336,7 +299,6 @@ export default {
         this.profile = updatedProfile;
         
         // Reset avatar load error flag
-        this.avatarLoadError = false;
         
         // Force image reload by adding timestamp
         if (this.profile.avatar) {
@@ -353,7 +315,9 @@ export default {
     async deleteAvatar() {
       try {
         const token = localStorage.getItem('token');
-
+        // if (this.profile.avatar === '/api/user/media/default.png') {
+        //   throw new Error('Cannot delete default avatar');
+        // }
         const response = await fetch('/api/user/profile/', {
           method: 'DELETE',
           headers: {
@@ -371,7 +335,6 @@ export default {
 
         // Reset avatar to defualt avatar
         this.profile.avatar = '/api/user/media/default.png';
-        this.avatarLoadError = false;
         // Refresh Page
         // this.$router.go();
         this.showStatus('Avatar deleted successfully', {}, 'success');
@@ -456,15 +419,8 @@ export default {
   return userId;
 },
 
-    // Helper method for avatar URL
-    handleAvatarError(e) {
-      console.warn('Avatar failed to load:', e.target.src);
-      e.target.src = this.defaultAvatarUrl;
-      console.log('Fallback to default avatar:', this.defaultAvatarUrl);
-      this.avatarLoadError = true;
-    },
-
     buildAvatarUrl(avatarPath) {
+      console.log('Building avatar URL:', avatarPath);
       // If no avatar path or it's the default avatar path
       if (!avatarPath || avatarPath.includes('default.png')) {
         return this.defaultAvatarUrl;
@@ -476,7 +432,7 @@ export default {
       }
 
       // For any other case, assume it's a relative path
-      return `/api/user/media/avatars/${avatarPath}`;
+      return `/api/user/media/${avatarPath}`;
     },
 
     formatDate(timestamp) {

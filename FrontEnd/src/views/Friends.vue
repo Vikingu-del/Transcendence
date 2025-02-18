@@ -1,6 +1,5 @@
 <template>
   <div class="friends-container">
-    <!-- Navigation Tabs -->
     <div class="friends-nav">
       <button 
         @click="activeTab = 'friends'"
@@ -73,42 +72,58 @@
         />
       </div>
 
-      <div v-if="isSearching" class="loading">Searching...</div>
-      <div v-else-if="searchError" class="error-message">{{ searchError }}</div>
+      <div v-if="isSearching" class="loading">
+        <span>Searching...</span>
+      </div>
+      
+      <div v-else-if="searchError" class="error-message">
+        {{ searchError }}
+      </div>
+      
       <div v-else-if="searchResults.length > 0" class="search-results">
         <div v-for="profile in searchResults" :key="profile.id" class="profile-item">
           <div class="user-info">
-            <img :src="buildAvatarUrl(profile.avatar)" :alt="profile.display_name" class="profile-avatar">
+            <img :src="profile.avatar" :alt="profile.display_name" class="profile-avatar">
             <span class="display-name">{{ profile.display_name }}</span>
           </div>
           <div class="action-buttons">
-            <div v-if="isBlocked(profile)">
-              <button @click="unblockUser(profile.id)" class="btn unblock-btn">Unblock</button>
-            </div>
-            <div v-else>
-              <button 
-                v-if="!isFriend(profile) && !profile.friend_request_status" 
-                @click="sendFriendRequest(profile.id)" 
-                class="btn add-btn"
-              >
-                Add Friend
-              </button>
-              <span v-else-if="profile.friend_request_status === 'pending'" class="status-text">
-                Request Pending
-              </span>
-              <button 
-                v-else 
-                @click="blockUser(profile.id)" 
-                class="btn block-btn"
-              >
-                Block
-              </button>
-            </div>
+            <button 
+              v-if="!isFriend(profile) && !profile.friend_request_status" 
+              @click="sendFriendRequest(profile.id)" 
+              class="btn primary-btn"
+            >
+              Add Friend
+            </button>
+            <span v-else-if="profile.friend_request_status === 'pending'" class="status-text">
+              Request Pending
+            </span>
+            <button 
+              v-else-if="!isBlocked(profile)"
+              @click="blockUser(profile.id)" 
+              class="btn secondary-btn"
+            >
+              Block
+            </button>
+            <button 
+              v-else
+              @click="unblockUser(profile.id)" 
+              class="btn primary-btn"
+            >
+              Unblock
+            </button>
           </div>
         </div>
       </div>
+      
       <p v-else-if="searchQuery" class="no-content">No users found</p>
     </div>
+  </div>
+
+  <!-- Debugging -->
+  <div>
+    <pre>{{ profile }}</pre>
+    <pre>{{ incomingFriendRequests }}</pre>
+    <pre>{{ searchResults }}</pre>
   </div>
 </template>
 
@@ -141,30 +156,16 @@ export default {
 
       //Friends Profile View
       selectedFriend: null,
-      showFriendProfile: false
+      showFriendProfile: false,
+
+      // Tab state
+      activeTab: 'friends'
     };
   },
 
   computed: {
     ...mapGetters(['getToken', 'isAuthenticated']),
   },
-
-  
-  // async created() {
-  //   try {
-  //     const token = localStorage.getItem('token');
-  //     console.log('Initial token:', token);
-      
-  //     if (!token) {
-  //       await this.$router.push('/login');
-  //       return;
-  //     }
-      
-  //     await this.fetchProfile();
-  //   } catch (error) {
-  //     console.error('Profile initialization error:', error);
-  //   }
-  // },
 
   async created() {
     try {
@@ -176,8 +177,13 @@ export default {
         return;
       }
       
-      await this.fetchProfile();
-      this.initNotificationSocket();
+      // Fetch both profile and friend requests
+      await Promise.all([
+        this.fetchProfile(),
+        this.fetchIncomingRequests()
+      ]);
+      
+      // this.initNotificationSocket();
     } catch (error) {
       console.error('Initialization error:', error);
       this.$router.push('/login');
@@ -261,8 +267,6 @@ export default {
       }
 
       try {
-
-
         if (!this.searchQuery.trim()) {
           this.searchResults = [];
           this.showStatus('Please enter a search term', {}, 'warning');
@@ -296,34 +300,12 @@ export default {
         } else {
           this.showStatus('Found {count} users', { count: data.length }, 'success');
         }
-      
       } catch (error) {
         console.error('Search error:', error);
         this.searchError = error.message;
         this.searchResults = [];
       } finally {
         this.isSearching = false;
-      }
-    },
-
-    async sendDeclineRequest(userId) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-      const response = await fetch('/api/user/profile/friend-requests/decline/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ from_user_id: userId })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to decline friend request');
       }
     },
 

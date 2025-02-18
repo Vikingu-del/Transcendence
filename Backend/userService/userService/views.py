@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/18 11:41:11 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/18 20:40:29 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -71,7 +71,7 @@ class SyncTokenView(APIView):
                 user=user,
                 defaults={
                     'display_name': username,
-                    'avatar': 'avatars/default.png'
+                    'avatar': 'default.png'
                 }
             )
 
@@ -134,7 +134,6 @@ class ProfileView(APIView):
                     {"message": "Already using default avatar"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
             # Use the new delete_avatar method
             profile.delete_avatar()
             
@@ -181,7 +180,10 @@ class ProfileView(APIView):
                     )
 
                 if profile.avatar:
+                    # I dont want to delete phisically the file
                     profile.avatar.delete(save=False)
+                    
+                    
                 
                 profile.avatar = avatar
                 profile.save()
