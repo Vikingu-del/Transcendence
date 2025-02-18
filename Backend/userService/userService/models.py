@@ -17,8 +17,19 @@ class Profile(models.Model):
 
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
-            return f'/api/user/media/{self.avatar.name}'
-        return f'{settings.DEFAULT_AVATAR_PATH}'
+            return  self.avatar.url
+        return settings.DEFAULT_AVATAR_URL
+
+    def delete_avatar(self):
+        """Delete the current avatar and reset to default"""
+        if self.avatar:
+            # Delete the physical file
+            self.avatar.delete(save=False)
+            
+        # Reset to None (will use default from model field)
+        self.avatar = None
+        self.save()
+        return self.get_avatar_url()  # Return the new avatar URL
 
     def get_friends(self):
         friendships = Friendship.objects.filter(

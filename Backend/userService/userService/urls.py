@@ -45,9 +45,8 @@ urlpatterns = [
     path('api/user/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
 
     # Media files
-    # re_path(r'^api/user/media/(?P<path>.*)$', serve, {
-    #     'document_root': settings.MEDIA_ROOT,
-    # }),
-]
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    re_path(r'^api/user/media/(?P<path>.*)$', serve, {
+        'document_root': settings.MEDIA_ROOT,
+        'show_indexes': False,
+    }),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

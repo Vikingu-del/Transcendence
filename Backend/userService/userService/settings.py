@@ -148,7 +148,11 @@ USE_TZ = True
 
 # Media files configuration
 MEDIA_URL = '/api/user/media/'
-MEDIA_ROOT = '/app/media'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+# Static files (CSS, JavaScript, Images)
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # Add default avatar path setting
 DEFAULT_AVATAR_PATH = 'default.png'

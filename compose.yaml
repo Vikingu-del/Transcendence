@@ -89,8 +89,7 @@ services:
       - "8002:8002"
     volumes:
       - ./Backend/chatService:/app
-      - ./Backend/userService/media:/app/media
-      - user_media_data:/app/media
+      - user_media:/app/media
     environment:
       DB_NAME: "postgres"
       DB_USER: "postgres"
@@ -153,7 +152,7 @@ services:
       - frontend
     volumes:
       - ./ApiGateway/config/nginx.conf:/etc/nginx/nginx.conf:ro
-      - user_media_data:/app/media
+      - user_media:/app/media
       - ./ApiGateway/ssl:/etc/nginx/ssl:ro # Mount SSL certificates
     networks:
       - backtier
@@ -221,10 +220,9 @@ volumes:
   chat_db_data:
   frontend_dist:
   auth_db_data:
-  user_media_data:
+  user_media:
   game_db_data:
   user_static:
-  user_media:
 
 networks:
   backtier:

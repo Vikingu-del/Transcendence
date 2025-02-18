@@ -135,13 +135,8 @@ class ProfileView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Only delete the custom avatar file
-            if profile.avatar:
-                profile.avatar.delete(save=False)
-            
-            # Just set avatar to None, will use default
-            profile.avatar = None
-            profile.save()
+            # Use the new delete_avatar method
+            profile.delete_avatar()
             
             serializer = UserProfileSerializer(profile, context={"request": request})
             return Response(serializer.data)
@@ -266,8 +261,8 @@ class BlockUserView(APIView):
             )
 
 class AddFriendView(APIView):
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
-    authentication_classes = [TokenAuthentication]
 
     def post(self, request):
         from_profile = request.user.profile

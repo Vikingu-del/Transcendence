@@ -1,7 +1,7 @@
 <template>
-  <div v-if="statusMessage" class="status-message" :class="statusMessage.type">
+  <!-- <div v-if="statusMessage" class="status-message" :class="statusMessage.type">
     {{ statusMessage.text }}
-  </div>
+  </div> -->
   <div class="profile-container">
     <!-- Profile Card -->
     <div class="profile-card" v-if="profile">
@@ -56,70 +56,6 @@
         </form>
       </div>
 
-      <!-- Search Section -->
-      <div class="search-section">
-        <input 
-          v-model="searchQuery" 
-          @input="searchProfiles" 
-          placeholder="Search profiles..." 
-          class="input-field"
-        />
-        <div v-if="isSearching">Searching...</div>
-        <div v-if="searchError" class="error-message">{{ searchError }}</div>
-        <div v-if="searchQuery && !searchResults?.length && !isSearching" class="no-results">
-          <p>No users found</p>
-        </div>
-        <div v-else-if="searchResults?.length" class="search-results">
-          <div v-for="profile in searchResults" :key="profile.id" class="profile-item">
-            <!-- Use get_avatar_url from Profile model -->
-            <img :src="profile.avatar || profile.get_avatar_url":alt="profile.display_name" class="profile-avatar">
-            <div class="profile-info">
-              <p class="display-name">{{ profile.display_name }}</p>
-            </div>
-            
-            <div class="friend-actions">
-              <!-- Show when user is blocked -->
-              <div v-if="isBlocked(profile)">
-                <button @click="unblockUser(profile.id)" class="btn unblock-btn">
-                  Unblock User
-                </button>
-              </div>
-              <!-- Show for non-blocked users -->
-              <div v-else>
-                <!-- Show friend status buttons -->
-                <div v-if="isFriend(profile)" class="friend-management">
-                  <button @click="removeFriend(profile.id)" class="btn secondary-btn">
-                    Remove Friend
-                  </button>
-                </div>
-                <!-- Show pending request status -->
-                <div v-else-if="profile.friend_request_status === 'pending'">
-                  <p v-if="profile.requested_by_current_user" class="status-text">
-                    Request Pending
-                  </p>
-                  <div v-else>
-                    <button @click="acceptFriendRequest(profile.id)" class="btn accept-btn">
-                      Accept
-                    </button>
-                    <button @click="declineFriendRequest(profile.id)" class="btn decline-btn">
-                      Decline
-                    </button>
-                  </div>
-                </div>
-                <!-- Show add friend option -->
-                <div v-else class="friend-management">
-                  <button @click="sendFriendRequest(profile.id)" class="btn add-btn">
-                    Add Friend
-                  </button>
-                  <button @click="blockUser(profile.id)" class="btn block-btn">
-                    Block
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <!-- Incoming Friend Requests -->
     </div>
@@ -268,8 +204,9 @@ export default {
     },
     isDefaultAvatar() {
       return !this.profile.avatar || 
-            this.profile.avatar === 'default.png' ||
-            this.profile.avatar === '/api/user/media/default.png';
+           this.profile.avatar === 'default.png' || 
+           this.profile.avatar === '/api/user/media/default.png' ||
+           this.profile.avatar.includes('default.png'); // More flexible check
     },
   },
 
@@ -297,7 +234,6 @@ export default {
       }
       
       await this.fetchProfile();
-      await this.fetchIncomingRequests();
     } catch (error) {
       console.error('Profile initialization error:', error);
     }
@@ -358,9 +294,6 @@ export default {
         const data = await response.json();
         this.profile = data;
         this.loading = false;
-
-        // Set display name for editing
-        await this.fetchIncomingRequests();
         
       } catch (error) {
         console.error('Profile fetch error:', error);
@@ -499,285 +432,6 @@ export default {
       }
     },
 
-    isFriend(profile) {
-      return this.profile?.friends?.some(friend => friend.id === profile.id)
-    },
-
-    isBlocked(profile) {
-      return profile.isBlocked; // Check the isBlocked flag from API response
-    },
-
-    async searchProfiles() {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        this.showStatus('Please log in to search', {}, 'warning');
-        return;
-      }
-
-      try {
-
-
-        if (!this.searchQuery.trim()) {
-          this.searchResults = [];
-          this.showStatus('Please enter a search term', {}, 'warning');
-          return;
-        }
-
-        this.isSearching = true;
-        this.searchError = null;
-
-        const response = await fetch(
-          `/api/user/profile/search/?q=${encodeURIComponent(this.searchQuery.trim())}`,
-          {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error('Search failed');
-        }
-
-        const data = await response.json();
-        console.log('Search results:', data); // Debug log
-        this.searchResults = data;
-
-        if (data.length === 0) {
-          this.showStatus('No users found for "{query}"', { query: this.searchQuery }, 'warning');
-        } else {
-          this.showStatus('Found {count} users', { count: data.length }, 'success');
-        }
-      
-      } catch (error) {
-        console.error('Search error:', error);
-        this.searchError = error.message;
-        this.searchResults = [];
-      } finally {
-        this.isSearching = false;
-      }
-    },
-
-    async blockUser(profileId) {
-      try {
-        // Token
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No auth token found');
-        }
-        const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to block user');
-        
-        this.searchResults = this.searchResults.map(profile => {
-          if (profile.id === profileId) {
-            return { ...profile, isBlocked: true };
-          }
-          return profile;
-        });
-
-        this.showStatus('User {name} has been blocked', { name: profile.display_name }, 'warning');
-      } catch (error) {
-        this.showStatus(error.message, 'error');
-      }
-    },
-
-    async unblockUser(profileId) {
-      try {
-        // Token
-        const token = localStorage.getItem('token');
-        if (!token) {
-          throw new Error('No auth token found');
-        }
-        const profile = this.searchResults.find(p => p.id === profileId);
-        const response = await fetch(`/api/user/profile/${profileId}/block/`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to unblock user');
-
-        this.searchResults = this.searchResults.map(profile => {
-          if (profile.id === profileId) {
-            return { ...profile, isBlocked: false };
-          }
-          return profile;
-        });
-
-        this.showStatus('User {name} has been unblocked', { name: profile.display_name }, 'success');
-      } catch (error) {
-        this.showStatus(error.message, 'error');
-      }
-    },
-
-    async sendFriendRequest(friendId) {
-      try {
-        const token = localStorage.getItem('token');
-        console.log('Fetching profile with token:', token);
-
-        if (!token) {
-          throw new Error('No auth token found');
-        }
-        // Find friend in search results
-        const friend = this.searchResults.find(p => p.id === friendId);
-        if (!friend) {
-          throw new Error('Friend not found in search results');
-        }
-
-        // Make API request
-        const response = await fetch('/api/user/profile/add_friend/', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ friend_profile_id: friendId })
-        });
-
-        console.log('Friend request response:', response); // Debug log
-
-        // Parse response
-        const data = await response.json();
-        
-        if (!response.ok) {
-          throw new Error(data.error || 'Failed to send friend request');
-        }
-
-        // Update UI
-        this.searchResults = this.searchResults.map(profile => {
-          if (profile.id === friendId) {
-            return {
-              ...profile,
-              friend_request_status: 'pending',
-              requested_by_current_user: true
-            };
-          }
-          return profile;
-        });
-
-        // Show success message
-        this.showStatus('Friend request sent to {name}', { name: friend.display_name }, 'success');
-        
-        // Refresh profile to update friend lists
-        await this.fetchProfile();
-
-      } catch (error) {
-        console.error('Error sending friend request:', error);
-        this.showStatus(error.message || 'Failed to send friend request', {}, 'error');
-      }
-    },
-
-    async acceptFriendRequest(request) {
-    try {
-      const userId = request.from_user.id;
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('/api/user/profile/friend-requests/accept/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ from_user_id: userId })
-      });
-
-      if (!response.ok) throw new Error('Failed to accept friend request');
-
-      // Remove request from list
-      this.incomingFriendRequests = this.incomingFriendRequests
-        .filter(req => req.id !== request.id);
-      
-      // Update localStorage
-      localStorage.setItem('incomingRequests', 
-        JSON.stringify(this.incomingFriendRequests));
-
-      // Show success message
-      this.showStatus(
-        'Friend request from {name} accepted', 
-        { name: request.from_user.display_name }, 
-        'success'
-      );
-
-      // Refresh profile to update friends list
-      await this.fetchProfile();
-    } catch (error) {
-      console.error('Error accepting friend request:', error);
-      this.showStatus('Failed to accept friend request', {}, 'error');
-    }
-  },
-
-    async sendAcceptRequest(userId) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-      const response = await fetch('/api/user/profile/friend-requests/accept/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ from_user_id: userId })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to accept friend request');
-      }
-    },
-
-    async declineFriendRequest(request) {
-    try {
-      const userId = request.from_user.id;
-      const token = localStorage.getItem('token');
-      
-      const response = await fetch('/api/user/profile/friend-requests/decline/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ from_user_id: userId })
-      });
-
-      if (!response.ok) throw new Error('Failed to decline friend request');
-
-      // Remove request from list
-      this.incomingFriendRequests = this.incomingFriendRequests
-        .filter(req => req.id !== request.id);
-      
-      // Update localStorage
-      localStorage.setItem('incomingRequests', 
-        JSON.stringify(this.incomingFriendRequests));
-
-      // Show success message
-      this.showStatus(
-        'Friend request from {name} declined', 
-        { name: request.from_user.display_name }, 
-        'success'
-      );
-    } catch (error) {
-      console.error('Error declining friend request:', error);
-      this.showStatus('Failed to decline friend request', {}, 'error');
-    }
-  },
-
     // Helper methods
     extractUserId(request) {
   // Handle both object formats and direct ID input
@@ -802,125 +456,27 @@ export default {
   return userId;
 },
 
-    async sendDeclineRequest(userId) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-      const response = await fetch('/api/user/profile/friend-requests/decline/', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-          'Accept': 'application/json'
-        },
-        body: JSON.stringify({ from_user_id: userId })
-      });
-
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to decline friend request');
-      }
-    },
-
-    updateLocalRequests(userId) {
-      this.incomingFriendRequests = this.incomingFriendRequests.filter(
-        req => (req.from_user_id || req.from_user?.id) !== userId
-      );
-      localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
-    },
-
-    async removeFriend(friendId) {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('No auth token found');
-      }
-      try {
-        const friend = this.profile.friends.find(f => f.id === friendId);
-        const response = await fetch('/api/user/profile/remove_friend/', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify({ friend_profile_id: friendId }),
-        });
-          
-        if (response.ok) {
-          this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
-          
-          await this.fetchProfile(); // Refresh sender's profile
-        } else {
-          console.error('Failed to remove friend');
-        }
-      } catch (error) {
-        console.error('Error removing friend:', error);
-      }
-    },
-
-    // Helper method to check friend request status
-    getFriendRequestStatus(profile) {
-      return profile.friend_request_status;
-    },
-
-
-    async fetchIncomingRequests() {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) throw new Error('No auth token found');
-
-        const response = await fetch('/api/user/profile/friend-requests/', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (!response.ok) throw new Error('Failed to fetch friend requests');
-
-        const data = await response.json();
-        this.incomingFriendRequests = data;
-        
-        // Store in localStorage for persistence
-        localStorage.setItem('incomingRequests', JSON.stringify(data));
-      } catch (error) {
-        console.error('Error fetching friend requests:', error);
-        this.showStatus('Failed to load friend requests', {}, 'error');
-      }
-    },
-
     // Helper method for avatar URL
-    // handleAvatarError(e) {
-    //   console.warn('Avatar failed to load:', e.target.src);
-    //   e.target.src = this.defaultAvatarUrl;
-    //   console.log('Default avatar loaded:', e.target.src);
-    //   this.avatarLoadError = true;
-    // },
+    handleAvatarError(e) {
+      console.warn('Avatar failed to load:', e.target.src);
+      e.target.src = this.defaultAvatarUrl;
+      console.log('Fallback to default avatar:', this.defaultAvatarUrl);
+      this.avatarLoadError = true;
+    },
 
     buildAvatarUrl(avatarPath) {
-      // If no avatar path, return default avatar
-      if (!avatarPath) {
+      // If no avatar path or it's the default avatar path
+      if (!avatarPath || avatarPath.includes('default.png')) {
         return this.defaultAvatarUrl;
       }
 
       // If it's already a full URL
-      if (avatarPath.startsWith('http')) {
-        return avatarPath;
-      }
-
-      // If it's the default avatar path
-      if (avatarPath === 'default.png' || avatarPath === '/api/user/media/default.png') {
-        return this.defaultAvatarUrl;
-      }
-
-      // For custom uploaded avatars
       if (avatarPath.startsWith('/api/user/media/')) {
         return avatarPath;
       }
 
       // For any other case, assume it's a relative path
-      return `/api/user/media/${avatarPath}`;
+      return `/api/user/media/avatars/${avatarPath}`;
     },
 
     formatDate(timestamp) {
