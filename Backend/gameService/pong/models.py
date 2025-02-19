@@ -27,6 +27,10 @@ class GameSession(models.Model):
         # return f"/pong/{self.id}/"
 
     def get_game_state(self):
+        # Use hard-coded default values instead of canvas dimensions
+        default_ball_pos = {"x": 400, "y": 200}  # Half of canvas width/height
+        default_ball_dir = {"dx": 3, "dy": 3}
+        
         return {
             'player1': self.player1.username,
             'player2': self.player2.username if self.player2 else None,
@@ -34,7 +38,15 @@ class GameSession(models.Model):
             'player2_score': self.player2_score,
             'player1_paddle': self.player1_paddle,
             'player2_paddle': self.player2_paddle,
-            'ball_position': self.ball_position or {"x": 300, "y": 200},
-            'ball_direction': self.ball_direction or {"x": 1, "y": 1},
+            'ball_position': self.ball_position if self.ball_position else default_ball_pos,
+            'ball_direction': self.ball_direction if self.ball_direction else default_ball_dir,
         }
+
+    def update_game_state(self, player1_paddle, player2_paddle, ball_position, ball_direction):
+        self.player1_paddle = player1_paddle
+        self.player2_paddle = player2_paddle
+        self.ball_position = ball_position
+        self.ball_direction = ball_direction
+        self.save()
+
 
