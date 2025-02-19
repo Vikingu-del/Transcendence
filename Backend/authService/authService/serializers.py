@@ -72,9 +72,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
         # Check minimum length
         if len(value) < 3:
             raise serializers.ValidationError("Username must be at least 3 characters long")
-        # Check if username exists
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("This username is already taken")
         return value
 
     def validate_password1(self, value):
@@ -105,7 +102,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
                 "Password must contain at least one symbol (!@#$%^&*()_+-=[]{}|;:,.<>?)"
             )
         return value
-        
+
     def validate(self, data):
         if data['password1'] != data['password2']:
             raise serializers.ValidationError("Passwords do not match")

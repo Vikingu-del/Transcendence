@@ -85,7 +85,6 @@ export default {
           });
 
           const data = await response.json();
-          console.log('Login response WE ARE HERE:', data);
 
           if (response.ok && data.token) {
               await this.$store.dispatch('loginAction', {

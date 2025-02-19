@@ -126,8 +126,6 @@ export default {
       displayName: '',
       displayNameError: null,
       isUpdateDisabled: true,
-      
-      // Avatar Upload
       defaultAvatarUrl: '/api/user/media/default.png',
       // Profile Search
       searchQuery: '',
@@ -153,7 +151,6 @@ export default {
   },
 
   computed: {
-    // Remove mapGetters and add direct token getter
     getToken() {
       return this.token;
     },
@@ -161,10 +158,7 @@ export default {
       return !!this.token;
     },
     isDefaultAvatar() {
-      return !this.profile.avatar || 
-          //  this.profile.avatar === 'default.png' || 
-          //  this.profile.avatar === '/api/user/media/default.png' ||
-           this.profile.avatar.includes('default.png'); // More flexible check
+      return !this.profile.avatar || this.profile.avatar.includes('default.png');
     },
   },
 
@@ -215,8 +209,6 @@ export default {
       Object.entries(variables).forEach(([key, value]) => {
         text = text.replace(`{${key}}`, value);
       });
-
-      // Set status message
       this.statusMessage = { text, type };
 
       // Clear after timeout
@@ -240,7 +232,6 @@ export default {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
           },
-          // credentials: 'include'
         });
 
         if (!response.ok) {
@@ -256,17 +247,11 @@ export default {
       } catch (error) {
         console.error('Profile fetch error:', error);
         if (error.message.includes('token_not_valid')) {
-          // Token expired or invalid - redirect to login
           this.$router.push('/login');
         }
         throw error;
       }
     },
-
-    // handleAvatarError(e) {
-    //     console.error('Avatar loading error:', e);
-    //     e.target.src = '/api/user/media/default.png';  // Fallback to default avatar
-    // },
 
     async onFileChange(e) {
       try {
