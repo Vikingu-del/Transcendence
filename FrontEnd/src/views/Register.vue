@@ -88,19 +88,15 @@ export default {
         // 1. Register with auth service
         const authResponse = await fetch('/api/auth/register/', {
           method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: this.username,
             password1: this.password,
             password2: this.passwordConfirm
-          }),
+          })
         });
-
+        
         const authData = await authResponse.json();
-        console.log('Registration response:', authData);
 
         if (authResponse.ok) {
           this.isRegistrationSuccessful = true;
@@ -116,20 +112,20 @@ export default {
             this.$router.push('/login');
           }, 1500);
         } else {
+          console.log('Cause: ', authData.details);
           // Handle auth service error
           if (authData.non_field_errors) {
             this.errors = Array.isArray(authData.non_field_errors) 
               ? authData.non_field_errors 
               : [authData.non_field_errors];
-          } else if (authData.detail) {
-            this.message = authData.detail;
+          } else if (authData.details) {
+            this.message = authData.details;
           } else {
             this.message = 'Registration failed';
           }
           this.messageType = 'error';
         }
       } catch (error) {
-        console.error('Registration error:', error);
         this.message = 'Registration failed: ' + error.message;
         this.messageType = 'error';
       } finally {

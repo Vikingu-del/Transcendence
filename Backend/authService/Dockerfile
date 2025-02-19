@@ -35,8 +35,12 @@ RUN apt-get update && apt-get install -y postgresql-client
 # Copy the project files
 COPY . .
 
+# Create a non-root user and change ownership
+RUN useradd -m appuser && chown -R appuser:appuser /app /bin/entrypoint.sh
+USER appuser
+
 # Set the entrypoint to the entrypoint script
 ENTRYPOINT ["entrypoint.sh"]
 
-# Command to run the Django development server
-CMD ["python3", "manage.py", "runserver", "0.0.0.0:8000"]
+# Run gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "authService.wsgi:application"]

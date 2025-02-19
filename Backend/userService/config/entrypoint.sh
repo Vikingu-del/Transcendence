@@ -52,4 +52,6 @@ done
 
 echo "✅ Database ready"
 python manage.py migrate
+# Create superuser
+python manage.py createsuperuser --noinput || true
 exec python manage.py runserver 0.0.0.0:8000

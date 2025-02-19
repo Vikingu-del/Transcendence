@@ -20,12 +20,19 @@ RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_am
     mv vault /usr/local/bin/ && \
     rm vault.zip
 
+# Set up writable directories
+RUN mkdir -p /tmp/nginx/ssl && \
+    chown -R nginx:nginx /tmp/nginx && \
+    chmod -R 755 /tmp/nginx
+
 # Set up template directories
 RUN mkdir -p /etc/nginx/templates/conf.d \
     /etc/nginx/templates/modsecurity.d \
     /etc/nginx/templates/includes \
     /etc/nginx/conf \
-    /etc/nginx/ssl
+    /etc/nginx/ssl && \
+    chmod 755 /etc/nginx/ssl && \
+    chown -R nginx:nginx /etc/nginx/ssl
 
 # Copy configuration templates
 COPY config/nginx.conf.template /etc/nginx/templates/

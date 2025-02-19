@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -21,12 +22,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-r=cm7hw^wp(fo)=bbwaz-@on6$b6r0wh4*r77)(*^+$b@elwo&'
-
+# SECRET_KEY = 'django-insecure-r=cm7hw^wp(fo)=bbwaz-@on6$b6r0wh4*r77)(*^+$b@elwo&'
+SECRET_KEY = 'your-secret-key-here'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "auth", "0.0.0.0", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "auth", "0.0.0.0", "127.0.0.1", "10.12.12.5"]
 
 
 # Application definition
@@ -39,7 +40,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework.authtoken',
+    # 'rest_framework_simplejwt.token_blacklist', // for database blacklist
+    'rest_framework_simplejwt', # JWT support
     'corsheaders',
     'authService',
 ]
@@ -80,25 +82,32 @@ WSGI_APPLICATION = 'authService.wsgi.application'
 
 AUTH_USER_MODEL = 'auth.User'  # Use Django's built-in User model
 
-# Update database configuration to include more debugging options
+# Database configuration
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'auth_dbname'),
-        'USER': os.environ.get('DB_USER', 'auth_dbuser'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'auth_dbpass'),
+        'NAME': os.environ.get('DB_NAME', 'auth_db'),
+        'USER': os.environ.get('DB_USER', 'postgres'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
         'HOST': os.environ.get('DB_HOST', 'auth_db'),
         'PORT': os.environ.get('DB_PORT', '5432'),
-        'OPTIONS': {
-            'connect_timeout': 5,
-            'client_encoding': 'UTF8',
-        },
     }
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'SIGNING_KEY': 'your-secret-key-here',
+    # 'BLACKLIST_AFTER_ROTATION': True, //For database blacklist
+    # 'USE_BLACKLIST': True, //For database blacklist
 }
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
 }
 
@@ -154,9 +163,8 @@ USER_SERVICE_ENDPOINTS = {
 
 CORS_ALLOWED_ORIGINS = [
     "https://localhost",
-    "http://localhost",
-    "http://localhost:5173",
-    "https://localhost:5173",
+    "https://localhost:8080",
+    "https://localhost:5173",  # Add your frontend origin
 ]
 
 # Also ensure these settings are present
@@ -191,32 +199,18 @@ INTERNAL_API_KEY = 'your-internal-api-key'
 
 USER_SERVICE_TIMEOUT = 5  # seconds
 
-# Update the LOGGING configuration
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
     'handlers': {
         'console': {
             'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
-            'style': '{',
         },
     },
     'loggers': {
-        'django.db.backends': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': True,
-        },
         'authService': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
         },
     },
 }
-

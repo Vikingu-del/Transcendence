@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 import os
 import shutil
 
@@ -9,12 +10,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7'
-
+# SECRET_KEY = 'django-insecure-x=-zje230)4rie$8^*cguah_0o^scs)mp&maq+q&f19l_jez-7'
+SECRET_KEY = 'your-secret-key-here'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "user", "0.0.0.0"]
+ALLOWED_HOSTS = ["localhost", "user", "0.0.0.0:8000", "0.0.0.0", "127.0.0.1", "10.12.12.5"]
 
 # Application definition
 
@@ -24,19 +25,18 @@ INSTALLED_APPS = [
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
-    'django.contrib.staticfiles',
     'rest_framework',
-    'rest_framework.authtoken',
+    # 'rest_framework.authtoken',
     'channels',
     'corsheaders',
-    'crispy_forms',
-    'crispy_bootstrap4',
+    # 'crispy_forms',
+    # 'crispy_bootstrap4',
     'userService',
 ]
 
 # Crispy Forms Settings
-CRISPY_TEMPLATE_PACK = 'bootstrap4'
-CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap4'
+# CRISPY_TEMPLATE_PACK = 'bootstrap4'
+# CRISPY_ALLOWED_TEMPLATE_PACKS = 'bootstrap4'
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -120,13 +120,19 @@ AUTH_SERVICE_URL = 'http://auth:8001'
 
 # Django Rest Framework
 
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'SIGNING_KEY': 'your-secret-key-here',  # Must be the same as in auth service
+}
+
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
-    'DEFAULT_PERMISSION_CLASSES': [
-        'rest_framework.permissions.IsAuthenticated',
-    ]
 }
 
 # Internationalization
@@ -140,14 +146,17 @@ USE_I18N = True
 
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/5.1/howto/static-files/
+# Media files configuration
+MEDIA_URL = '/api/user/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
+# Static files (CSS, JavaScript, Images)
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
-MEDIA_URL = '/api/user/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# Add default avatar path setting
+DEFAULT_AVATAR_PATH = 'default.png'
+DEFAULT_AVATAR_URL = f'{MEDIA_URL}{DEFAULT_AVATAR_PATH}'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -156,11 +165,6 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOW_ALL_ORIGINS = True
-
-CORS_ALLOWED_ORIGINS = [
-    "https://localhost",
-    "https://localhost:8080",
-]
 
 CORS_ALLOW_METHODS = [
     'DELETE',

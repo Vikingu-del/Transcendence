@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/14 14:24:08 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/19 10:55:15 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -23,10 +23,14 @@ from asgiref.sync import async_to_sync
 from django.shortcuts import get_object_or_404
 import logging
 from .serializers import UserProfileSerializer, FriendRequestSerializer
-from .models import Profile, Friendship
+from .models import Profile, Friendship, UserJWTToken
 from rest_framework.authtoken.models import Token
 from django.contrib.auth.models import User
 from django.conf import settings
+from rest_framework_simplejwt.authentication import JWTAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -37,16 +41,24 @@ class SyncTokenView(APIView):
     def post(self, request):
         logger.debug(f"Received sync token request: {request.data}")
         
+        # Verify internal API key
         if request.headers.get('Internal-API-Key') != settings.INTERNAL_API_KEY:
-            logger.error("Invalid API key")
+            logger.error("Invalid Internal API key")
             return Response(
                 {'error': 'Invalid API key'},
                 status=status.HTTP_403_FORBIDDEN
             )
 
         user_id = request.data.get('user_id')
-        token_key = request.data.get('token')
+        token = request.data.get('token')
         username = request.data.get('username')
+
+        if not all([user_id, token, username]):
+            logger.error("Missing required fields")
+            return Response(
+                {'error': 'Missing required fields'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             # Get or create user
@@ -54,54 +66,65 @@ class SyncTokenView(APIView):
                 id=user_id,
                 defaults={'username': username}
             )
-            
-            # Create or update token
-            token, _ = Token.objects.get_or_create(
-                user=user,
-                defaults={'key': token_key}
-            )
-            if token.key != token_key:
-                token.key = token_key
-                token.save()
 
-            # Create profile if it doesn't exist
-            Profile.objects.get_or_create(
-                user=user,
-                defaults={'display_name': username}
-            )
+            base_display_name = "Player"
+            display_name = f"{base_display_name}{random.randint(100000, 999999)}"
+
+            while Profile.objects.filter(display_name=display_name).exists():
+                display_name = f"{base_display_name}{random.randint(100000, 999999)}"
             
-            logger.info(f"Successfully synced token for user {user.username}")
-            return Response({'status': 'success'})
+            # Create or update profile
+            profile, _ = Profile.objects.get_or_create(
+                user=user,
+                defaults={
+                    'display_name': display_name,
+                    'avatar': 'default.png'
+                }
+            )
+
+            logger.info(f"Successfully synced token for user {username}")
+            return Response({
+                'status': 'success',
+                'user_id': user.id,
+                'profile_id': profile.id
+            })
 
         except Exception as e:
-            logger.error(f"Error in sync token: {str(e)}", exc_info=True)
+            logger.error(f"Sync token error: {str(e)}", exc_info=True)
             return Response(
-                {'error': str(e)},
+                {'error': 'Token synchronization failed'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-
-logger = logging.getLogger(__name__)
-
 class ProfileView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         try:
-            logger.debug(f"Auth header: {request.headers.get('Authorization')}")
+            # Log the token for debugging
+            auth_header = request.headers.get('Authorization', '')
+            logger.debug(f"Auth header: {auth_header}")
+            
+            # Get profile directly from authenticated user
             profile = Profile.objects.get(user=request.user)
             
             data = {
                 'id': profile.id,
                 'display_name': profile.display_name,
                 'avatar': profile.get_avatar_url(),
-                'is_online': profile.is_online
+                'is_online': profile.is_online,
+                'friends': []
             }
             
-            logger.debug(f"Returning profile data: {data}")
             return Response(data)
             
+        except Profile.DoesNotExist:
+            logger.error(f"Profile not found for user {request.user.id}")
+            return Response(
+                {"detail": "Profile not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
         except Exception as e:
             logger.error(f"Profile fetch error: {str(e)}", exc_info=True)
             return Response(
@@ -110,7 +133,6 @@ class ProfileView(APIView):
             )
     
     def delete(self, request):
-        """Handle avatar deletion"""
         try:
             profile = request.user.profile
             
@@ -119,15 +141,11 @@ class ProfileView(APIView):
                     {"message": "Already using default avatar"}, 
                     status=status.HTTP_400_BAD_REQUEST
                 )
-
-            profile.avatar.delete(save=False)
-            profile.avatar = None
-            profile.save()
-            
-            logger.info(f"Reset avatar to default for user {request.user.username}")
+            # Use the new delete_avatar method
+            profile.delete_avatar()
             
             serializer = UserProfileSerializer(profile, context={"request": request})
-            return Response(serializer.data, status=status.HTTP_200_OK)
+            return Response(serializer.data)
 
         except Exception as e:
             logger.error(f"Avatar deletion error: {str(e)}")
@@ -137,49 +155,56 @@ class ProfileView(APIView):
             )
 
     def put(self, request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return Response({"message": "You are not authenticated"}, status=status.HTTP_401_UNAUTHORIZED)
-
         profile = request.user.profile
         data = request.data
-
-        if 'display_name' in data:
-            display_name = data['display_name'].strip()
-
-            if Profile.objects.filter(display_name=display_name).exclude(user=request.user).exists():
-                return Response({"message": "Display name is already taken"}, status=status.HTTP_400_BAD_REQUEST)
-            profile.display_name = display_name
-            logger.info(f"Updated display name for user {request.user.username}")
-            
-        if 'avatar' in request.FILES:
+        try:
+            # Handle display name update
+            if 'display_name' in data:
+                new_display_name = data['display_name'].strip()
+                
+                if Profile.objects.filter(display_name=new_display_name).exclude(user=request.user).exists():
+                    return Response(
+                        {"error": "Display name already in use"}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                profile.display_name = new_display_name
+                profile.save()
+                
+            # Handle avatar update
+            elif 'avatar' in request.FILES:
                 avatar = request.FILES['avatar']
-                
-                # Validate file type
-                if not avatar.content_type.startswith('image/'):
+
+                if not avatar.content_type.startswith('image'):
                     return Response(
-                        {"message": "Invalid file type. Please upload an image"}, 
+                        {"error": "Invalid image format"}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                # Validate file size (5MB limit)
-                if avatar.size > 5 * 1024 * 1024:
+                if avatar.size > 5 * 1024 * 1024:  # 5MB limit
                     return Response(
-                        {"message": "File too large. Maximum size is 5MB"}, 
+                        {"error": "Image size too large"}, 
                         status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Delete old avatar if exists
-                if profile.avatar:
-                    profile.avatar.delete(save=False)
+                if profile.avatar and profile.avatar.name != settings.DEFAULT_AVATAR_PATH:
+                    # I dont want to delete phisically the file
+                    profile.delete_avatar() # here was the problem before you were using profile.avatar.delete()
+                    
+                    
                 
                 profile.avatar = avatar
+                profile.save()
                 logger.info(f"Updated avatar for user {request.user.username}")
 
-        profile.save()
-        
-        # Return updated profile data
-        serializer = UserProfileSerializer(profile, context={"request": request})
-        return Response(serializer.data, status=status.HTTP_200_OK)
+            serializer = UserProfileSerializer(profile, context={"request": request})
+            return Response(serializer.data, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"Profile update error: {str(e)}")
+            return Response(
+                {"error": str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 @permission_classes([IsAuthenticated])
@@ -244,52 +269,69 @@ class BlockUserView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-
-@permission_classes([IsAuthenticated])
 class AddFriendView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         from_profile = request.user.profile
-        to_profile_id = request.data.get('friend_profile_id')  # Adjust key as per frontend
+        to_profile_id = request.data.get('friend_profile_id')
+
+        # Add debug logging
+        logger.debug(f"Add friend request: from_profile={from_profile.id}, to_profile_id={to_profile_id}")
 
         if not to_profile_id:
-            return Response({'error': 'Friend profile ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'Friend profile ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
             to_profile = Profile.objects.get(id=to_profile_id)
+            
+            # Check if users are already friends
+            existing_friendship = Friendship.objects.filter(
+                Q(from_profile=from_profile, to_profile=to_profile) |
+                Q(from_profile=to_profile, to_profile=from_profile)
+            ).first()
+
+            if existing_friendship:
+                logger.debug(f"Existing friendship found: status={existing_friendship.status}")
+                if existing_friendship.status == 'accepted':
+                    return Response(
+                        {'message': 'Already friends'}, 
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                return Response(
+                    {'message': 'Friend request already pending'}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Create new friendship request
+            friendship = Friendship.objects.create(
+                from_profile=from_profile,
+                to_profile=to_profile,
+                status='pending'
+            )
+
+            logger.debug(f"Created new friendship: id={friendship.id}")
+            return Response(
+                {'message': 'Friend request sent successfully'}, 
+                status=status.HTTP_201_CREATED
+            )
+
         except Profile.DoesNotExist:
-            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        # Check if friendship already exists or if there's a pending request
-        existing_friendship = Friendship.objects.filter(
-            Q(from_profile=from_profile, to_profile=to_profile) |
-            Q(from_profile=to_profile, to_profile=from_profile)
-        ).first()
-
-        if existing_friendship:
-            if existing_friendship.status == 'accepted':
-                return Response({'message': 'You are already friends'}, status=status.HTTP_200_OK)
-            elif existing_friendship.status == 'pending':
-                return Response({'message': 'Friend request already sent or received'}, status=status.HTTP_200_OK)
-
-        # Create a new friendship request
-        Friendship.objects.create(from_profile=from_profile, to_profile=to_profile, status='pending')
-
-        # Send a WebSocket notification to the recipient
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"user_{to_profile.user.id}",
-            {
-                'type': 'send_notification',
-                'message': {
-                    'type': 'friend_request',
-                    'from_user_id': from_profile.user.id,
-                    'from_user_name': from_profile.display_name,
-                    'from_user_avatar': from_profile.get_avatar_url(), # Use the helper method
-                }
-            }
-        )
-
-        return Response({'message': 'Friend request sent successfully'}, status=status.HTTP_201_CREATED)
+            logger.error(f"Profile not found: id={to_profile_id}")
+            return Response(
+                {'error': 'Profile not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error creating friend request: {str(e)}")
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 @permission_classes([IsAuthenticated])
 class IncomingFriendRequestsView(APIView):

@@ -6,6 +6,7 @@ import { useStore } from 'vuex'
 
 const store = useStore()
 const router = useRouter()
+const isAbleToPlay = computed(() => store.state.isAbleToPlay)
 const isAuthenticated = computed(() => store.state.isAuthenticated)
 
 async function logout() {
@@ -59,6 +60,7 @@ onMounted(async () => {
         <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/friends">Friends</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/Play">Play</RouterLink>
       </nav>
     </div>
   </header>

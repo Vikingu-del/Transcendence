@@ -1,63 +1,48 @@
-from rest_framework import status, generics
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.authentication import TokenAuthentication
+from rest_framework_simplejwt.tokens import RefreshToken # Eric Added
+from rest_framework_simplejwt.authentication import JWTAuthentication # Eric Added
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from rest_framework import status
 import requests
 from django.conf import settings
 import logging
-from .serializers import UserSerializer, RegistrationSerializer
+from .serializers import RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import random  # Add this at the top with other imports
 
 logger = logging.getLogger(__name__)
 
+# CreateAPIView provides:
+# Built-in creation behavior
+# Serializer handling
+# Automatic response formatting
+# Model instance creation
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
 
     def post(self, request, *args, **kwargs):
-        try:
-            serializer = self.get_serializer(data=request.data)
-            
-            if serializer.is_valid():
-                username = serializer.validated_data['username']
-                if User.objects.filter(username=username).exists():
-                    return Response(
-                        {"error": "Username already exists"}, 
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                
-                user = serializer.save()
-                
-                # Create response data
-                user_data = {
-                    'id': user.id,
-                    'username': user.username
-                }
-                
-                logger.info(f"User {username} registered successfully")
-                return Response({
-                    'message': 'Registration successful',
-                    'user': user_data
-                }, status=status.HTTP_201_CREATED)
-            
-            logger.error(f"Registration validation errors: {serializer.errors}")
-            return Response(
-                serializer.errors,
-                status=status.HTTP_400_BAD_REQUEST
-            )
-            
-        except Exception as e:
-            logger.error(f"Registration error: {str(e)}", exc_info=True)
-            return Response(
-                {"error": "Registration failed", "detail": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            # Create the user without token
+            user = serializer.save()
+            return Response({
+                'message': 'Registration successful',
+                'user': serializer.data
+            }, status=status.HTTP_201_CREATED)
+        return Response({
+            "error": "Registration failed", 
+            "details": serializer.errors
+        }, status=status.HTTP_400_BAD_REQUEST)
 
+
+# APIView is used when you want:
+# More control over the HTTP methods
+# Custom authentication logic
+# No model-based operations
+# Simpler request handling
 class LoginView(APIView):
     def post(self, request):
         try:
@@ -67,14 +52,16 @@ class LoginView(APIView):
             user = authenticate(username=username, password=password)
             
             if user:
-                token, _ = Token.objects.get_or_create(user=user)
+                # Generate JWT token
+                refresh = RefreshToken.for_user(user)
+                access_token = str(refresh.access_token)
                 
                 # Sync token with user service
                 response = requests.post(
                     f"{settings.USER_SERVICE_URL}/api/user/sync-token/",
                     json={
                         'user_id': user.id,
-                        'token': token.key,
+                        'token': access_token,
                         'username': user.username
                     },
                     headers={
@@ -83,8 +70,6 @@ class LoginView(APIView):
                     }
                 )
                 
-                logger.debug(f"Sync token response: {response.status_code} - {response.text}")
-                
                 if not response.ok:
                     logger.error(f"Failed to sync token: {response.text}")
                     return Response({
@@ -92,7 +77,8 @@ class LoginView(APIView):
                     }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 return Response({
-                    'token': token.key,
+                    'token': access_token,
+                    'refresh': str(refresh),
                     'user': {
                         'id': user.id,
                         'username': user.username
@@ -106,12 +92,12 @@ class LoginView(APIView):
         except Exception as e:
             logger.error(f"Login error: {str(e)}", exc_info=True)
             return Response({
-                'error': 'Internal server error'
+                'error': 'Authentication failed'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class LogoutView(APIView):
-    authentication_classes = [TokenAuthentication]
+    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request, *args, **kwargs):
@@ -136,7 +122,7 @@ class LogoutView(APIView):
             )
 
             # Delete auth token
-            request.user.auth_token.delete()
+            # request.user.auth_token.delete() // For JWT, we don't need to delete the token as they are stateless instead the might want to add the toke to a blacklist or let it expire naturyally
             
             return Response({"message": "Successfully logged out."}, 
                           status=status.HTTP_200_OK)

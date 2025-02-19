@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/14 14:54:11 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/19 12:00:40 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -14,6 +14,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from .models import Profile, Friendship
 from django.db.models import Q
+from django.conf import settings
 import random
 
 class UserSerializer(serializers.ModelSerializer):
@@ -41,10 +42,16 @@ class UserSerializer(serializers.ModelSerializer):
         while Profile.objects.filter(display_name=display_name).exists():
             display_name = f"{base_display_name}{random.randint(100000, 999999)}"
 
-        Profile.objects.create(user=user, display_name=display_name, avatar=None)
+        # Create profile with default avatar
+        Profile.objects.create(
+            user=user,
+            display_name=display_name,
+            avatar=settings.DEFAULT_AVATAR_PATH
+        )
         return user
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
     avatar = serializers.SerializerMethodField()
     friend_request_status = serializers.SerializerMethodField()
     requested_by_current_user = serializers.SerializerMethodField()
@@ -108,4 +115,3 @@ class FriendRequestSerializer(serializers.ModelSerializer):
             'avatar': obj.from_profile.get_avatar_url(),
             'is_online': obj.from_profile.is_online
         }
-

@@ -1,6 +1,7 @@
 from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
+from django.conf import settings
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -9,15 +10,27 @@ class Profile(models.Model):
         upload_to='avatars/',
         null=True,
         blank=True,
-        default="default.png"
+        default=settings.DEFAULT_AVATAR_PATH
     )
     is_online = models.BooleanField(default=False)
     blocked_users = models.ManyToManyField(User, related_name='blocked_users')
 
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
-            return f'/api/user/media/{self.avatar.name}'
-        return '/api/user/media/default.png'
+            return  self.avatar.url
+        return settings.DEFAULT_AVATAR_URL
+
+    def delete_avatar(self):
+        """Delete the current avatar and reset to default"""
+        if self.avatar.name == settings.DEFAULT_AVATAR_PATH:
+            return settings.DEFAULT_AVATAR_URL
+        if self.avatar:
+            # Delete the physical file
+            self.avatar.delete(save=False)
+        # Reset to None (will use default from model field)
+        self.avatar = None
+        self.save()
+        return self.get_avatar_url()  # Return the new avatar URL
 
     def get_friends(self):
         friendships = Friendship.objects.filter(
@@ -45,3 +58,8 @@ class Friendship(models.Model):
 
     class Meta:
         unique_together = ('from_profile', 'to_profile')
+
+class UserJWTToken(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    token = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)

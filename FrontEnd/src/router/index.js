@@ -1,11 +1,15 @@
+// createRouter -> Factory function to create a router instance
+// createWebHistory -> Factory function to create a history instance with HTML5 history API
 import { createRouter, createWebHistory } from 'vue-router';
+// Importing the views to which the router will navigate
 import Home from '../views/Home.vue';
 import Login from '../views/Login.vue';
 import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
 import Friends from '../views/Friends.vue';
-import store from '../store';
+import Play from '../views/Play.vue'
 
+// Create the router instance and configuring the routes through this instance
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
@@ -38,6 +42,12 @@ const router = createRouter({
       name: 'Friends',
       component: Friends,
       meta: { requiresAuth: true }
+    },
+    {
+      path: '/play',
+      name: 'Play',
+      component: Play,
+      meta: { requiresAuth: true }
     }
   ]
 });
@@ -46,10 +56,9 @@ import { auth } from '@/utils/auth';
 
 router.beforeEach((to, from, next) => {
     console.log('Route guard checking authentication');
-    
     if (to.matched.some(record => record.meta.requiresAuth)) {
-        if (!auth.isAuthenticated()) {
-            console.log('Authentication required, redirecting to login');
+        if (!auth.isAuthenticated() || auth.isTokenExpired()) {
+            console.log('Authentication required or token expired, redirecting to login');
             next({
                 path: '/login',
                 query: { redirect: to.fullPath }
