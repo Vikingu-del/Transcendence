@@ -4,7 +4,7 @@ import router from '@/router';
 // import { config } from '@/config/environment';
 
 const axiosInstance = axios.create({
-    baseURL: 'https://localhost',
+    baseURL: 'http://localhost',
     headers: {
         'Content-Type': 'application/json',
     },

@@ -1,23 +1,25 @@
-from rest_framework import status, generics
+from rest_framework import generics
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken # Eric Added
 from rest_framework_simplejwt.authentication import JWTAuthentication # Eric Added
-from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
-from django.contrib.auth.models import User
+from rest_framework import status
 import requests
 from django.conf import settings
 import logging
 from .serializers import RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-import random
 
 logger = logging.getLogger(__name__)
 
+# CreateAPIView provides:
+# Built-in creation behavior
+# Serializer handling
+# Automatic response formatting
+# Model instance creation
 class RegisterView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
 
@@ -26,13 +28,9 @@ class RegisterView(generics.CreateAPIView):
         if serializer.is_valid():
             # Create the user without token
             user = serializer.save()
-            
-            # Prepare user data
-            user_data = serializer.data
-            
             return Response({
                 'message': 'Registration successful',
-                'user': user_data
+                'user': serializer.data
             }, status=status.HTTP_201_CREATED)
         return Response({
             "error": "Registration failed", 
@@ -40,7 +38,11 @@ class RegisterView(generics.CreateAPIView):
         }, status=status.HTTP_400_BAD_REQUEST)
 
 
-
+# APIView is used when you want:
+# More control over the HTTP methods
+# Custom authentication logic
+# No model-based operations
+# Simpler request handling
 class LoginView(APIView):
     def post(self, request):
         try:
@@ -95,7 +97,6 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
-    # authentication_classes = [TokenAuthentication]
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 

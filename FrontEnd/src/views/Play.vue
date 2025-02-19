@@ -20,7 +20,7 @@ export default {
   methods: {
     async createGameLink() {
       try {
-        const response = await fetch('http://localhost:8005/api/pong/create/', {
+        const response = await fetch('/api/pong/create/', {
           method: 'POST',
           headers: {
             'Authorization': `Token ${localStorage.getItem('token')}`,
@@ -34,7 +34,7 @@ export default {
 
         const data = await response.json();
         this.gameId = data.id;
-        this.gameLink = `http://localhost:8005/pong/${data.id}`;
+        this.gameLink = `/pong/${data.id}`;
         this.isGameCreated = true;
         
       } catch (error) {

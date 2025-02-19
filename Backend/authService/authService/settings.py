@@ -27,7 +27,7 @@ SECRET_KEY = 'your-secret-key-here'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["localhost", "auth", "0.0.0.0", "127.0.0.1"]
+ALLOWED_HOSTS = ["localhost", "auth", "0.0.0.0", "127.0.0.1", "10.12.12.5"]
 
 
 # Application definition
@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
-    # 'rest_framework.authtoken',
+    # 'rest_framework_simplejwt.token_blacklist', // for database blacklist
     'rest_framework_simplejwt', # JWT support
     'corsheaders',
     'authService',
@@ -100,7 +100,9 @@ SIMPLE_JWT = {
     'AUTH_HEADER_TYPES': ('Bearer',),
     'USER_ID_FIELD': 'id',
     'USER_ID_CLAIM': 'user_id',
-    'SIGNING_KEY': 'your-secret-key-here',  # Must be the same as in auth service
+    'SIGNING_KEY': 'your-secret-key-here',
+    # 'BLACKLIST_AFTER_ROTATION': True, //For database blacklist
+    # 'USE_BLACKLIST': True, //For database blacklist
 }
 
 REST_FRAMEWORK = {

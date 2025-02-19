@@ -1,10 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
-import requests
-import random
 import logging
-from django.conf import settings
-from rest_framework.authtoken.models import Token
 
 logger = logging.getLogger(__name__)
 

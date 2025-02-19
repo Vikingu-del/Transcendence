@@ -109,6 +109,7 @@
 </template>
 
 <script>
+import axios from '@/plugins/axios';
 import { mapGetters } from 'vuex';
 
 export default {
@@ -267,7 +268,7 @@ export default {
         const formData = new FormData();
         formData.append('avatar', file);
 
-        const response = await fetch('https://localhost/api/user/profile/', { // Removed port 8000
+        const response = await fetch('/api/user/profile/', { // Removed port 8000
           method: 'PUT',
           headers: {
             'Authorization': `Bearer ${token}`,

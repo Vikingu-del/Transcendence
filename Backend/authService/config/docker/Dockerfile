@@ -20,6 +20,7 @@ RUN apt-get update && apt-get install -y \
 
 # Install Python dependencies
 COPY config/docker/requirements.txt .
+RUN mkdir -p /app/logs && chmod 777 /app/logs
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy entrypoint script and make it executable
