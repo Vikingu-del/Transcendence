@@ -11,7 +11,7 @@ from django.contrib.auth.models import User
 import requests
 from django.conf import settings
 import logging
-from .serializers import UserSerializer, RegistrationSerializer
+from .serializers import RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import random
@@ -24,28 +24,16 @@ class RegisterView(generics.CreateAPIView):
     def post(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
-            username = serializer.validated_data['username']
-            if User.objects.filter(username=username).exists():
-                return Response(
-                    {"error": "Username already exists."}, 
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            
             # Create the user without token
             user = serializer.save()
             
             # Prepare user data
-            user_data = {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email
-            }
+            user_data = serializer.data
             
             return Response({
                 'message': 'Registration successful',
                 'user': user_data
             }, status=status.HTTP_201_CREATED)
-        logger.debug("Registration errors: %s", serializer.errors)
         return Response({
             "error": "Registration failed", 
             "details": serializer.errors
