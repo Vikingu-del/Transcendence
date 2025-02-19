@@ -18,6 +18,7 @@ Including another URLconf
 from django.urls import path, re_path
 from django.conf import settings
 from django.conf.urls.static import static
+from django_prometheus import exports
 from .views import (
     ProfileView, SearchProfilesView, AddFriendView,
     RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
@@ -41,7 +42,7 @@ urlpatterns = [
 
     # Block management endpoints
     path('api/user/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
-
+    re_path(r'^metrics$', exports.ExportToDjangoView, name='prometheus-django-metrics'),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

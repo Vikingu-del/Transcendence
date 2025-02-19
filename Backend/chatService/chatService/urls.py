@@ -15,10 +15,12 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import path, re_path
+from django_prometheus import exports
 from .views import ChatListView, ChatDetailView
 
 urlpatterns = [
     path('api/chats/', ChatListView.as_view(), name='chat_list_view'),
     path('api/chats/<str:id>/', ChatDetailView.as_view(), name='chat_view'),  # Changed from int to str
+    re_path(r'^metrics$', exports.ExportToDjangoView, name='prometheus-django-metrics'),
 ]

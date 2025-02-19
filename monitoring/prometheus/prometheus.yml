@@ -25,3 +25,43 @@ scrape_configs:
   - job_name: 'filebeat'
     static_configs:
       - targets: ['filebeat:5066']
+
+  - job_name: 'frontend'
+    static_configs:
+      - targets: ['frontend:5173']
+
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+
+  - job_name: 'vault_secrets'
+    static_configs:
+      - targets: ['vault_secrets:8200']
+
+  - job_name: 'auth_db'
+    static_configs:
+      - targets: ['auth_db:5434']
+
+  - job_name: 'chat_db'
+    static_configs:
+      - targets: ['chat_db:5433']
+
+  - job_name: 'user_db'
+    static_configs:
+      - targets: ['user_db:5432']
+
+  - job_name: 'chat'
+    static_configs:
+      - targets: ['chat:8002']
+
+  - job_name: 'user'
+    static_configs:
+      - targets: ['user:8000']
+
+  - job_name: 'auth'
+    static_configs:
+      - targets: ['auth:8001']
+
+  - job_name: 'gateway'
+    static_configs:
+      - targets: ['gateway:80']
