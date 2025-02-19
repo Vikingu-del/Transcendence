@@ -180,7 +180,7 @@ class ProfileView(APIView):
                         status=status.HTTP_400_BAD_REQUEST
                     )
                 
-                if avatar.size > 5 * 1024 * 1024:  # 5MB limit
+                if avatar.size > 10 * 1024 * 1024:  # 5MB limit
                     return Response(
                         {"error": "Image size too large"}, 
                         status=status.HTTP_400_BAD_REQUEST
