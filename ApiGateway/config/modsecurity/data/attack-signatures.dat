@@ -1,0 +1,11 @@
+/etc/passwd
+/etc/shadow
+/proc/self/environ
+.htaccess
+wp-config.php
+.env
+/admin
+/wp-admin
+.git
+.svn
+/backup

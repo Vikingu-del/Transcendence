@@ -24,6 +24,28 @@ generate_ssl_certificates() {
     chmod 600 $SSL_DIR/nginx-selfsigned.key
 }
 
+# Function to setup ModSecurity
+setup_modsecurity() {
+    echo "Setting up ModSecurity..."
+    
+    # Create required directories
+    mkdir -p /etc/nginx/modsecurity.d/{data,custom-rules,tmp}
+    
+    # Check for unicode.mapping
+    if [ ! -f "/etc/nginx/modsecurity.d/unicode.mapping" ]; then
+        echo "Downloading unicode.mapping..."
+        curl --retry 3 --retry-delay 2 -fsSL \
+            "https://raw.githubusercontent.com/SpiderLabs/ModSecurity/v3/master/unicode.mapping" \
+            -o "/etc/nginx/modsecurity.d/unicode.mapping"
+        chmod 644 "/etc/nginx/modsecurity.d/unicode.mapping"
+    fi
+    
+    # Set proper permissions
+    chown -R nginx:nginx /etc/nginx/modsecurity.d
+    chmod -R 755 /etc/nginx/modsecurity.d
+    chmod 644 /etc/nginx/modsecurity.d/unicode.mapping
+}
+
 # Vault Authentication
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
     echo "❌ Credentials missing"
@@ -44,18 +66,18 @@ if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
 fi
 echo "✅ Successfully authenticated with Vault"
 
+# Setup ModSecurity
+setup_modsecurity
+echo "✅ ModSecurity setup complete"
+
+# Generate SSL certificates
 generate_ssl_certificates
+echo "✅ SSL certificates generated"
 
 # Export ModSecurity configuration
 export MODSEC_RULE_ENGINE=On
 export MODSEC_AUDIT_LOG=/var/log/modsec_audit.log
 export MODSEC_CONFIG_DIR=/etc/nginx/modsecurity.d
-
-# Create writable directories for dynamic content
-mkdir -p /tmp/nginx/conf
-mkdir -p /tmp/nginx/ssl
-mkdir -p /tmp/modsecurity/data
-mkdir -p /tmp/modsecurity/tmp
 
 # Let the original entrypoint handle template processing
 exec /docker-entrypoint.sh nginx -g "daemon off;"
