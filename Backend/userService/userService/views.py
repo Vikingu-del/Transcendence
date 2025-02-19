@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/18 20:40:29 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/19 10:55:15 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -30,6 +30,7 @@ from django.conf import settings
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+import random
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +67,17 @@ class SyncTokenView(APIView):
                 defaults={'username': username}
             )
 
+            base_display_name = "Player"
+            display_name = f"{base_display_name}{random.randint(100000, 999999)}"
+
+            while Profile.objects.filter(display_name=display_name).exists():
+                display_name = f"{base_display_name}{random.randint(100000, 999999)}"
+            
             # Create or update profile
             profile, _ = Profile.objects.get_or_create(
                 user=user,
                 defaults={
-                    'display_name': username,
+                    'display_name': display_name,
                     'avatar': 'default.png'
                 }
             )

@@ -49,6 +49,13 @@
       </div>
     </div>
 
+    <div 
+      v-if="statusMessage" 
+      :class="['status-message', statusMessage.type]"
+    >
+      {{ statusMessage.text }}
+    </div>
+
 
     <!-- Loading and Error States -->
     <div v-if="loading">Loading...</div>
@@ -241,8 +248,7 @@ export default {
           throw new Error(errorText);
         }
 
-        const data = await response.json();
-        this.profile = data;
+        this.profile = await response.json();
         this.loading = false;
         
       } catch (error) {
@@ -360,9 +366,12 @@ export default {
           })
         });
 
+        const data = await response.json();
+
         if (!response.ok) {
-          const data = await response.json();
           if (response.status === 400) {
+            // Show error status message for duplicate display name
+            this.showStatus('Display name already exists', {}, 'error');
             this.displayNameError = data.message;
             return;
           }
@@ -370,40 +379,44 @@ export default {
         }
 
         // Update profile with new data
-        const updatedProfile = await response.json();
-        this.profile = updatedProfile;
+        this.profile = data;
         this.displayNameError = null;
         this.isUpdateDisabled = true;
+        
+        // Show success message
+        this.showStatus('Display name updated successfully', {}, 'success');
 
       } catch (error) {
         console.error('Display name update error:', error);
         this.displayNameError = error.message;
+        // Show error status message for other errors
+        this.showStatus(error.message, {}, 'error');
       }
     },
 
     // Helper methods
     extractUserId(request) {
-  // Handle both object formats and direct ID input
-  if (typeof request === 'number') {
-    return request;
-  }
+      // Handle both object formats and direct ID input
+      if (typeof request === 'number') {
+        return request;
+      }
 
-  if (!request) {
-    throw new Error('Request object is required');
-  }
+      if (!request) {
+        throw new Error('Request object is required');
+      }
 
-  // Try different possible paths to get the user ID
-  const userId = request.from_user_id || // Direct ID
-                (request.from_user && request.from_user.id) || // Nested user object
-                request.id; // Direct profile ID
+      // Try different possible paths to get the user ID
+      const userId = request.from_user_id || // Direct ID
+                    (request.from_user && request.from_user.id) || // Nested user object
+                    request.id; // Direct profile ID
 
-  if (!userId) {
-    console.error('Invalid request structure:', request);
-    throw new Error('Invalid request data: User ID not found');
-  }
+      if (!userId) {
+        console.error('Invalid request structure:', request);
+        throw new Error('Invalid request data: User ID not found');
+      }
 
-  return userId;
-},
+      return userId;
+    },
 
     buildAvatarUrl(avatarPath) {
       console.log('Building avatar URL:', avatarPath);

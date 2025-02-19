@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/18 12:29:48 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/19 12:00:40 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -23,7 +23,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'password1', 'password2', 'display_name']
+        fields = ['username', 'password1', 'password2']
 
     def validate(self, data):
         if data['password1'] != data['password2']:
@@ -51,6 +51,7 @@ class UserSerializer(serializers.ModelSerializer):
         return user
 
 class UserProfileSerializer(serializers.ModelSerializer):
+    display_name = serializers.CharField(read_only=True)
     avatar = serializers.SerializerMethodField()
     friend_request_status = serializers.SerializerMethodField()
     requested_by_current_user = serializers.SerializerMethodField()
