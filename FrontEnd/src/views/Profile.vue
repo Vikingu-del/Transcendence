@@ -192,8 +192,9 @@ export default {
         await this.$router.push('/login');
         return;
       }
-      
+
       await this.fetchProfile();
+      this.updateOnlineStatus(true);
     } catch (error) {
       console.error('Profile initialization error:', error);
     }
@@ -225,6 +226,26 @@ export default {
       }, 3000);
     },
 
+    async updateOnlineStatus(status) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/user/profile/online-status/', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ status })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to update online status');
+        }
+      } catch (error) {
+        console.error('Error updating online status:', error);
+      }
+    },
+
     async fetchProfile() {
       try {
         const token = localStorage.getItem('token');
@@ -249,6 +270,8 @@ export default {
         }
 
         this.profile = await response.json();
+        this.profile.is_online = true;
+        this.currentUserId = this.profile.id;
         this.loading = false;
         
       } catch (error) {
@@ -446,16 +469,8 @@ export default {
 
     async logout() {
       try {
-        // Send offline status via WebSocket
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
-          this.notificationSocket.send(JSON.stringify({
-            type: 'friend_status',
-            status: 'offline'
-          }));
-          
-          await new Promise(resolve => setTimeout(resolve, 100));
-          this.notificationSocket.close();
-        }
+        // Set offline status before logging out
+        await this.updateOnlineStatus(false);
 
         // Clear local storage
         await this.$store.dispatch('logoutAction');
@@ -472,84 +487,12 @@ export default {
       }
     },
 
-    // WebSocket methods
-    // initNotificationSocket() {
-    //   const token = this.getToken;
-    //   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    //   const wsHost = 'localhost'; // Use direct service URL
-    //   const wsUrl = `${wsProtocol}//${wsHost}/ws/profile/notifications/?token=${token}`;
-      
-    //   this.notificationSocket = new WebSocket(wsUrl);
-    //   this.notificationSocket.onopen = () => {
-    //     this.wsConnected = true;
-    //   };
-    //   this.notificationSocket.onmessage = (e) => {
-    //     console.log('WebSocket message received:', e.data);  // Debug logging
-    //     const data = JSON.parse(e.data);
-    //     // Handle incoming messages
-    //     switch (data.type) {
-    //       case 'friend_request':
-    //         this.incomingFriendRequests.push({
-    //             id: Date.now(), // Generate temporary ID
-    //             from_user: {
-    //                 id: data.from_user_id,
-    //                 display_name: data.from_user_name,
-    //                 avatar: this.buildAvatarUrl(data.from_user_avatar, 'http://localhost'),
-    //                 is_online: true // Assume online since they just sent request
-    //             }
-    //         });
-    //         this.showStatus(`New friend request from ${data.from_user_name}`, {}, 'success');
-    //         break;
-
-    //         case 'friend_status':
-    //           const friendId = data.user_id;
-    //           const status = data.status;
-    //           // First try to find friend in the profile.friends array
-    //           const friend = this.profile.friends.find(f => 
-    //               f.user_id === friendId || // Check user_id
-    //               f.id === friendId || // Check profile id
-    //               (f.user && f.user.id === friendId) // Check nested user object
-    //           );
-              
-    //           if (friend) {
-    //               friend.is_online = (status === 'online');
-    //               console.log(`Updated status for friend ${friend.display_name} to ${status}`);
-    //           } else {
-    //               console.log('Friend status update failed:', {
-    //                   receivedId: friendId,
-    //                   status: status,
-    //                   friendsList: this.profile.friends
-    //               });
-    //           }
-    //           break;
-
-    //       case 'friend_request_accepted':
-    //         this.fetchProfile();
-    //         break;
-
-    //       case 'friend_request_declined':
-    //         this.fetchProfile();
-    //         break;
-
-    //       case 'friend_removed':
-    //         this.fetchProfile(); // Refresh receiver's profile
-    //         break;
-
-    //       default:
-    //         console.warn('Unhandled WebSocket message type:', data.type);
-    //         break;
-    //     }
-    //   };
-    //   this.notificationSocket.onclose = () => {
-    //     this.wsConnected = false;
-    //   };
-    // },
-
     // Cleanup on component destruction
     beforeDestroy() {
-      if (this.notificationSocket) {
-        this.notificationSocket.close();
-      }
+      // Set offline status when component is destroyed
+      this.updateOnlineStatus(false);
+
+      // Close ChatWebSocket connection
       if (this.chatSocket) {
         this.chatSocket.close();
       }

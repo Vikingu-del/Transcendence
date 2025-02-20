@@ -112,9 +112,14 @@ LOGGING = {
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
+    "http://localhost",
     "https://localhost",
     "http://localhost:5173",
-    "https://localhost:5173"
+    "https://localhost:5173",
+    "http://gateway",
+    "https://gateway",
+    "http://0.0.0.0:8002",
+    "https://0.0.0.0:8002"
 ]
 
 CORS_ALLOW_HEADERS = [

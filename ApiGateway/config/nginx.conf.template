@@ -193,9 +193,9 @@ http {
         }
 
         # Error handlers
-        location @auth_down {
-            return 502 '{"error": "Auth service unavailable", "status": 502}';
-            add_header Content-Type application/json always;
-        }
+        #location @auth_down {
+         #   return 502 '{"error": "Auth service unavailable", "status": 502}';
+          #  add_header Content-Type application/json always;
+        #}
     }
 }

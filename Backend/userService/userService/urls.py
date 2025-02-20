@@ -23,7 +23,7 @@ from django.views.static import serve
 from .views import (
     ProfileView, SearchProfilesView, AddFriendView,
     RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
-    IncomingFriendRequestsView, BlockUserView, SyncTokenView
+    IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView
 )
 
 urlpatterns = [
@@ -43,6 +43,9 @@ urlpatterns = [
 
     # Block management endpoints
     path('api/user/profile/<int:user_id>/block/', BlockUserView.as_view(), name='block-user'),
+
+    # Online Status
+    path('api/user/profile/online-status/', UpdateOnlineStatusView.as_view(), name='online-status'),
 
     # Media files
     re_path(r'^api/user/media/(?P<path>.*)$', serve, {

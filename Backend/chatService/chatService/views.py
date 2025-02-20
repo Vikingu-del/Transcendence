@@ -8,6 +8,9 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.authentication import TokenAuthentication
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ChatListView(generics.ListAPIView):
     serializer_class = ChatListSerializer
@@ -18,9 +21,6 @@ class ChatListView(generics.ListAPIView):
         user = self.request.user
         return Chat.objects.filter(participant1=user) | Chat.objects.filter(participant2=user)
     
-import logging
-
-logger = logging.getLogger(__name__)
 
 class ChatDetailView(generics.RetrieveAPIView):
     serializer_class = ChatSerializer

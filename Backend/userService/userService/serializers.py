@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/19 12:00:40 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/20 18:07:43 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -56,14 +56,18 @@ class UserProfileSerializer(serializers.ModelSerializer):
     friend_request_status = serializers.SerializerMethodField()
     requested_by_current_user = serializers.SerializerMethodField()
     isBlocked = serializers.SerializerMethodField()
+    friends = serializers.SerializerMethodField()
 
     class Meta:
         model = Profile
-        fields = ['id', 'display_name', 'avatar', 'is_online', 
+        fields = ['id', 'display_name', 'avatar', 'is_online', 'friends',
                  'friend_request_status', 'requested_by_current_user', 'isBlocked']
 
     def get_avatar(self, obj):
         return obj.get_avatar_url()
+    
+    def get_friends(self, obj):
+        return obj.get_friends()
     
     def get_is_friend(self, obj):
         user = self.context['request'].user
@@ -71,14 +75,6 @@ class UserProfileSerializer(serializers.ModelSerializer):
             (Q(from_profile=user.profile) & Q(to_profile=obj) & Q(status='accepted')) |
             (Q(from_profile=obj) & Q(to_profile=user.profile) & Q(status='accepted'))
         ).exists()
-
-    def get_friend_request_status(self, obj):
-        user = self.context['request'].user
-        friendship = Friendship.objects.filter(
-            (Q(from_profile=user.profile) & Q(to_profile=obj)) |
-            (Q(from_profile=obj) & Q(to_profile=user.profile))
-        ).first()
-        return friendship.status if friendship else None
 
     def get_friend_request_status(self, obj):
         user = self.context['request'].user

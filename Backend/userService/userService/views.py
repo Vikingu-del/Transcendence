@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/19 10:55:15 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/20 18:26:06 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -102,22 +102,15 @@ class ProfileView(APIView):
 
     def get(self, request):
         try:
-            # Log the token for debugging
-            auth_header = request.headers.get('Authorization', '')
-            logger.debug(f"Auth header: {auth_header}")
-            
             # Get profile directly from authenticated user
             profile = Profile.objects.get(user=request.user)
             
-            data = {
-                'id': profile.id,
-                'display_name': profile.display_name,
-                'avatar': profile.get_avatar_url(),
-                'is_online': profile.is_online,
-                'friends': []
-            }
+            profile.is_online = True
+            profile.save(update_fields=['is_online'])
             
-            return Response(data)
+            # Use the UserProfileSerializer to serialize the data
+            serializer = UserProfileSerializer(profile, context={'request': request})
+            return Response(serializer.data)
             
         except Profile.DoesNotExist:
             logger.error(f"Profile not found for user {request.user.id}")
@@ -244,8 +237,9 @@ class SearchProfilesView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-@permission_classes([IsAuthenticated])
+
 class BlockUserView(APIView):
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, user_id):
         try:
@@ -270,15 +264,11 @@ class BlockUserView(APIView):
             )
 
 class AddFriendView(APIView):
-    authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from_profile = request.user.profile
         to_profile_id = request.data.get('friend_profile_id')
-
-        # Add debug logging
-        logger.debug(f"Add friend request: from_profile={from_profile.id}, to_profile_id={to_profile_id}")
 
         if not to_profile_id:
             return Response(
@@ -289,14 +279,12 @@ class AddFriendView(APIView):
         try:
             to_profile = Profile.objects.get(id=to_profile_id)
             
-            # Check if users are already friends
             existing_friendship = Friendship.objects.filter(
                 Q(from_profile=from_profile, to_profile=to_profile) |
                 Q(from_profile=to_profile, to_profile=from_profile)
             ).first()
 
             if existing_friendship:
-                logger.debug(f"Existing friendship found: status={existing_friendship.status}")
                 if existing_friendship.status == 'accepted':
                     return Response(
                         {'message': 'Already friends'}, 
@@ -307,34 +295,31 @@ class AddFriendView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Create new friendship request
             friendship = Friendship.objects.create(
                 from_profile=from_profile,
                 to_profile=to_profile,
                 status='pending'
             )
 
-            logger.debug(f"Created new friendship: id={friendship.id}")
             return Response(
                 {'message': 'Friend request sent successfully'}, 
                 status=status.HTTP_201_CREATED
             )
 
         except Profile.DoesNotExist:
-            logger.error(f"Profile not found: id={to_profile_id}")
             return Response(
                 {'error': 'Profile not found'}, 
                 status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
-            logger.error(f"Error creating friend request: {str(e)}")
             return Response(
                 {'error': str(e)}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-@permission_classes([IsAuthenticated])
 class IncomingFriendRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def get(self, request):
         try:
             user_profile = request.user.profile
@@ -352,78 +337,53 @@ class IncomingFriendRequestsView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-@permission_classes([IsAuthenticated])
 class DeclineFriendRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         to_profile = request.user.profile
         from_user_id = request.data.get('from_user_id')
-        
-        # Add logging
-        logger.debug(f"Decline friend request: from_user_id={from_user_id}")
 
         if not from_user_id:
-            return Response({'error': 'From user ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'From user ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            # Try to find profile by user ID first
-            from_profile = Profile.objects.select_related('user').get(user_id=from_user_id)
-            logger.debug(f"Found profile: {from_profile.display_name}")
-
-        except Profile.DoesNotExist:
-            logger.error(f"Profile not found for user_id: {from_user_id}")
-            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
+            from_profile = Profile.objects.get(user_id=from_user_id)
             friendship = Friendship.objects.get(
                 from_profile=from_profile, 
                 to_profile=to_profile, 
                 status='pending'
             )
             friendship.delete()
-
-            # Send WebSocket notification
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"user_{from_profile.user.id}",
-                {
-                    'type': 'send_notification',
-                    'message': {
-                        'type': 'friend_request_declined',
-                        'user_id': to_profile.user.id,
-                        'user_name': to_profile.display_name,
-                        'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
-                    },
-                }
+            return Response(
+                {'message': 'Friend request declined'}, 
+                status=status.HTTP_200_OK
             )
 
-            return Response({'message': 'Friend request declined'}, status=status.HTTP_200_OK)
+        except (Profile.DoesNotExist, Friendship.DoesNotExist):
+            return Response(
+                {'error': 'Friend request not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        except Friendship.DoesNotExist:
-            logger.error(f"Friendship not found between {to_profile.id} and {from_profile.id}")
-            return Response({'error': 'Friend request not found'}, status=status.HTTP_400_BAD_REQUEST)
-        
-@permission_classes([IsAuthenticated])
 class AcceptFriendRequestView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
         to_profile = request.user.profile
         from_user_id = request.data.get('from_user_id')
-        
-        # Add logging
-        logger.debug(f"Accept friend request: from_user_id={from_user_id}")
 
         if not from_user_id:
-            return Response({'error': 'From user ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'error': 'From user ID is required'}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         try:
-            # Try to find profile by user ID first
-            from_profile = Profile.objects.select_related('user').get(user_id=from_user_id)
-            logger.debug(f"Found profile: {from_profile.display_name}")
-
-        except Profile.DoesNotExist:
-            logger.error(f"Profile not found for user_id: {from_user_id}")
-            return Response({'error': 'Profile not found'}, status=status.HTTP_404_NOT_FOUND)
-
-        try:
+            from_profile = Profile.objects.get(user_id=from_user_id)
             friendship = Friendship.objects.get(
                 from_profile=from_profile, 
                 to_profile=to_profile, 
@@ -431,35 +391,36 @@ class AcceptFriendRequestView(APIView):
             )
             friendship.status = 'accepted'
             friendship.save()
-
-            # Send WebSocket notification
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"user_{from_profile.user.id}",
-                {
-                    'type': 'send_notification',
-                    'message': {
-                        'type': 'friend_request_accepted',
-                        'user_id': to_profile.user.id,
-                        'user_name': to_profile.display_name,
-                        'user_avatar': to_profile.avatar.url if to_profile.avatar else '',
-                    },
-                }
+            return Response(
+                {'message': 'Friend request accepted'}, 
+                status=status.HTTP_200_OK
             )
 
-            return Response({'message': 'Friend request accepted'}, status=status.HTTP_200_OK)
+        except (Profile.DoesNotExist, Friendship.DoesNotExist):
+            return Response(
+                {'error': 'Friend request not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
 
-        except Friendship.DoesNotExist:
-            logger.error(f"Friendship not found between {to_profile.id} and {from_profile.id}")
-            return Response({'error': 'Friend request not found'}, status=status.HTTP_400_BAD_REQUEST)
-
-@permission_classes([IsAuthenticated])
 class RemoveFriendView(APIView):
-    def post(self, request, *args, **kwargs):
-        user_profile = request.user.profile
-        friend_profile_id = request.data.get('friend_profile_id')
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
+    def post(self, request):
         try:
+            # Log the request details
+            logger.debug(f"Remove friend request: {request.data}")
+            logger.debug(f"Auth header: {request.headers.get('Authorization')}")
+
+            user_profile = request.user.profile
+            friend_profile_id = request.data.get('friend_profile_id')
+
+            if not friend_profile_id:
+                return Response(
+                    {"message": "friend_profile_id is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
             friend_profile = Profile.objects.get(id=friend_profile_id)
             friendship = Friendship.objects.filter(
                 (Q(from_profile=user_profile, to_profile=friend_profile) |
@@ -468,25 +429,49 @@ class RemoveFriendView(APIView):
             ).first()
 
             if not friendship:
-                return Response({"message": "Friendship not found"}, status=status.HTTP_404_NOT_FOUND)
+                return Response(
+                    {"message": "Friendship not found"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
 
             friendship.delete()
-
-            # Send a WebSocket notification to the friend
-            channel_layer = get_channel_layer()
-            async_to_sync(channel_layer.group_send)(
-                f"user_{friend_profile.user.id}",
-                {
-                    'type': 'send_notification',
-                    'message': {
-                        'type': 'friend_removed',
-                        'user_id': user_profile.user.id,
-                        'user_name': user_profile.display_name,
-                        'user_avatar': user_profile.avatar.url if user_profile.avatar else '',
-                    },
-                }
+            
+            # Log successful removal
+            logger.info(f"Friendship removed between {user_profile.id} and {friend_profile.id}")
+            
+            return Response(
+                {"message": "Friend removed successfully"}, 
+                status=status.HTTP_200_OK
+            )
+            
+        except Profile.DoesNotExist:
+            logger.error(f"Profile not found: {friend_profile_id}")
+            return Response(
+                {"message": "Profile not found"}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            logger.error(f"Error removing friend: {str(e)}")
+            return Response(
+                {"message": "Internal server error"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-            return Response({"message": "Friend removed successfully"}, status=status.HTTP_200_OK)
-        except Profile.DoesNotExist:
-            return Response({"message": "Profile not found"}, status=status.HTTP_404_NOT_FOUND)
+class UpdateOnlineStatusView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            profile = request.user.profile
+            status = request.data.get('status', False)
+            
+            profile.is_online = status
+            profile.save(update_fields=['is_online'])
+            
+            return Response({'status': 'success'})
+        except Exception as e:
+            return Response(
+                {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

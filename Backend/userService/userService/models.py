@@ -38,10 +38,13 @@ class Profile(models.Model):
         )
         friends = []
         for friendship in friendships:
-            if friendship.from_profile == self:
-                friends.append(friendship.to_profile)
-            else:
-                friends.append(friendship.from_profile)
+            friend_profile = friendship.to_profile if friendship.from_profile == self else friendship.from_profile
+            friends.append({
+                'id': friend_profile.id,
+                'display_name': friend_profile.display_name,
+                'avatar': friend_profile.get_avatar_url(),
+                'is_online': friend_profile.is_online
+            })
         return friends
     
     def is_blocked(self, user):
