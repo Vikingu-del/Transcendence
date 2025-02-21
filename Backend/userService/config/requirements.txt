@@ -9,3 +9,4 @@ django-filter>=2.4
 channels>=3.0
 daphne>=3.0
 python-dotenv>=0.21.0
+django-prometheus==2.1.0
