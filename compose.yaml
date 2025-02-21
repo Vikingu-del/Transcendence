@@ -382,14 +382,31 @@ services:
     container_name: prometheus
     volumes:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
-    ports:
+    expose:
       - "9090:9090"
     networks:
-      - backtier
+      - monitoring
+    restart: always
+    depends_on:
+      - node-exporter
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    expose:
+      - "9100"
+    networks:
+      - monitoring
+    restart: always
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
 
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    restart: always
     ports:
       - "3000:3000"
     environment:
@@ -397,8 +414,13 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     volumes:
       - grafana-data:/var/lib/grafana
+      - ./monitoring/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./monitoring/dashboard.yaml:/etc/grafana/provisioning/dashboards/dashboard.yaml
+      - ./monitoring/dashboard.json:/var/lib/grafana/dashboards/dashboard.json
     networks:
-      - backtier
+      - monitoring
+    depends_on:
+      - prometheus
 
 secrets:
   elasticsearch.keystore:
@@ -431,6 +453,7 @@ volumes:
   approle_auth_db:
   elasticsearch-data:
   grafana-data:
+  prometheus-data:
 
 networks:
   user_network:
@@ -441,3 +464,6 @@ networks:
   frontier:
     driver: bridge
     name: frontier
+  monitoring:
+    driver: bridge
+    name: monitoring
