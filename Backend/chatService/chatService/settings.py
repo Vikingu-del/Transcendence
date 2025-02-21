@@ -34,7 +34,7 @@ INSTALLED_APPS = [
     'rest_framework',
 	'rest_framework_simplejwt',
     'channels',
-	# 'channels_redis',
+	'channels_redis',
     'corsheaders',
     'chatService',
 ]

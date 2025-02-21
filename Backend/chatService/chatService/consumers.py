@@ -2,13 +2,17 @@ import json
 import logging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
+from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from rest_framework.authtoken.models import Token
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 from urllib.parse import parse_qs
 from .models import Chat, Message
 from django.utils import timezone
 from asgiref.sync import sync_to_async
 import asyncio
+
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +112,17 @@ class ChatConsumer(AsyncWebsocketConsumer):
     @database_sync_to_async
     def get_user_from_token(self, token_key):
         try:
-            # Remove the profile from select_related since it's causing the error
-            token = Token.objects.select_related('user').get(key=token_key)
-            return token.user
-        except Token.DoesNotExist:
+            # Use JWT token instead of Token authentication
+            access_token = AccessToken(token_key)
+            user_id = access_token['user_id']
+            
+            # Get user from database
+            User = get_user_model()
+            return User.objects.get(id=user_id)
+        except (TokenError, InvalidToken, User.DoesNotExist) as e:
+            logger.error(f"Token authentication error: {str(e)}")
             return None
-
+        
     @database_sync_to_async
     def save_message(self, chat_id, sender, text):
         try:

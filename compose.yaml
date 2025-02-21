@@ -138,7 +138,10 @@ services:
     environment:
       - DJANGO_SETTINGS_MODULE=chatService.settings
       - API_PREFIX=/api/chat
+      - REDIS_URL=redis://redis:6379/0
     depends_on:
+      redis:
+        condition: service_healthy
       vault:
         condition: service_started
       vault_secrets:
@@ -171,6 +174,23 @@ services:
       - chat_db_data:/var/lib/postgresql/data
     networks:
       - backtier
+
+  redis:
+    container_name: redis
+    image: redis:alpine
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - backtier
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
 
   auth:
     container_name: auth
@@ -328,6 +348,7 @@ volumes:
   approle_chat_db:
   approle_auth:
   approle_auth_db:
+  redis_data:
 
 networks:
   user_network:
