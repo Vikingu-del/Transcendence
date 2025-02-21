@@ -1,3 +1,54 @@
+<template>
+  <div class="play-container">
+    <div class="game-controls">
+      <button 
+        @click="createGameLink" 
+        :disabled="isGameCreated"
+      >
+        Create a Game Link
+      </button>
+
+      <div v-if="isGameCreated" class="share-section">
+        <h3>Share with Friends</h3>
+        <div class="friends-list">
+          <div v-if="profile.friends && profile.friends.length > 0">
+            <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
+              <div class="user-info">
+                <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
+                <span class="profile-name">{{ friend.display_name }}</span>
+                <span :class="['status-dot', friend.is_online ? 'online' : 'offline']"></span>
+              </div>
+              <button 
+                @click="shareLink(friend.id)"
+                class="primary-btn"
+              >
+                Share Link
+              </button>
+            </div>
+          </div>
+          <p v-else class="no-content">No friends available to share with</p>
+        </div>
+      </div>
+
+      <button 
+        @click="startGame"
+        :disabled="!isGameCreated"
+      >
+        Play Game
+      </button>
+    </div>
+
+    <div v-if="gameLink" class="game-link">
+      <p>Game Link: {{ gameLink }}</p>
+    </div>
+  </div>
+
+  <pre>{{ profile }}</pre>
+  <pre> TOken 
+    {{ token }}
+  </pre>
+</template>
+
 <script>
 import { ref } from 'vue';
 
@@ -11,13 +62,78 @@ export default {
       gameId: null,
       chatSocket: null,
       gameSocket: null,
+      profile: {
+        friends: []
+      },
+      currentUserId: null,
+      token: localStorage.getItem('token'),
     };
   },
-  mounted() {
-    // Get friends list when component mounts
-    this.getFriendsList();
+
+  computed: {
+    getToken() {
+      return this.token;
+    },
+    isAuthenticated() {
+      return !!this.token;
+    },
   },
+
+  mounted() {
+    this.fetchProfile();
+    // this.initNotificationSocket();
+  },
+
+  async created() {
+    try {
+      const token = localStorage.getItem('token');
+      console.log('Initial token:', token);
+      
+      if (!token) {
+        await this.$router.push('/login');
+        return;
+      }
+      
+      // this.initNotificationSocket();
+    } catch (error) {
+      console.error('Initialization error:', error);
+      this.$router.push('/login');
+    }
+  },
+
   methods: {
+
+    async fetchProfile() {
+      try {
+        const token = this.getToken;
+        if (!token) throw new Error('No auth token found');
+
+        const response = await fetch('/api/user/profile/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(errorText);
+        }
+
+        const data = await response.json();
+        this.profile = data;
+        // Set the currentUserId from the profile data
+        this.currentUserId = data.id; // Uncomment and update this line
+        this.loading = false;
+      } catch (error) {
+        console.error('Profile fetch error:', error);
+        if (error.message.includes('token_not_valid')) {
+          this.$router.push('/login');
+        }
+        throw error;
+      }
+    },
+
     async createGameLink() {
       try {
         const response = await fetch('/api/pong/create/', {
@@ -42,25 +158,6 @@ export default {
       }
     },
 
-    async getFriendsList() {
-      try {
-        const response = await fetch('http://localhost:8000/api/user/profile/friends/', {
-          headers: {
-            'Authorization': `Token ${localStorage.getItem('token')}`
-          }
-        });
-
-        if (!response.ok) {
-          throw new Error('Failed to fetch friends');
-        }
-
-        const data = await response.json();
-        this.friends = data;
-
-      } catch (error) {
-        console.error('Error fetching friends:', error);
-      }
-    },
 
     async shareLink(friendId) {
       if (!this.gameLink || !friendId) return;
@@ -113,51 +210,64 @@ export default {
 };
 </script>
 
-<template>
-  <div class="play-container">
-    <div class="game-controls">
-      <button 
-        @click="createGameLink" 
-        :disabled="isGameCreated"
-      >
-        Create a Game Link
-      </button>
-
-      <div v-if="isGameCreated" class="share-section">
-        <h3>Share with Friends</h3>
-        <select v-model="selectedFriend">
-          <option value="">Select a friend</option>
-          <option 
-            v-for="friend in friends" 
-            :key="friend.id" 
-            :value="friend.id"
-          >
-            {{ friend.display_name }}
-          </option>
-        </select>
-        <button 
-          @click="shareLink(selectedFriend)"
-          :disabled="!selectedFriend"
-        >
-          Share Link with Friend
-        </button>
-      </div>
-
-      <button 
-        @click="startGame"
-        :disabled="!isGameCreated"
-      >
-        Play Game
-      </button>
-    </div>
-
-    <div v-if="gameLink" class="game-link">
-      <p>Game Link: {{ gameLink }}</p>
-    </div>
-  </div>
-</template>
 
 <style scoped>
+
+.friends-list {
+  margin-top: 20px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #1a1a1a;
+  border-radius: 8px;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.profile-name {
+  color: #ffffff;
+  font-size: 16px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 10px;
+}
+
+.status-dot.online {
+  background-color: #03a670;
+}
+
+.status-dot.offline {
+  background-color: #a60303;
+}
+
+.no-content {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+}
+
 .play-container {
   padding: 20px;
   max-width: 600px;

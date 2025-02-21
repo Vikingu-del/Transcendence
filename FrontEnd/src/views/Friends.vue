@@ -189,6 +189,8 @@
         <div class="chat-container">
           <div class="chat-header">
             <h4 class="chat-title">Chat with {{ activeChat }}</h4>
+            <button @click="genLink" class="btn primary-btn">Play</button>
+
             <button @click="closeChat" class="btn secondary-btn">Close</button>
           </div>
           <div class="chat-messages" ref="chatMessages">
@@ -203,8 +205,12 @@
                   'content-received': parseInt(message.sender_id) !== currentUserId
                 }">
                 <div class="message-header">
-                  <small class="message-sender">
-                    {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }} <!-- Hide sender name for own messages -->
+                  <small 
+                    class="message-sender" 
+                    @click="showChatParticipantProfile(message)"
+                    :class="{ 'clickable': parseInt(message.sender_id) !== currentUserId }"
+                  >
+                    {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }}
                   </small>
                 </div>
                 <span class="message-text">{{ message.text }}</span>
@@ -650,44 +656,6 @@ export default {
       return profile.friend_request_status;
     },
 
-    // initWebSocket(chatId) {
-    //   // Close existing connection if any
-    //   if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
-    //     this.chatSocket.close();
-    //   }
-
-    //   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    //   const wsHost = window.location.hostname;
-    //   const wsPort = process.env.NODE_ENV === 'production' ? '' : ':8002';
-    //   const wsUrl = `${wsProtocol}//${wsHost}${wsPort}/ws/chat/${chatId}/?token=${this.getToken}`;
-      
-    //   console.log('Initializing WebSocket connection to:', wsUrl);
-      
-    //   this.chatSocket = new WebSocket(wsUrl);
-      
-    //   this.chatSocket.onopen = () => {
-    //     console.log('WebSocket connection established');
-    //     this.wsConnected = true;
-    //   };
-
-    //   this.chatSocket.onerror = (error) => {
-    //     console.error('WebSocket error:', error);
-    //     this.wsConnected = false;
-    //     this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
-    //     this.reconnectWebSocket(chatId);
-    //   };
-
-    //   this.chatSocket.onclose = (event) => {
-    //     console.log('WebSocket connection closed:', event);
-    //     this.wsConnected = false;
-    //     if (this.showChat) {
-    //       this.reconnectWebSocket(chatId);
-    //     }
-    //   };
-
-    //   this.chatSocket.onmessage = this.handleWebSocketMessage;
-    // },
-
     reconnectWebSocket(chatId) {
       if (!this.showChat) return; // Don't reconnect if chat is closed
       
@@ -875,6 +843,29 @@ export default {
       this.selectedFriend = friend;
       this.showFriendProfile = true;
       this.showChat = false;
+    },
+
+    showChatParticipantProfile(message) {
+      // Only show profile for messages from other users
+      if (parseInt(message.sender_id) === parseInt(this.currentUserId)) {
+        return;
+      }
+
+      // Find the friend from your friends list
+      const friend = this.profile.friends.find(f => f.id === parseInt(message.sender_id));
+      
+      if (friend) {
+        this.selectedFriend = friend;
+        this.showFriendProfile = true;
+        // Close the chat when showing profile
+        this.showChat = false;
+        
+        // Optional: Close WebSocket connection
+        if (this.chatSocket) {
+          this.chatSocket.close();
+          this.chatSocket = null;
+        }
+      }
     },
 
     closeChat() {
@@ -1167,7 +1158,7 @@ friends-nav {
   height: 12px;
   border-radius: 50%;
   border: 2px solid #1a1a1a;
-}
+}primary
 
 .status-dot.online {
   background-color: #03a670;
@@ -1214,11 +1205,6 @@ friends-nav {
   color: white;
 }
 
-.secondary-btn {
-  background: #a60303;
-  color: #ffffff;
-}
-
 .secondary-btn:hover {
   background: #333333;
 }
@@ -1241,6 +1227,7 @@ friends-nav {
   color: #ffffff;
   border-radius: 10px 10px 0 0;
   padding-left: 10%;
+  gap: 0.5rem;
 }
 
 .chat-messages {
@@ -1323,6 +1310,28 @@ friends-nav {
   justify-content: center;
   align-items: center;
   z-index: 1000;
+}
+
+.message-sender.clickable {
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #ffffff
+}
+
+.message-sender.clickable:hover {
+  color:#03a670;
+  opacity: 0.8;
+  transform: scale(1.1);
+}
+
+.chat-header .primary-btn {
+  transition: all 0.3s ease;
+}
+
+.chat-header .primary-btn:hover {
+  background: #04d38e;
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(3, 166, 112, 0.5);
 }
 
 .friend-profile-modal {
