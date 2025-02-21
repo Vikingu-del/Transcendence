@@ -23,7 +23,7 @@ from django.views.static import serve
 from .views import (
     ProfileView, SearchProfilesView, AddFriendView,
     RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
-    IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView
+    IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView, VerifyUserView
 )
 
 urlpatterns = [
@@ -47,6 +47,8 @@ urlpatterns = [
     # Online Status
     path('api/user/profile/online-status/', UpdateOnlineStatusView.as_view(), name='online-status'),
 
+    # Verify User
+	path('api/user/verify/', VerifyUserView.as_view(), name='verify-user'),
     # Media files
     re_path(r'^api/user/media/(?P<path>.*)$', serve, {
         'document_root': settings.MEDIA_ROOT,

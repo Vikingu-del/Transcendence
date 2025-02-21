@@ -3,7 +3,7 @@ from . import consumers
 
 websocket_urlpatterns = [
     re_path(
-        r'chat/ws/chat/(?P<chat_id>[\w-]+)/$',
+        r'ws/chat/(?P<chat_id>\d+_\d+)/$',
         consumers.ChatConsumer.as_asgi()
     ),
 ]

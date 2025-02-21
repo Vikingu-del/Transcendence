@@ -1,8 +1,6 @@
 #!/bin/bash
 set -e
 
-sleep 1000000
-
 VAULT_ADDR="http://vault:8200"
 ROLE_ID_FILE="/vault/approle/chat/role_id"
 SECRET_ID_FILE="/vault/approle/chat/secret_id"
@@ -17,13 +15,17 @@ ROLE_ID=$(cat $ROLE_ID_FILE)
 SECRET_ID=$(cat $SECRET_ID_FILE)
 echo "Retrieved AppRole credentials"
 
-# Get Vault token
+# Fix: Correct login path for AppRole authentication
 VAULT_TOKEN=$(curl -s --request POST \
     --data "{\"role_id\":\"$ROLE_ID\",\"secret_id\":\"$SECRET_ID\"}" \
-    $VAULT_ADDR/v1/chat/approle/login | jq -r .chat.client_token)
+    $VAULT_ADDR/v1/auth/approle/login | jq -r '.auth.client_token')
 
 if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
     echo "❌ Failed to authenticate with Vault"
+    echo "Role ID: $ROLE_ID"
+    echo "Response: $(curl -s --request POST \
+        --data "{\"role_id\":\"$ROLE_ID\",\"secret_id\":\"$SECRET_ID\"}" \
+        $VAULT_ADDR/v1/auth/approle/login)"
     exit 1
 fi
 echo "✅ Successfully authenticated with Vault"

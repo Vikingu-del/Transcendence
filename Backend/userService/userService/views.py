@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/20 18:26:06 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/21 12:01:41 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -33,6 +33,33 @@ from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
 import random
 
 logger = logging.getLogger(__name__)
+
+class VerifyUserView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            user = request.user
+            profile = user.profile
+
+            return Response({
+                'id': user.id,
+                'username': user.username,
+                'profile': {
+                    'id': profile.id,
+                    'display_name': profile.display_name,
+                    'is_online': profile.is_online,
+                    'avatar_url': profile.get_avatar_url()
+                }
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            logger.error(f"User verification error: {str(e)}")
+            return Response({
+                'detail': 'User verification failed',
+                'error': str(e)
+            }, status=status.HTTP_400_BAD_REQUEST)
 
 class SyncTokenView(APIView):
     authentication_classes = []

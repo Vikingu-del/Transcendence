@@ -26,6 +26,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             # Authenticate user
             self.user = await self.get_user_from_token(token_key)
+            logger.debug(f"Authenticated user: {self.user}")
             if not self.user:
                 await self.close(code=4002)
                 return
@@ -36,6 +37,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.channel_name
             )
             await self.accept()
+            logger.debug(f"WebSocket connection accepted for chat {self.chat_id}")
 
         except Exception as e:
             logger.error(f'Chat connection error: {str(e)}')

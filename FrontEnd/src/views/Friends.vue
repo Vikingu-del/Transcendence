@@ -650,10 +650,89 @@ export default {
       return profile.friend_request_status;
     },
 
+    // initWebSocket(chatId) {
+    //   // Close existing connection if any
+    //   if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+    //     this.chatSocket.close();
+    //   }
+
+    //   const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    //   const wsHost = window.location.hostname;
+    //   const wsPort = process.env.NODE_ENV === 'production' ? '' : ':8002';
+    //   const wsUrl = `${wsProtocol}//${wsHost}${wsPort}/ws/chat/${chatId}/?token=${this.getToken}`;
+      
+    //   console.log('Initializing WebSocket connection to:', wsUrl);
+      
+    //   this.chatSocket = new WebSocket(wsUrl);
+      
+    //   this.chatSocket.onopen = () => {
+    //     console.log('WebSocket connection established');
+    //     this.wsConnected = true;
+    //   };
+
+    //   this.chatSocket.onerror = (error) => {
+    //     console.error('WebSocket error:', error);
+    //     this.wsConnected = false;
+    //     this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
+    //     this.reconnectWebSocket(chatId);
+    //   };
+
+    //   this.chatSocket.onclose = (event) => {
+    //     console.log('WebSocket connection closed:', event);
+    //     this.wsConnected = false;
+    //     if (this.showChat) {
+    //       this.reconnectWebSocket(chatId);
+    //     }
+    //   };
+
+    //   this.chatSocket.onmessage = this.handleWebSocketMessage;
+    // },
+
+    reconnectWebSocket(chatId) {
+      if (!this.showChat) return; // Don't reconnect if chat is closed
+      
+      console.log('Attempting to reconnect WebSocket...');
+      
+      // Wait 3 seconds before attempting to reconnect
+      setTimeout(() => {
+        this.initWebSocket(chatId);
+      }, 3000);
+    },
+
+    // handleWebSocketMessage(event) {
+    //   try {
+    //     const data = JSON.parse(event.data);
+    //     console.log('Received WebSocket message:', data);
+        
+    //     if (data.type === 'chat.message') {
+    //       const newMessage = {
+    //         id: data.message.id,
+    //         chat: data.message.chat,
+    //         sender_id: String(data.message.sender_id || data.message.sender),
+    //         text: data.message.text,
+    //         created_at: data.message.created_at || new Date().toISOString()
+    //       };
+
+    //       this.messages.push(newMessage);
+    //       this.$nextTick(() => {
+    //         this.scrollToBottom();
+    //       });
+    //     }
+    //   } catch (error) {
+    //     console.error('Error processing message:', error);
+    //   }
+    // },
+
     async startChat(friend) {
       try {
+
         if (!this.currentUserId) {
           throw new Error('Current user ID is not set');
+        }
+
+        const token = this.getToken;
+        if (!token) {
+          throw new Error('No authentication token available');
         }
 
         console.log('Starting chat with:', {
@@ -677,10 +756,11 @@ export default {
         const response = await fetch(`/api/chats/${chatId}/`, {
           method: 'GET',
           headers: {
-            'Authorization': `Bearer ${this.getToken}`,
+            'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             'Accept': 'application/json'
-          }
+          },
+          credentials: 'include'
         });
 
         console.log('Chat fetch response:', {
@@ -723,8 +803,9 @@ export default {
         }
 
         // Initialize new WebSocket connection with correct URL format
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-        const wsUrl = `${wsProtocol}://${window.location.host}/chat/ws/chat/${chatId}/?token=${this.getToken}`;
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = window.location.host;
+        const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${chatId}/?token=${this.getToken}`;
         
         console.log('Connecting WebSocket to:', wsUrl);
         
@@ -732,15 +813,22 @@ export default {
 
         this.chatSocket.onopen = () => {
           console.log('WebSocket connection established');
+          this.wsConnected = true;
         };
 
         this.chatSocket.onerror = (error) => {
           console.error('WebSocket error:', error);
-          this.showStatus('Chat connection error. Please try again.', {}, 'error');
+          this.wsConnected = false;
+          this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
+          setTimeout(() => this.reconnectWebSocket(chatId), 3000);
         };
 
         this.chatSocket.onclose = (event) => {
-          console.log('WebSocket connection closed:', event);
+            console.log('WebSocket connection closed:', event);
+            this.wsConnected = false;
+            if (this.showChat) {
+                setTimeout(() => this.reconnectWebSocket(chatId), 3000);
+            }
         };
 
         this.chatSocket.onmessage = (event) => {

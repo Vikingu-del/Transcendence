@@ -26,11 +26,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'rest_framework',
-    # 'rest_framework.authtoken',
     'channels',
     'corsheaders',
-    # 'crispy_forms',
-    # 'crispy_bootstrap4',
     'userService',
 ]
 

@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+from datetime import timedelta
 import os
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -31,19 +32,22 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+	'rest_framework_simplejwt',
     'channels',
+	# 'channels_redis',
     'corsheaders',
     'chatService',
 ]
 
 MIDDLEWARE = [
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+	'chatService.middleware.JWTAuthMiddleware',
 ]
 
 ROOT_URLCONF = 'chatService.urls'
@@ -61,11 +65,13 @@ DATABASES = {
 }
 
 CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer',
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("redis", 6379)],
+        },
     },
 }
-
 
 TEMPLATES = [
     {
@@ -85,12 +91,30 @@ TEMPLATES = [
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': [
-        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ]
 }
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'SIGNING_KEY': 'your-secret-key-here',  # Must match the key used in user service
+}
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+]
+
+# Add internal API settings
+INTERNAL_API_KEY = 'your-internal-api-key'  # Must match across services
+USER_SERVICE_URL = 'http://user:8000'
+AUTH_SERVICE_URL = 'http://auth:8001'
 
 # Enable debug logging
 LOGGING = {
@@ -112,14 +136,23 @@ LOGGING = {
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "http://localhost",
     "https://localhost",
+    "http://localhost",
     "http://localhost:5173",
-    "https://localhost:5173",
     "http://gateway",
     "https://gateway",
-    "http://0.0.0.0:8002",
-    "https://0.0.0.0:8002"
+    "ws://localhost",
+    "wss://localhost",
+    "ws://gateway",
+    "wss://gateway",
+    "http://127.0.0.1",
+    "https://127.0.0.1",
+    "ws://127.0.0.1",
+    "wss://127.0.0.1"
+]
+
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://\w+\.localhost$",
 ]
 
 CORS_ALLOW_HEADERS = [
