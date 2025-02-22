@@ -19,6 +19,11 @@
       <label for="ottp">Username</label> // for walid
         <input id="ottp" v-model="username" type="digit" placeholder="Enter the code" required /> // for walid
     </form>>   //for walid -->  
+	<form v-if="tfa">
+		<label for="OTP">OTP</label>
+		<input id="otp" type="number" maxlength="6" placeholder="Please Enter your OTP" required>
+		<button>Verify</button>
+	</form>
   </div>
 </template>
 
@@ -34,6 +39,7 @@ export default {
       error: '',
       loading: false,
       redirect: null,
+	  tfa: false,
       // tfa: true, for walid
     };
   },
@@ -94,11 +100,12 @@ export default {
               
               this.password = '';
               await this.$nextTick();
+			  this.tfa = true;
               
-              const redirectPath = this.redirect || '/profile';
-              console.log('Redirecting to:', redirectPath);
-              await this.$router.push(redirectPath);
-              // tfa = true;
+            //   const redirectPath = this.redirect || '/profile';
+            //   console.log('Redirecting to:', redirectPath);
+            //   await this.$router.push(redirectPath);
+            //   tfa = true;
           } else {
               this.error = data.error || 'Login failed';
               this.password = '';

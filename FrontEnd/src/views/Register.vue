@@ -1,57 +1,72 @@
 <template>
   <div class="form-container">
-    <div v-if="!isRegistrationSuccessful">
-      <h2>Register</h2>
-      <form @submit.prevent="register">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input 
-            id="username" 
-            v-model="username" 
-            type="text" 
-            placeholder="Enter username" 
-            required 
-            :disabled="loading"
-          />
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input 
-            id="password" 
-            v-model="password" 
-            type="password" 
-            placeholder="Enter password" 
-            required 
-            :disabled="loading"
-          />
-        </div>
-        <div class="form-group">
-          <label for="passwordConfirm">Confirm Password</label>
-          <input 
-            id="passwordConfirm" 
-            v-model="passwordConfirm" 
-            type="password" 
-            placeholder="Confirm password" 
-            required 
-            :disabled="loading"
-          />
-        </div>
-        <button type="submit" class="submit-btn" :disabled="loading">
-          {{ loading ? 'Registering...' : 'Register' }}
-        </button>
-      </form>
-    </div>
+	<div v-if="!isRegistrationSuccessful">
+	  <h2>Register</h2>
+	  <form @submit.prevent="register">
+		<div class="form-group">
+		  <label for="username">Username</label>
+		  <input 
+			id="username" 
+			v-model="username" 
+			type="text" 
+			placeholder="Enter username" 
+			required 
+			:disabled="loading"
+		  />
+		</div>
+		<div class="form-group">
+			<label for="email">Email</label>
+			<input
+				id="email"
+				v-model="email"
+				type="text"
+				placeholder="Enter Email"
+				required
+				:disabled="loading"
+			/>
+		</div>
+		<div class="form-group">
+		  <label for="password">Password</label>
+		  <input 
+			id="password" 
+			v-model="password" 
+			type="password" 
+			placeholder="Enter password" 
+			required 
+			:disabled="loading"
+		  />
+		</div>
+		<div class="form-group">
+		  <label for="passwordConfirm">Confirm Password</label>
+		  <input 
+			id="passwordConfirm" 
+			v-model="passwordConfirm" 
+			type="password" 
+			placeholder="Confirm password" 
+			required 
+			:disabled="loading"
+		  />
+		</div>
+		<button type="submit" class="submit-btn" :disabled="loading">
+		  {{ loading ? 'Registering...' : 'Register' }}
+		</button>
+	  </form>
+	</div>
 
-    <div v-else class="success-container">
-      <h2>Registration Successful!</h2>
-      <p>Redirecting to login page...</p>
-      <div class="loader"></div>
-    </div>
-    
-    <p v-if="message" :class="['message', messageType]">{{ message }}</p>
-    <ul v-if="errors.length" class="errors-list">
-      <li v-for="error in errors" :key="error">{{ error }}</li>
-    </ul>
+	<div v-else class="success-container">
+	  <h2>Registration Successful!</h2>
+	  <p>Redirecting to login page...</p>
+	  <div class="loader"></div>
+	</div>
+
+	<div v-if="showQRCode">
+		<img :src="qrCode" alt="2FA QR CODE">
+	</div>
+
+	<p v-if="message" :class="['message', messageType]">{{ message }}</p>
+	<ul v-if="errors.length" class="errors-list">
+	  <li v-for="error in errors" :key="error">{{ error }}</li>
+	</ul>
   </div>
 </template>
 
@@ -61,77 +76,82 @@ import { SERVICE_URLS } from '@/config/services';
 
 export default {
   data() {
-    return {
-      username: '',
-      password: '',
-      passwordConfirm: '',
-      message: '',
-      messageType: '',
-      errors: [],
-      loading: false,
-      isRegistrationSuccessful: false
-    };
+	return {
+	  username: '',
+	  email: '',
+	  password: '',
+	  passwordConfirm: '',
+	  message: '',
+	  messageType: '',
+	  errors: [],
+	  loading: false,
+	  isRegistrationSuccessful: false,
+	  showQRCode: false,
+	  qrCode: '',
+	};
   },
   methods: {
-    resetForm() {
-      this.username = '';
-      this.password = '';
-      this.passwordConfirm = '';
-      this.message = '';
-      this.messageType = '';
-      this.errors = [];
-      this.loading = false;
-    },
+	resetForm() {
+	  this.username = '';
+	  this.email= '';
+	  this.password = '';
+	  this.passwordConfirm = '';
+	  this.message = '';
+	  this.messageType = '';
+	  this.errors = [];
+	  this.loading = false;
+	},
 
-    async register() {
-      try {
-        // 1. Register with auth service
-        const authResponse = await fetch('/api/auth/register/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            username: this.username,
-            password1: this.password,
-            password2: this.passwordConfirm
-          })
-        });
-        
-        const authData = await authResponse.json();
+	async register() {
+	  try {
+		// 1. Register with auth service
+		const authResponse = await fetch('/api/auth/register/', {
+		  method: 'POST',
+		  headers: { 'Content-Type': 'application/json' },
+		  body: JSON.stringify({
+			username: this.username,
+			email: this.email,
+			password1: this.password,
+			password2: this.passwordConfirm
+		  })
+		});
+		
+		const authData = await authResponse.json();
 
-        if (authResponse.ok) {
-          this.isRegistrationSuccessful = true;
-          this.message = 'Registration successful! Redirecting to login...';
-          this.messageType = 'success';
-          
-          // Clear sensitive data
-          this.password = '';
-          this.passwordConfirm = '';
-          
-          // Delay redirect to show success message
-          setTimeout(() => {
-            this.$router.push('/login');
-          }, 1500);
-        } else {
-          console.log('Cause: ', authData.details);
-          // Handle auth service error
-          if (authData.non_field_errors) {
-            this.errors = Array.isArray(authData.non_field_errors) 
-              ? authData.non_field_errors 
-              : [authData.non_field_errors];
-          } else if (authData.details) {
-            this.message = authData.details;
-          } else {
-            this.message = 'Registration failed';
-          }
-          this.messageType = 'error';
-        }
-      } catch (error) {
-        this.message = 'Registration failed: ' + error.message;
-        this.messageType = 'error';
-      } finally {
-        this.loading = false;
-      }
-    }
+		if (authResponse.ok) {
+		  this.isRegistrationSuccessful = true;
+		  this.messageType = 'success';
+		  
+		  // Clear sensitive data
+		  this.password = '';
+		  this.passwordConfirm = '';
+		  this.showQRCode = true;
+		  this.qrCode = authData.qr_code;
+		  // Delay redirect to show success message
+		//   setTimeout(() => {
+		//     this.$router.push('/login');
+		//   }, 1500);
+		} else {
+		  console.log('Cause: ', authData.details);
+		  // Handle auth service error
+		  if (authData.non_field_errors) {
+			this.errors = Array.isArray(authData.non_field_errors) 
+			  ? authData.non_field_errors 
+			  : [authData.non_field_errors];
+		  } else if (authData.details) {
+			this.message = authData.details;
+		  } else {
+			this.message = 'Registration failed';
+		  }
+		  this.messageType = 'error';
+		}
+	  } catch (error) {
+		this.message = 'Registration failed: ' + error.message;
+		this.messageType = 'error';
+	  } finally {
+		this.loading = false;
+	  }
+	}
   }
 };
 </script>
