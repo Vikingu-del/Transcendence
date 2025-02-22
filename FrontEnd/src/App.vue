@@ -20,30 +20,39 @@ async function logout() {
 
 // Check authentication state on app load
 onMounted(async () => {
-  let token = localStorage.getItem('token') // Changed from authToken to token
+  let token = localStorage.getItem('token')
   console.log('Token status:', token ? 'Present' : 'Not found')
 
-  // Clear invalid tokens
-  if (!token || token === 'undefined' || token === 'null') {
+  const clearTokenAndRedirect = () => {
     localStorage.removeItem('token')
     store.commit('setToken', null)
-    if (router.currentRoute.value.meta.requiresAuth) {
+    store.commit('setIsAuthenticated', false)
+    if (router.currentRoute.value.path !== '/login') {
       router.push('/login')
     }
+  }
+
+  if (!token || token === 'undefined' || token === 'null') {
+    clearTokenAndRedirect()
     return
   }
 
-  // Validate token and set authentication state
   try {
-    store.commit('setToken', token)
+    const response = await fetch('/api/auth/validate-token/', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
     
+    if (!response.ok) {
+      throw new Error('Token validation failed')
+    }
+
+    store.commit('setToken', token)
+    store.commit('setIsAuthenticated', true)
   } catch (error) {
     console.error('Token validation error:', error)
-    store.commit('setToken', null)
-    localStorage.removeItem('token')
-    if (router.currentRoute.value.meta.requiresAuth) {
-      router.push('/login')
-    }
+    clearTokenAndRedirect()
   }
 })
 </script>

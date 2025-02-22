@@ -12,6 +12,8 @@ import logging
 from .serializers import RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from rest_framework_simplejwt.tokens import AccessToken
+from rest_framework_simplejwt.exceptions import TokenError
 
 logger = logging.getLogger(__name__)
 
@@ -129,3 +131,25 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, 
                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+class ValidateTokenView(APIView):
+    def get(self, request):
+        try:
+            # Get token from header
+            auth_header = request.headers.get('Authorization')
+            if not auth_header or not auth_header.startswith('Bearer '):
+                return Response({'error': 'No token provided'}, status=status.HTTP_401_UNAUTHORIZED)
+            
+            token = auth_header.split(' ')[1]
+            
+            # Validate token
+            AccessToken(token)
+            
+            return Response({'valid': True}, status=status.HTTP_200_OK)
+            
+        except TokenError:
+            return Response({'valid': False}, status=status.HTTP_401_UNAUTHORIZED)
+        except Exception as e:
+            logger.error(f"Token validation error: {str(e)}", exc_info=True)
+            return Response({'error': 'Validation failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
