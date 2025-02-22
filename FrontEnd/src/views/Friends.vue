@@ -184,9 +184,9 @@
               <div class="friends-list">
                 <div v-if="selectedFriend.friends && selectedFriend.friends.length > 0">
                   <div v-for="friend in selectedFriend.friends" 
-                      :key="friend.id" 
-                      class="friend-mini-card"
-                      @click="showFriendInfo(friend)">
+                    :key="friend.id" 
+                    class="friend-mini-card"
+                    @click="friend.id === currentUserId ? goToMyProfile() : showFriendInfo(friend)">
                     <div class="friend-mini-avatar">
                       <img :src="friend.avatar" :alt="friend.display_name">
                       <span :class="['mini-status-dot', friend.is_online ? 'online' : 'offline']"></span>
@@ -897,6 +897,11 @@ export default {
       );
       this.showChat = false;
       this.activeChat = null;
+    },
+
+    goToMyProfile() {
+      this.$router.push('/profile'); // Adjust the route path as needed
+      this.showFriendProfile = false; // Close the friend profile modal
     },
         
     async showFriendInfo(friend) {
@@ -1612,4 +1617,78 @@ export default {
 .status-message.success { background-color: #4caf50; color: white; }
 .status-message.warning { background-color: #ff9800; color: white; }
 .status-message.error { background-color: #f44336; color: white; }
+
+
+/* Friend List Styles */
+.friends-list {
+  display: list-item;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  padding: 2%;
+  max-height: 200px;
+  overflow-y: auto;
+  border-radius: 8px;
+  margin-top: 1rem;
+}
+
+.friend-mini-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.5rem;
+  background: #3b3939;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin: 0.5rem;
+  box-shadow: 0 2px 8px rgba(3, 166, 112, 0.1);
+}
+
+.friend-mini-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(3, 166, 112, 0.2);
+}
+
+.friend-mini-avatar {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  margin-bottom: 0.5rem;
+}
+
+.friend-mini-avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
+.mini-status-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid #1a1a1a;
+}
+
+.mini-status-dot.online {
+  background-color: #03a670;
+  box-shadow: 0 0 8px rgba(3, 166, 112, 0.5);
+}
+
+.mini-status-dot.offline {
+  background-color: #a60303;
+  box-shadow: 0 0 8px rgba(166, 3, 3, 0.5);
+}
+
+.friend-mini-name {
+  font-size: 0.8rem;
+  color: #ffffff;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100px;
+}
 </style>
