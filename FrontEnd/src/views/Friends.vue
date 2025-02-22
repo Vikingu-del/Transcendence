@@ -177,7 +177,7 @@
           </div>
 
           <div class="friend-profile-footer">
-            <button @click="startChat(selectedFriend)" class="btn primary-btn">Start Chat</button>
+            <button @click="startChat(selectedFriend)" class="btn primary-btn">Chat</button>
           </div>
         </div>
       </div>
@@ -188,8 +188,11 @@
       <div v-if="showChat" class="overlay">
         <div class="chat-container">
           <div class="chat-header">
+            <button @click="sendGameInvite" class="btn primary-btn">
+              <i class="game-icon"></i> Invite to Play
+            </button>
+            
             <h4 class="chat-title">Chat with {{ activeChat }}</h4>
-            <button @click="genLink" class="btn primary-btn">Play</button>
 
             <button @click="closeChat" class="btn secondary-btn">Close</button>
           </div>
@@ -667,176 +670,175 @@ export default {
       }, 3000);
     },
 
-    // handleWebSocketMessage(event) {
-    //   try {
-    //     const data = JSON.parse(event.data);
-    //     console.log('Received WebSocket message:', data);
-        
-    //     if (data.type === 'chat.message') {
-    //       const newMessage = {
-    //         id: data.message.id,
-    //         chat: data.message.chat,
-    //         sender_id: String(data.message.sender_id || data.message.sender),
-    //         text: data.message.text,
-    //         created_at: data.message.created_at || new Date().toISOString()
-    //       };
-
-    //       this.messages.push(newMessage);
-    //       this.$nextTick(() => {
-    //         this.scrollToBottom();
-    //       });
-    //     }
-    //   } catch (error) {
-    //     console.error('Error processing message:', error);
-    //   }
-    // },
+    // Split into these methods:
 
     async startChat(friend) {
       try {
-
-        if (!this.currentUserId) {
-          throw new Error('Current user ID is not set');
-        }
-
-        const token = this.getToken;
-        if (!token) {
-          throw new Error('No authentication token available');
-        }
-
-        console.log('Starting chat with:', {
-          friendId: friend.id,
-          currentUserId: this.currentUserId,
-          token: this.getToken ? 'Token present' : 'No token'
-        });
-
-        this.activeChat = friend.display_name;
-        this.showFriendProfile = false;
-        this.showChat = true;
-
-        // Create chat ID by sorting user IDs to ensure consistency
-        const chatId = [this.currentUserId, friend.id]
-          .sort((a, b) => a - b)
-          .join('_');
-        
-        console.log('Generated chat ID:', chatId);
-
-        // Fetch chat history with full URL
-        const response = await fetch(`/api/chats/${chatId}/`, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          credentials: 'include'
-        });
-
-        console.log('Chat fetch response:', {
-          status: response.status,
-          statusText: response.statusText,
-          headers: Object.fromEntries(response.headers.entries())
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Chat error response:', errorText);
-          
-          if (response.status === 404) {
-            this.messages = [];
-          } else {
-            throw new Error(errorText || `Chat service error: ${response.status}`);
-          }
-        } else {
-          const data = await response.json();
-          console.log('Received chat data:', data);
-
-          if (!data || !Array.isArray(data.messages)) {
-            throw new Error('Invalid chat data received');
-          }
-
-          this.messages = data.messages.map(msg => ({
-            id: msg.id,
-            chat: msg.chat,
-            sender_id: String(msg.sender_id || msg.sender),
-            text: msg.text,
-            created_at: msg.created_at || new Date().toISOString()
-          }));
-        }
-
-        this.chatId = chatId;
-
-        // Close existing WebSocket connection if any
-        if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
-          this.chatSocket.close();
-        }
-
-        // Initialize new WebSocket connection with correct URL format
-        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsHost = window.location.host;
-        const wsUrl = `${wsProtocol}//${wsHost}/ws/chat/${chatId}/?token=${this.getToken}`;
-        
-        console.log('Connecting WebSocket to:', wsUrl);
-        
-        this.chatSocket = new WebSocket(wsUrl);
-
-        this.chatSocket.onopen = () => {
-          console.log('WebSocket connection established');
-          this.wsConnected = true;
-        };
-
-        this.chatSocket.onerror = (error) => {
-          console.error('WebSocket error:', error);
-          this.wsConnected = false;
-          this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
-          setTimeout(() => this.reconnectWebSocket(chatId), 3000);
-        };
-
-        this.chatSocket.onclose = (event) => {
-            console.log('WebSocket connection closed:', event);
-            this.wsConnected = false;
-            if (this.showChat) {
-                setTimeout(() => this.reconnectWebSocket(chatId), 3000);
-            }
-        };
-
-        this.chatSocket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data);
-            
-            if (data.type === 'chat.message') {
-              const newMessage = {
-                id: data.message.id,
-                chat: data.message.chat,
-                sender_id: String(data.message.sender_id || data.message.sender),
-                text: data.message.text,
-                created_at: data.message.created_at || new Date().toISOString()
-              };
-
-              this.messages.push(newMessage);
-              this.$nextTick(() => {
-                this.scrollToBottom();
-              });
-            }
-          } catch (error) {
-            console.error('Error processing message:', error);
-          }
-        };
-
-        this.$nextTick(() => {
-          this.scrollToBottom();
-        });
-
+        await this.validateChatPrerequisites(friend);
+        this.updateChatUI(friend);
+        const chatId = this.generateChatId(friend.id);
+        await this.fetchChatHistory(chatId);
+        await this.initializeChatWebSocket(chatId);
+        this.scrollToBottom();
       } catch (error) {
-        console.error('Error starting chat:', error);
-        this.showStatus(
-          `Chat error: ${error.message || 'Unable to connect to chat service'}`, 
-          {}, 
-          'error'
-        );
-        this.showChat = false;
-        this.activeChat = null;
+        this.handleChatError(error);
       }
+    },
+
+    validateChatPrerequisites(friend) {
+      if (!this.currentUserId) {
+        throw new Error('Current user ID is not set');
+      }
+
+      if (!this.getToken) {
+        throw new Error('No authentication token available');
+      }
+
+      console.log('Starting chat with:', {
+        friendId: friend.id,
+        currentUserId: this.currentUserId,
+        token: this.getToken ? 'Token present' : 'No token'
+      });
+    },
+
+    updateChatUI(friend) {
+      this.activeChat = friend.display_name;
+      this.showFriendProfile = false;
+      this.showChat = true;
+    },
+
+    generateChatId(friendId) {
+      const chatId = [this.currentUserId, friendId]
+        .sort((a, b) => a - b)
+        .join('_');
+      console.log('Generated chat ID:', chatId);
+      return chatId;
+    },
+
+    async fetchChatHistory(chatId) {
+      const response = await fetch(`/api/chats/${chatId}/`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${this.getToken}`,
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        credentials: 'include'
+      });
+
+      console.log('Chat fetch response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+
+      await this.processChatResponse(response);
+      this.chatId = chatId;
+    },
+
+    async processChatResponse(response) {
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Chat error response:', errorText);
+        
+        if (response.status === 404) {
+          this.messages = [];
+        } else {
+          throw new Error(errorText || `Chat service error: ${response.status}`);
+        }
+      } else {
+        const data = await response.json();
+        console.log('Received chat data:', data);
+
+        if (!data || !Array.isArray(data.messages)) {
+          throw new Error('Invalid chat data received');
+        }
+
+        this.messages = data.messages.map(msg => ({
+          id: msg.id,
+          chat: msg.chat,
+          sender_id: String(msg.sender_id || msg.sender),
+          text: msg.text,
+          created_at: msg.created_at || new Date().toISOString()
+        }));
+      }
+    },
+
+    async initializeChatWebSocket(chatId) {
+      if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+        this.chatSocket.close();
+      }
+
+      const wsUrl = this.buildWebSocketUrl(chatId);
+      console.log('Connecting WebSocket to:', wsUrl);
+      
+      this.chatSocket = new WebSocket(wsUrl);
+      this.setupWebSocketEventHandlers(chatId);
+    },
+
+    buildWebSocketUrl(chatId) {
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      return `${wsProtocol}//${wsHost}/ws/chat/${chatId}/?token=${this.getToken}`;
+    },
+
+    setupWebSocketEventHandlers(chatId) {
+      this.chatSocket.onopen = () => {
+        console.log('WebSocket connection established');
+        this.wsConnected = true;
+      };
+
+      this.chatSocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        this.wsConnected = false;
+        this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
+        setTimeout(() => this.reconnectWebSocket(chatId), 3000);
+      };
+
+      this.chatSocket.onclose = (event) => {
+        console.log('WebSocket connection closed:', event);
+        this.wsConnected = false;
+        if (this.showChat) {
+          setTimeout(() => this.reconnectWebSocket(chatId), 3000);
+        }
+      };
+
+      this.chatSocket.onmessage = this.handleWebSocketMessage;
+    },
+
+    handleWebSocketMessage(event) {
+      try {
+        const data = JSON.parse(event.data);
+        console.log('Received WebSocket message:', data);
+        
+        if (data.type === 'chat.message') {
+          const newMessage = {
+            id: data.message.id,
+            chat: data.message.chat,
+            sender_id: String(data.message.sender_id || data.message.sender),
+            text: data.message.text,
+            created_at: data.message.created_at || new Date().toISOString()
+          };
+
+          this.messages.push(newMessage);
+          this.$nextTick(() => {
+            this.scrollToBottom();
+          });
+        }
+      } catch (error) {
+        console.error('Error processing message:', error);
+      }
+    },
+
+    handleChatError(error) {
+      console.error('Error starting chat:', error);
+      this.showStatus(
+        `Chat error: ${error.message || 'Unable to connect to chat service'}`, 
+        {}, 
+        'error'
+      );
+      this.showChat = false;
+      this.activeChat = null;
     },
         
     showFriendInfo(friend) {
@@ -1200,11 +1202,6 @@ friends-nav {
   gap: 10px;
 }
 
-.primary-btn {
-  background: #03a670;
-  color: white;
-}
-
 .secondary-btn:hover {
   background: #333333;
 }
@@ -1226,7 +1223,7 @@ friends-nav {
   align-items: center;
   color: #ffffff;
   border-radius: 10px 10px 0 0;
-  padding-left: 10%;
+  padding-left: 5%;
   gap: 0.5rem;
 }
 
@@ -1330,7 +1327,7 @@ friends-nav {
 
 .chat-header .primary-btn:hover {
   background: #04d38e;
-  transform: scale(1.2);
+  transform: scale(1.05);
   box-shadow: 0 0 10px rgba(3, 166, 112, 0.5);
 }
 
