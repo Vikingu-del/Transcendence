@@ -14,14 +14,10 @@
         {{ loading ? 'Logging in...' : 'Login' }}
       </button>
     </form>
-    <p v-if="error" class="message error">{{ error }}</p>
-    <!-- <form v-if="tfa" @submit.prevent="verifyTFA"> // for walid
-      <label for="ottp">Username</label> // for walid
-        <input id="ottp" v-model="username" type="digit" placeholder="Enter the code" required /> // for walid
-    </form>>   //for walid -->  
+    <p v-if="error" class="message error">{{ error }}</p> 
 	<form v-if="tfa">
 		<label for="OTP">OTP</label>
-		<input id="otp" type="number" maxlength="6" placeholder="Please Enter your OTP" required>
+		<input id="otp" type="number" placeholder="Please Enter your OTP" required>
 		<button>Verify</button>
 	</form>
   </div>
@@ -50,28 +46,6 @@ export default {
   },
 
   methods: {
-    // async verifyTFA() { // for walid
-    //   try {
-    //       const response = await fetch('/api/auth/login/', {
-    //           method: 'POST',
-    //           headers: { 
-    //               'Content-Type': 'application/json',
-    //               'Accept': 'application/json'
-    //           },
-    //           body: JSON.stringify({
-    //               username: this.username,
-    //               password: this.password
-    //           })
-    //       });
-    //       await router.push('/profile');
-    //     } catch (error) {
-    //       console.error('Login error:', error);
-    //       this.error = 'Network error occurred';
-    //       this.password = '';
-    //     } finally {
-    //       this.loading = false;
-    //     }  
-    // },
     async login() {
       if (this.loading) return;
       this.loading = true;
@@ -86,7 +60,8 @@ export default {
               },
               body: JSON.stringify({
                   username: this.username,
-                  password: this.password
+                  password: this.password,
+				  otp: this.otp,
               })
           });
 

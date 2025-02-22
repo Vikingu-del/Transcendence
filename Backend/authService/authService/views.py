@@ -13,9 +13,8 @@ from .serializers import RegistrationSerializer
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import pyotp #Walid Added for 2fa
-import qrcode #Walid Added for 2fa
-import base64 #Walid Added for 2fa
-from io import BytesIO #Walid Added for 2fa
+from .qrcode import generateQRCode
+
 
 logger = logging.getLogger(__name__)
 
@@ -35,15 +34,11 @@ class RegisterView(generics.CreateAPIView):
 			totp_secret = pyotp.random_base32()
 			user.totp_secret = totp_secret
 			user.save()
-			qr_data = f"otpauth://totp/ft_transcendence:{user.email}?secret={user.totp_secret}&issuer=ft_transcendence"
-			qr = qrcode.make(qr_data)
-			buffer = BytesIO()
-			qr.save(buffer, format="PNG")
-			qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+			qr_code = generateQRCode(user.email, totp_secret)
 			return Response({
 				'message': 'Registration successful',
 				'user': serializer.data,
-				'qr_code': f"data:image/png;base64,{qr_base64}"
+				'qr_code': f"data:image/png;base64,{qr_code}"
 			}, status=status.HTTP_201_CREATED)
 		return Response({
 			"error": "Registration failed", 
@@ -61,11 +56,18 @@ class LoginView(APIView):
 		try:
 			username = request.data.get("username")
 			password = request.data.get("password")
+			otp_code = request.data.get("otp")
 			
 			user = authenticate(username=username, password=password)
 			
 			if user:
 				# Generate JWT token
+				if user.totp_secret:
+					totp = pyotp.TOTP(user.totp_secret)
+					if not totp.verify(otp_code):
+						return Response({
+							'error': 'Invalid OTP.'
+						}, status=status.HTTP_401_UNAUTHORIZED)
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
 				
