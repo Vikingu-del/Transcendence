@@ -7,7 +7,6 @@ import Login from '../views/Login.vue';
 import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
 import Friends from '../views/Friends.vue';
-import Play from '../views/Play.vue'
 
 // Create the router instance and configuring the routes through this instance
 const router = createRouter({
@@ -43,12 +42,6 @@ const router = createRouter({
       component: Friends,
       meta: { requiresAuth: true }
     },
-    {
-      path: '/play',
-      name: 'Play',
-      component: Play,
-      meta: { requiresAuth: true }
-    }
   ]
 });
 

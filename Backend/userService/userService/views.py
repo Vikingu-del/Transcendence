@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/21 12:01:41 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/02/22 18:58:33 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -500,5 +500,54 @@ class UpdateOnlineStatusView(APIView):
         except Exception as e:
             return Response(
                 {'error': str(e)}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+        
+class FriendProfileDetailView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, friend_id):
+        try:
+            # Get the friend's profile
+            friend_profile = get_object_or_404(Profile, id=friend_id)
+            
+            # Check if they are friends
+            friendship_exists = Friendship.objects.filter(
+                (Q(from_profile=request.user.profile, to_profile=friend_profile) |
+                 Q(from_profile=friend_profile, to_profile=request.user.profile)),
+                status='accepted'
+            ).exists()
+
+            if not friendship_exists:
+                return Response(
+                    {"error": "Not authorized to view this profile"},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            # Get friend's friends
+            friend_friendships = Friendship.objects.filter(
+                (Q(from_profile=friend_profile) | Q(to_profile=friend_profile)),
+                status='accepted'
+            )
+
+            friends = []
+            for friendship in friend_friendships:
+                if friendship.from_profile == friend_profile:
+                    friends.append(friendship.to_profile)
+                else:
+                    friends.append(friendship.from_profile)
+
+            # Prepare the response data
+            response_data = UserProfileSerializer(friend_profile, context={'request': request}).data
+            response_data['friends'] = UserProfileSerializer(friends, many=True, context={'request': request}).data
+            response_data['friends_count'] = len(friends)
+
+            return Response(response_data)
+
+        except Exception as e:
+            logger.error(f"Error fetching friend profile: {str(e)}")
+            return Response(
+                {"error": str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

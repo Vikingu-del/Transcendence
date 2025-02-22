@@ -22,7 +22,7 @@ from django.views.static import serve
 
 from .views import (
     ProfileView, SearchProfilesView, AddFriendView,
-    RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView,
+    RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, FriendProfileDetailView,
     IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView, VerifyUserView
 )
 
@@ -33,6 +33,9 @@ urlpatterns = [
     # Profile endpoints
     path('api/user/profile/', ProfileView.as_view(), name='profile'),
     path('api/user/profile/search/', SearchProfilesView.as_view(), name='search_profiles'),
+	
+    # Friend profile detail
+	path('api/user/profile/<int:friend_id>/', FriendProfileDetailView.as_view(), name='friend-profile-detail'),
     
     # Friend management endpoints
     path('api/user/profile/add_friend/', AddFriendView.as_view(), name='add_friend'),

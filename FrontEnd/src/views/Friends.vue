@@ -26,7 +26,11 @@
       <div v-if="profile.friends && profile.friends.length > 0">
         <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
           <div class="avatar-container" @click="showFriendInfo(friend)">
-            <img :src="friend.avatar" :alt="friend.display_name" class="profile-avatar">
+            <img 
+              :src="friend.avatar" 
+              :alt="friend.display_name" 
+              :class="['profile-avatar', friend.is_online ? 'online' : 'offline']"
+            >
             <span :class="['status-dot', friend.is_online ? 'online' : 'offline']"></span>
           </div>
           <span class="profile-name">{{ friend.display_name }}</span>
@@ -160,11 +164,11 @@
           <div class="profile-details">
             <!-- Avatar section -->
             <div class="detail-group avatar-group">
-              <div class="profile-avatar-large">
+              <div class="profile-avatar-small">
                 <img 
                   :src="selectedFriend.avatar" 
                   :alt="selectedFriend.display_name"
-                  class="friend-avatar"
+                  :class="['friend-avatar', selectedFriend.is_online ? 'online' : 'offline']"
                 >
                 <span :class="['status-indicator', selectedFriend.is_online ? 'online' : 'offline']"></span>
               </div>
@@ -174,6 +178,31 @@
               <h5>Display Name</h5>
               <p>{{ selectedFriend.display_name }}</p>
             </div>
+
+            <div class="detail-group">
+              <h5>Friends ({{ selectedFriend.friends_count }})</h5>
+              <div class="friends-list">
+                <div v-if="selectedFriend.friends && selectedFriend.friends.length > 0">
+                  <div v-for="friend in selectedFriend.friends" 
+                      :key="friend.id" 
+                      class="friend-mini-card"
+                      @click="showFriendInfo(friend)">
+                    <div class="friend-mini-avatar">
+                      <img :src="friend.avatar" :alt="friend.display_name">
+                      <span :class="['mini-status-dot', friend.is_online ? 'online' : 'offline']"></span>
+                    </div>
+                    <span class="friend-mini-name">{{ friend.display_name }}</span>
+                  </div>
+                </div>
+                <p v-else class="no-content">No friends yet</p>
+              </div>
+            </div>
+
+            <div class="detail-group">
+              <h5>Match History</h5>
+              <p>Coming soon...</p>
+            </div>
+            
           </div>
 
           <div class="friend-profile-footer">
@@ -189,11 +218,11 @@
         <div class="chat-container">
           <div class="chat-header">
             <button @click="sendGameInvite" class="btn primary-btn">
-              <i class="game-icon"></i> Invite to Play
+              <i class="game-icon"></i>Invite to Play
             </button>
             
             <h4 class="chat-title">Chat with {{ activeChat }}</h4>
-
+            
             <button @click="closeChat" class="btn secondary-btn">Close</button>
           </div>
           <div class="chat-messages" ref="chatMessages">
@@ -203,7 +232,9 @@
                 'message-sent': parseInt(message.sender_id) === parseInt(currentUserId),
                 'message-received': parseInt(message.sender_id) !== parseInt(currentUserId)
               }]">
-              <div class="message-content" :class="{ 
+              <div class="message-content" 
+                @contextmenu.prevent="showMessageOptions($event, message)"
+                :class="{ 
                   'content-sent': parseInt(message.sender_id) === currentUserId,
                   'content-received': parseInt(message.sender_id) !== currentUserId
                 }">
@@ -230,7 +261,7 @@
               v-model="newMessage" 
               @keyup.enter="sendMessage" 
               placeholder="Type your message..."
-              class="input-field"
+              class="chat-input-field"
             />
             <button @click="sendMessage" class="btn primary-btn">Send</button>
           </div>
@@ -255,43 +286,56 @@ import { SERVICE_URLS } from '@/config/services';
 export default {
   name: 'Friends',
   
-  data() {
+    data() {
     return {
+      // User Profile and Friends
       profile: {
-        friends: []
+        friends: []  // Array of user's friends
       },
-  
+      
+      // WebSocket Related
       notificationSocket: null,
       wsConnected: false,
+      chatSocket: null,
+      
+      // Search Functionality
       searchQuery: '',
       searchResults: [],
       isSearching: false,
       searchError: null,
       searchTimeout: null,
+      
+      // Friend Requests
       incomingFriendRequests: JSON.parse(localStorage.getItem('incomingRequests') || '[]'),
-
-      //Friends Profile View
-      selectedFriend: null,
+      
+      // Friend Profile Modal
+      selectedFriend: {
+        id: null,
+        display_name: '',
+        avatar: '',
+        is_online: false,
+        friends: [],      // Friend's friends list - for nested friends view
+        friends_count: 0  // Total count of friend's friends
+      },
       showFriendProfile: false,
-
-      // Tab state
+      
+      // Navigation
       activeTab: 'friends',
-
-      // Auth token
+      
+      // Authentication
       token: localStorage.getItem('token'),
-
-      //Status message
-      statusMessage: null,
-
-      //Current User ID
       currentUserId: null,
-      chatSocket: null,
+      
+      // UI State
+      statusMessage: null,
+      
+      // Chat Functionality
       messages: [],
       newMessage: '',
       showChat: false,
       activeChat: null,
-      chatId: null,
-    };
+      chatId: null
+    }
   },
 
   computed: {
@@ -670,8 +714,6 @@ export default {
       }, 3000);
     },
 
-    // Split into these methods:
-
     async startChat(friend) {
       try {
         await this.validateChatPrerequisites(friend);
@@ -685,6 +727,7 @@ export default {
       }
     },
 
+    // checks user ID and token
     validateChatPrerequisites(friend) {
       if (!this.currentUserId) {
         throw new Error('Current user ID is not set');
@@ -701,12 +744,14 @@ export default {
       });
     },
 
+    // Handles UI state changes
     updateChatUI(friend) {
       this.activeChat = friend.display_name;
       this.showFriendProfile = false;
       this.showChat = true;
     },
 
+    // creates unique chat identifier
     generateChatId(friendId) {
       const chatId = [this.currentUserId, friendId]
         .sort((a, b) => a - b)
@@ -715,6 +760,7 @@ export default {
       return chatId;
     },
 
+    // retrieves chat messages
     async fetchChatHistory(chatId) {
       const response = await fetch(`/api/chats/${chatId}/`, {
         method: 'GET',
@@ -736,6 +782,7 @@ export default {
       this.chatId = chatId;
     },
 
+    // handles API response parsing
     async processChatResponse(response) {
       if (!response.ok) {
         const errorText = await response.text();
@@ -764,6 +811,7 @@ export default {
       }
     },
 
+    // sets up WebSocket connection
     async initializeChatWebSocket(chatId) {
       if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
         this.chatSocket.close();
@@ -776,12 +824,14 @@ export default {
       this.setupWebSocketEventHandlers(chatId);
     },
 
+    // constructs WebSocket URL
     buildWebSocketUrl(chatId) {
       const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
       const wsHost = window.location.host;
       return `${wsProtocol}//${wsHost}/ws/chat/${chatId}/?token=${this.getToken}`;
     },
 
+    // configures WebSocket handlers
     setupWebSocketEventHandlers(chatId) {
       this.chatSocket.onopen = () => {
         console.log('WebSocket connection established');
@@ -806,6 +856,7 @@ export default {
       this.chatSocket.onmessage = this.handleWebSocketMessage;
     },
 
+    // processes incoming messages
     handleWebSocketMessage(event) {
       try {
         const data = JSON.parse(event.data);
@@ -825,11 +876,18 @@ export default {
             this.scrollToBottom();
           });
         }
+        else if (data.type === 'game_invite') {
+        this.handleGameInvite(data.message);
+        }
+        else if (data.type === 'tournament_notification') {
+          this.handleTournamentNotification(data.message);
+        }
       } catch (error) {
         console.error('Error processing message:', error);
       }
     },
 
+    // manages error states
     handleChatError(error) {
       console.error('Error starting chat:', error);
       this.showStatus(
@@ -841,10 +899,35 @@ export default {
       this.activeChat = null;
     },
         
-    showFriendInfo(friend) {
-      this.selectedFriend = friend;
-      this.showFriendProfile = true;
-      this.showChat = false;
+    async showFriendInfo(friend) {
+      try {
+        const response = await fetch(`/api/user/profile/${friend.id}/`, {
+          headers: {
+            'Authorization': `Bearer ${this.getToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch friend profile');
+        }
+
+        const friendData = await response.json();
+        this.selectedFriend = {
+          id: friendData.id,
+          display_name: friendData.display_name,
+          avatar: friendData.avatar,
+          is_online: friendData.is_online,
+          friends: friendData.friends || [],
+          friends_count: friendData.friends_count || 0
+        };
+        this.showFriendProfile = true;
+        this.showChat = false;  // Close chat if open
+
+      } catch (error) {
+        console.error('Error fetching friend details:', error);
+        this.showStatus('Failed to load friend profile', {}, 'error');
+      }
     },
 
     showChatParticipantProfile(message) {
@@ -995,13 +1078,71 @@ export default {
     if (this.chatSocket) {
       this.chatSocket.close();
     }
-  }
+  },
+
+
+  // Game Invite Methods
+  async sendGameInvite() {
+    if (!this.chatSocket || this.chatSocket.readyState !== WebSocket.OPEN) {
+      this.showStatus('Chat connection error', {}, 'error');
+      return;
+    }
+
+    try {
+      const inviteData = {
+        type: 'game_invite',
+        message: {
+          chat: this.chatId,
+          sender_id: this.currentUserId,
+          invite_type: 'pong_game'
+        }
+      };
+
+      this.chatSocket.send(JSON.stringify(inviteData));
+      this.showStatus('Game invitation sent', {}, 'success');
+    } catch (error) {
+      console.error('Error sending game invite:', error);
+      this.showStatus('Failed to send game invitation', {}, 'error');
+    }
+  },
+
+  handleGameInvite(invite) {
+    const confirmation = confirm(`Would you like to play a game of Pong?`);
+    if (confirmation) {
+      this.$router.push(`/game/${invite.game_id}`);
+    }
+  },
+
+  handleTournamentNotification(notification) {
+    this.showStatus(
+      'Tournament game starting soon!', 
+      {}, 
+      'warning'
+    );
+    // Optional: Add sound notification
+    this.playNotificationSound();
+  },
+
 };
 </script>
 
 <style scoped>
-friends-nav {
+/* Layout & Container Styles */
+.friends-container {
+  padding: 20px;
+  max-width: 800px;
+  margin: 0 auto;
+  min-height: 100vh;
   display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Navigation Styles */
+.friends-nav {
+  width: 100%;
+  display: flex;
+  justify-content: center;
   gap: 10px;
   margin-bottom: 20px;
 }
@@ -1020,21 +1161,21 @@ friends-nav {
   background: #03a670;
 }
 
+/* Section Styles */
 .section {
+  width: 100%;
   background: #1a1a1a;
   border-radius: 8px;
   padding: 20px;
   margin-bottom: 20px;
+  box-sizing: border-box;
 }
 
-.no-content {
-  text-align: center;
-  color: #666;
-  padding: 20px;
-}
-
+/* Search Styles */
 .search-box {
-  margin-bottom: 20px;
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto 20px auto;
 }
 
 .search-input {
@@ -1046,47 +1187,11 @@ friends-nav {
   color: white;
 }
 
-.friends-container {
-  padding: 20px;
-  max-width: 800px;
-  margin: 0 auto;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.friends-nav {
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 20px;
-}
-
-.section {
-  width: 100%;
-  background: #1a1a1a;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 20px;
-  box-sizing: border-box;
-}
-
-.search-box {
-  width: 100%;
-  max-width: 600px;
-  margin: 0 auto 20px auto;
-}
-
 .search-results {
   width: 100%;
 }
 
-.profile-section {
-  margin-bottom: 20px;
-}
-
+/* Profile & User Info Styles */
 .profile-item {
   width: 100%;
   display: flex;
@@ -1111,9 +1216,62 @@ friends-nav {
   object-fit: cover;
 }
 
+.profile-name {
+  font-size: 16px;
+  flex-grow: 1;
+  color: #ffffff;
+  margin-right: 20px;
+  margin-left: 10px;
+}
+
 .display-name {
   color: #ffffff;
   font-size: 16px;
+}
+
+/* Button Styles */
+.btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: none;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-width: 100px; /* Add fixed minimum width */
+  height: 36px; /* Add fixed height */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap; /* Prevent text wrapping */
+}
+.friend-actions {
+  display:grid;
+  gap: 10px;
+}
+
+
+.primary-btn {
+  background: #03a670;
+  color: white;
+}
+
+.primary-btn:hover {
+  background: #04d38e;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(3, 166, 112, 0.3);
+}
+
+.secondary-btn {
+  background: #a60303;
+  color: white;
+  
+}
+
+.secondary-btn:hover {
+  background: #d30404;
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(166, 3, 3, 0.3);
 }
 
 .action-buttons {
@@ -1122,36 +1280,13 @@ friends-nav {
   gap: 10px;
 }
 
-.btn {
-  padding: 8px 16px;
-  border-radius: 4px;
-  border: none;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.primary-btn {
-  background: #03a670;
-  color: white;
-}
-
-.secondary-btn {
-  background: #a60303;
-  color: white;
-}
-
-.status-text {
-  color: #666;
-  font-style: italic;
-  padding: 8px 16px;
-}
-
 .avatar-container {
   position: relative;
-  margin-right: 5%;
+  width: 50px;
+  height: 50px;
 }
 
+/* Status Indicators */
 .status-dot {
   position: absolute;
   bottom: 2px;
@@ -1160,59 +1295,29 @@ friends-nav {
   height: 12px;
   border-radius: 50%;
   border: 2px solid #1a1a1a;
-}primary
+}
 
-.status-dot.online {
+.status-dot.online,
+.status-indicator.online {
   background-color: #03a670;
 }
 
-.status-dot.offline {
+.status-dot.offline,
+.status-indicator.offline {
   background-color: #a60303;
 }
 
-/* Update existing profile-avatar style */
-.profile-avatar {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  object-fit: cover;
-}
-
-.profile-name {
-  font-size: 16px;
-  flex-grow: 1;
-  color: #ffffff;
-  margin-right: 20px;
-}
-
-.status {
-  padding: 0 15px;
-}
-
-.status.online {
-  color: #03a670;
-}
-
-.status.offline {
-  color: #a60303;
-}
-
-.friend-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.secondary-btn:hover {
-  background: #333333;
-}
-
+/* Chat Container Styles */
 .chat-container {
-  height: 500px;
-  display: flex;
-  flex-direction: column;
+  height: 75vh;
+  width: 75%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   border-radius: 10px;
   box-shadow: 2px 2px 30px #03a670;
-  margin-top: 20px;
+  margin: 20px auto;
+  max-width: 1200px;
+  min-width: 400px;
 }
 
 .chat-header {
@@ -1223,184 +1328,164 @@ friends-nav {
   align-items: center;
   color: #ffffff;
   border-radius: 10px 10px 0 0;
-  padding-left: 5%;
-  gap: 0.5rem;
+  gap: 1rem;
+}
+
+.chat-input {
+  display: flex;
+  gap: 1rem;
+  padding: 1rem;
+  background: #2d2d2d;
+  border-radius: 0 0 10px 10px;
+}
+
+.chat-input-field {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #404040;
+  border-radius: 4px;
+  background: #1a1a1a;
+  color: #ffffff;
 }
 
 .chat-messages {
-  flex-grow: 1;
-  overflow: auto;
-  padding: 1rem;
   display: flex;
   flex-direction: column;
   gap: 1rem;
+  padding: 1.5rem;
+  overflow-y: auto;
   background: #1a1a1a;
+  scroll-behavior: smooth;
 }
 
 .message {
   display: flex;
-  max-width: 70%;
+  width: 100%;
   margin-bottom: 1rem;
 }
 
 .message-sent {
-  margin-left: auto;
+  justify-content: flex-end;
 }
 
 .message-received {
-  margin-right: auto;
+  justify-content: flex-start;
 }
 
 .message-content {
+  max-width: 65%; /* Reduced from 70% for better readability */
+  min-width: 60px;
   padding: 1rem;
-  border-radius: 1rem;
   position: relative;
+  word-wrap: break-word; /* Ensures long words break */
+  overflow-wrap: break-word; /* Modern browsers */
+  hyphens: auto; /* Adds hyphens when breaking words */
 }
 
 .content-sent {
   background: #03a670;
   color: #ffffff;
   border-radius: 1rem 1rem 0 1rem;
+  margin-left: auto;
 }
 
 .content-received {
   background: #333333;
   color: #ffffff;
   border-radius: 1rem 1rem 1rem 0;
+  margin-right: auto;
+}
+
+/* Message Header and Footer */
+.message-header {
+  margin-bottom: 0.5rem;
+}
+
+.message-sender {
+  font-size: 0.8rem;
+  opacity: 0.8;
+  cursor: pointer;
+}
+
+.message-text {
+  display: block;
+  line-height: 1.4; /* Improved readability for long messages */
+  white-space: pre-wrap; /* Preserves whitespace and wraps */
+}
+
+.message-footer {
+  margin-top: 0.5rem;
+  text-align: right;
 }
 
 .message-time {
   font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
-  margin-top: 0.5rem;
+  opacity: 0.7;
 }
 
-.chat-input {
-  padding: 1rem;
-  background: #2d2d2d;
-  border-top: 1px solid #404040;
-  display: flex;
-  gap: 0.5rem;
+/* Add media queries for responsive design */
+@media (max-width: 768px) {
+  .message-content {
+    max-width: 85%; /* Wider messages on smaller screens */
+  }
+  
+  .chat-container {
+    width: 90%; /* Wider container on smaller screens */
+    min-width: 300px;
+  }
 }
 
-.input-field {
-  flex-grow: 1;
-  border: 1px solid #404040;
-  padding: 0.75rem 1rem;
-  border-radius: 4px;
-  background: #1a1a1a;
-  color: #ffffff;
-}
-
-.input-field::placeholder {
-  color: #808080;
-}
-
-.overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.75);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.message-sender.clickable {
-  cursor: pointer;
-  transition: all 0.3s ease;
-  color: #ffffff
-}
-
-.message-sender.clickable:hover {
-  color:#03a670;
-  opacity: 0.8;
-  transform: scale(1.1);
-}
-
-.chat-header .primary-btn {
-  transition: all 0.3s ease;
-}
-
-.chat-header .primary-btn:hover {
-  background: #04d38e;
-  transform: scale(1.05);
-  box-shadow: 0 0 10px rgba(3, 166, 112, 0.5);
-}
-
+/* Friend Profile Modal Styles */
 .friend-profile-modal {
-  width: 90%;
-  max-width: 500px;
+  width: 75%;
+  height: 75vh;
+  max-width: 1000px;
+  min-width: 400px;
   background: #1a1a1a;
   border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(3, 166, 112, 0.4);
+  box-shadow: 2px 2px 30px #03a670;
   z-index: 1001;
   display: flex;
   flex-direction: column;
-  max-height: 80vh;
+  margin: 20px auto;
 }
 
 .friend-profile-header {
-  padding: 1rem;
-  background: #2d2d2d;
+  width: 100%;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: center;
+  padding: 1.5rem;
+  background: #2d2d2d;
   border-radius: 10px 10px 0 0;
-  padding-left: 30%;
+  position: relative;
+}
+
+.profile-title {
+  color: #ffffff;
+  text-align: center;
+  font-size: 1.0rem;
+  margin: 0;
+}
+
+/* Position close button absolutely */
+.friend-profile-header .secondary-btn {
+  position: absolute;
+  right: 1.5rem;
 }
 
 .profile-details {
   flex: 1;
-  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  padding: 2rem;
   overflow-y: auto;
 }
 
 .detail-group {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.5rem;
-  border-bottom: 1px solid #404040;
-}
-
-.detail-group:last-child {
-  margin-bottom: 0;
-  padding-bottom: 0;
-  border-bottom: none;
-}
-
-.detail-group h5 {
-  color: #03a670;
-  margin: 0 0 0.5rem 0;
-  font-size: 1rem;
-}
-
-.detail-group p {
-  margin: 0;
-  color: #ffffff;
-  line-height: 1.4;
-}
-
-.friend-profile-footer {
-  padding: 1rem;
-  background: #2d2d2d;
-  border-top: 1px solid #404040;
-  border-radius: 0 0 10px 10px;
-  display: flex;
-  justify-content: center;
-}
-
-/* Add transition styles */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
+  width: 100%;
+  text-align: center;
 }
 
 .avatar-group {
@@ -1412,16 +1497,31 @@ friends-nav {
 
 .profile-avatar-large {
   position: relative;
-  width: 120px;
-  height: 120px;
+  width: 50px;
+  height: 50px;
+  margin: 0 auto;
 }
 
 .friend-avatar {
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
+  width: 150px;  /* Changed from 50% to fixed size */
+  height: 150px; /* Changed from 50% to fixed size */
   object-fit: cover;
-  border: 3px solid #03a670;
+  border-radius: 50%;
+  border: 4px solid transparent;
+  transition: border-color 0.3s ease;
+}
+
+/* Status Styles for both types of avatars */
+.friend-avatar.online,
+.profile-avatar.online {
+  border-color: #03a670;
+  box-shadow: 0 0 15px rgba(3, 166, 112, 0.3);
+}
+
+.friend-avatar.offline,
+.profile-avatar.offline {
+  border-color: #a60303;
+  box-shadow: 0 0 15px rgba(166, 3, 3, 0.3);
 }
 
 .status-indicator {
@@ -1434,15 +1534,71 @@ friends-nav {
   border: 3px solid #1a1a1a;
 }
 
-.status-indicator.online {
-  background-color: #03a670;
+.friend-profile-footer {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 1.5rem;
+  background: #2d2d2d;
+  border-radius: 0 0 10px 10px;
 }
 
-.status-indicator.offline {
-  background-color: #a60303;
+.friend-profile-footer .btn {
+  min-width: 120px;
+}
+
+/* Add hover effects */
+.friend-profile-footer .primary-btn:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 15px rgba(3, 166, 112, 0.5);
 }
 
 
+/* Overlay & Modal Styles */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  padding: 2rem;
+}
+
+/* Animation Styles */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Utility Classes */
+.no-content {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+}
+
+.status-text {
+  color: #666;
+  font-style: italic;
+  padding: 8px 16px;
+}
+
+/* Status Message Styles */
 .status-message {
   position: fixed;
   top: 20px;
@@ -1453,25 +1609,7 @@ friends-nav {
   animation: fadeIn 0.3s ease;
 }
 
-.status-message.success {
-  background-color: #4caf50;
-  color: white;
-}
-
-.status-message.warning {
-  background-color: #ff9800;
-  color: white;
-}
-
-.status-message.error {
-  background-color: #f44336;
-  color: white;
-}
-
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(-10px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-
+.status-message.success { background-color: #4caf50; color: white; }
+.status-message.warning { background-color: #ff9800; color: white; }
+.status-message.error { background-color: #f44336; color: white; }
 </style>
