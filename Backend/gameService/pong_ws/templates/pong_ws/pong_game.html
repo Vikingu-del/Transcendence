@@ -13,216 +13,292 @@
   <h1>Pong Game</h1>
   <canvas id="pongCanvas" width="800" height="400"></canvas>
   <p id="scoreboard"></p>
+  <div id="winnerMessage" style="display: none; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 10px 20px; font-size: 24px; background-color: white; border: 2px solid black; z-index: 1000;"></div>
   <script>
-    const gameId = "aed72433-4f60-4abe-b47e-f349c60b259f"; // Replace with actual game ID
-    const ws = new WebSocket(`ws://localhost:8000/ws/pong/${gameId}/`);
-
-    let player1Username = '';
-    let player2Username = '';
-    let player1PaddleY = 0;
-    let player2PaddleY = 0;
-    const paddleHeight = 80;
-    const paddleWidth = 10;
-    let isPlayer1 = false;
-
-    let player1Score = 0;
-    let player2Score = 0;
-    const winningScore = 5;
-
-    const canvas = document.getElementById('pongCanvas');
-    const ctx = canvas.getContext('2d');
-
-    let ballX = canvas.width / 2;
-    let ballY = canvas.height / 2;
-    let ballSpeedX = 3; // Reduced initial ball speed
-    let ballSpeedY = 2; // Reduced initial ball speed
-    const ballRadius = 6; // Reduced ball size
-
-    let keysPressed = {};
-
-    let lastSentTime = 0;
-    const throttleInterval = 100; // Throttle interval in milliseconds
-    let lastPaddleUpdateTime = 0;
-
-    ws.onopen = function() {
-      console.log('WebSocket connection opened');
-    };
-
-    ws.onmessage = function(event) {
-      const data = JSON.parse(event.data);
-
-      if (data.player1_username && data.player2_username) {
-        player1Username = data.player1_username;
-        player2Username = data.player2_username;
-        updateScoreboard();
-      }
-
-      if (data.player1_paddle !== undefined && data.player2_paddle !== undefined) {
-        player1PaddleY = data.player1_paddle;
-        player2PaddleY = data.player2_paddle;
-      }
-
-      if (data.player_role) {
-        isPlayer1 = data.player_role === 'player1';
-        console.log("You are " + (isPlayer1 ? "Player 1 (left paddle)" : "Player 2 (right paddle)"));
-      }
-
-      if (data.ballX !== undefined && data.ballY !== undefined) {
-        ballX = data.ballX;
-        ballY = data.ballY;
-      }
-
-      if (data.player1_score !== undefined && data.player2_score !== undefined) {
-        player1Score = data.player1_score;
-        player2Score = data.player2_score;
-        updateScoreboard();
-      }
-    };
-
-    ws.onclose = function() {
-      console.log('WebSocket connection closed');
-    };
-
-    document.addEventListener('keydown', function(event) {
-      keysPressed[event.key] = true;
-    });
-
-    document.addEventListener('keyup', function(event) {
-      keysPressed[event.key] = false;
-    });
-
-    function sendPaddleUpdate() {
-      const currentTime = Date.now();
-      if (currentTime - lastPaddleUpdateTime > throttleInterval / 2) { // Increase update frequency for smoother animation
-        if (isPlayer1) {
-          ws.send(JSON.stringify({
-            'player1_paddle': player1PaddleY
-          }));
-        } else {
-          ws.send(JSON.stringify({
-            'player2_paddle': player2PaddleY
-          }));
-        }
-        lastPaddleUpdateTime = currentTime;
-      }
-    }
-
-    function movePaddles() {
-      if (isPlayer1) {
-        if (keysPressed['ArrowUp'] && player1PaddleY > 0) {
-          player1PaddleY -= 20; //orig val 10
-          sendPaddleUpdate();
-        } else if (keysPressed['ArrowDown'] && player1PaddleY < canvas.height - paddleHeight) {
-          player1PaddleY += 20;//orig val 10
-          sendPaddleUpdate();
-        }
-      } else {
-        if (keysPressed['ArrowUp'] && player2PaddleY > 0) {
-          player2PaddleY -= 20;//orig val 10
-          sendPaddleUpdate();
-        } else if (keysPressed['ArrowDown'] && player2PaddleY < canvas.height - paddleHeight) {
-          player2PaddleY += 20;//orig val 10
-          sendPaddleUpdate();
-        }
-      }
-    }
-
-    function draw() {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      ctx.fillStyle = 'white';
-      ctx.fillRect(10, player1PaddleY, paddleWidth, paddleHeight);
-      ctx.fillRect(canvas.width - paddleWidth - 10, player2PaddleY, paddleWidth, paddleHeight);
-
-      ctx.beginPath();
-      ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
-      ctx.fillStyle = 'white';
-      ctx.fill();
-      ctx.closePath();
-    }
-
-    function updateScoreboard() {
-      document.getElementById("scoreboard").innerText = `${player1Username}: ${player1Score} | ${player2Username}: ${player2Score}`;
-    }
-
-    function updateBallPosition() {
-      ballX += ballSpeedX;
-      ballY += ballSpeedY;
-
-      // Ball collision with top and bottom walls
-      if (ballY + ballRadius > canvas.height) {
-        ballY = canvas.height - ballRadius; // Ensure ball stays within bounds
-        ballSpeedY = -ballSpeedY * 0.9; // Reduce speed on collision
-      } else if (ballY - ballRadius < 0) {
-        ballY = ballRadius; // Ensure ball stays within bounds
-        ballSpeedY = -ballSpeedY * 0.9; // Reduce speed on collision
-      }
-
-      // Ball collision with left paddle (Player 1)
-      if (ballX - ballRadius <= 20 && ballY >= player1PaddleY && ballY <= player1PaddleY + paddleHeight) {
-        ballSpeedX = -ballSpeedX * 0.9; // Reduce speed on collision
-        let deltaY = ballY - (player1PaddleY + paddleHeight / 2);
-        ballSpeedY = deltaY * 0.15; // Further reduced angle change
-      }
-      // Ball out of bounds on left (Point for Player 2)
-      else if (ballX - ballRadius < 0) {
-        player2Score++;
-        checkGameOver();
-        resetBall();
-      }
-
-      // Ball collision with right paddle (Player 2)
-      if (ballX + ballRadius >= canvas.width - 20 && ballY >= player2PaddleY && ballY <= player2PaddleY + paddleHeight) {
-        ballSpeedX = -ballSpeedX * 0.9; // Reduce speed on collision
-        let deltaY = ballY - (player2PaddleY + paddleHeight / 2);
-        ballSpeedY = deltaY * 0.15; // Further reduced angle change
-      }
-      // Ball out of bounds on right (Point for Player 1)
-      else if (ballX + ballRadius > canvas.width) {
-        player1Score++;
-        checkGameOver();
-        resetBall();
-      }
-
-      // Throttle WebSocket messages
-      const currentTime = Date.now();
-      if (isPlayer1 && currentTime - lastSentTime > throttleInterval / 2) { // Increase update frequency for smoother ball movement
-        ws.send(JSON.stringify({
-          'ballX': ballX,
-          'ballY': ballY,
-          'player1_score': player1Score,
-          'player2_score': player2Score
-        }));
-        lastSentTime = currentTime;
-      }
-    }
-
-    function resetBall() {
-      ballX = canvas.width / 2;
-      ballY = canvas.height / 2;
-      ballSpeedX = -ballSpeedX;
-      ballSpeedY = 3;
-    }
-
-    function checkGameOver() {
-      if (player1Score >= winningScore || player2Score >= winningScore) {
-        alert(`${player1Score >= winningScore ? player1Username : player2Username} wins!`);
-        player1Score = 0;
-        player2Score = 0;
-        resetBall();
-      }
-    }
-
-    function gameLoop() {
-      movePaddles();
-      if (isPlayer1) {
-        updateBallPosition();
-      }
-      draw();
-      requestAnimationFrame(gameLoop);
-    }
-
-    gameLoop();
-  </script>
-</body>
-</html>
+	  const gameId = "34b7d420-ee57-4e24-a900-09517eb8b1c2"; // Replace with actual game ID
+	  const ws = new WebSocket(`ws://localhost:8000/ws/pong/${gameId}/`);
+  
+	  let player1Username = '';
+	  let player2Username = '';
+	  let player1PaddleY = 0;
+	  let player2PaddleY = 0;
+	  const paddleHeight = 80;
+	  const paddleWidth = 10;
+	  let isPlayer1 = false;
+  
+	  let player1Score = 0;
+	  let player2Score = 0;
+	  const winningScore = 3;
+  
+	  const canvas = document.getElementById('pongCanvas');
+	  const ctx = canvas.getContext('2d');
+  
+	  let ballX = canvas.width / 2;
+	  let ballY = canvas.height / 2;
+	  let ballSpeedX = 3; // Reduced initial ball speed
+	  let ballSpeedY = 2; // Reduced initial ball speed
+	  const ballRadius = 6; // Reduced ball size
+  
+	  let keysPressed = {};
+  
+	  let lastSentTime = 0;
+	  const throttleInterval = 100; // Throttle interval in milliseconds
+	  let lastPaddleUpdateTime = 0;
+  
+	  let gameRunning = true; // Add a flag to control the game loop
+  
+	  ws.onopen = function() {
+		console.log('WebSocket connection opened');
+	  };
+  
+	  ws.onmessage = function(event) {
+		const data = JSON.parse(event.data);
+  
+		if (data.player1_username && data.player2_username) {
+		  player1Username = data.player1_username;
+		  player2Username = data.player2_username;
+		  updateScoreboard();
+		}
+  
+		if (data.player1_paddle !== undefined && data.player2_paddle !== undefined) {
+		  player1PaddleY = data.player1_paddle;
+		  player2PaddleY = data.player2_paddle;
+		}
+  
+		if (data.player_role) {
+		  isPlayer1 = data.player_role === 'player1';
+		  console.log("You are " + (isPlayer1 ? "Player 1 (left paddle)" : "Player 2 (right paddle)"));
+		}
+  
+		if (data.ballX !== undefined && data.ballY !== undefined) {
+		  ballX = data.ballX;
+		  ballY = data.ballY;
+		}
+  
+		if (data.player1_score !== undefined && data.player2_score !== undefined) {
+		  player1Score = data.player1_score;
+		  player2Score = data.player2_score;
+		  updateScoreboard();
+		}
+  
+		// 🔥 New: Handle game over scenario
+		if (data.type === "game_over") {
+		  const winnerMessage = document.getElementById("winnerMessage");
+		  winnerMessage.innerText = `${data.winner} wins!`;
+		  winnerMessage.style.display = "block";
+  
+		  // Update the scoreboard with the final scores
+		  player1Score = data.player1_score;
+		  player2Score = data.player2_score;
+		  updateScoreboard();
+  
+		  gameRunning = false; // Stop the game loop
+  
+		  if (!isPlayer1) {  // Only Player 2 sees the "Start New Game" button
+			const newGameBtn = document.createElement("button");
+			newGameBtn.innerText = "New Game";
+			newGameBtn.style.position = "absolute";  
+			newGameBtn.style.top = "60%";
+			newGameBtn.style.left = "50%";
+			newGameBtn.style.transform = "translate(-50%, -50%)";
+			newGameBtn.style.padding = "10px 20px";
+			newGameBtn.style.fontSize = "16px";
+			newGameBtn.style.cursor = "pointer";
+  
+			newGameBtn.onclick = function() {
+			  ws.send(JSON.stringify({'type': 'new_game'}));  // Request new game from server
+			};
+  
+			document.body.appendChild(newGameBtn);
+		  }
+		}
+  
+		// 🔥 New: Handle new game response
+		if (data.type === "new_game_id") {
+		  location.reload();  // Reload the current game session
+		}
+	  };
+  
+	  ws.onclose = function() {
+		console.log('WebSocket connection closed');
+	  };
+  
+	  document.addEventListener('keydown', function(event) {
+		keysPressed[event.key] = true;
+	  });
+  
+	  document.addEventListener('keyup', function(event) {
+		keysPressed[event.key] = false;
+	  });
+  
+	  function sendPaddleUpdate() {
+		const currentTime = Date.now();
+		if (currentTime - lastPaddleUpdateTime > throttleInterval / 2) { // Increase update frequency for smoother animation
+		  if (isPlayer1) {
+			ws.send(JSON.stringify({
+			  'player1_paddle': player1PaddleY
+			}));
+		  } else {
+			ws.send(JSON.stringify({
+			  'player2_paddle': player2PaddleY
+			}));
+		  }
+		  lastPaddleUpdateTime = currentTime;
+		}
+	  }
+  
+	  function movePaddles() {
+		if (isPlayer1) {
+		  if (keysPressed['ArrowUp'] && player1PaddleY > 0) {
+			player1PaddleY -= 20; //orig val 10
+			sendPaddleUpdate();
+		  } else if (keysPressed['ArrowDown'] && player1PaddleY < canvas.height - paddleHeight) {
+			player1PaddleY += 20;//orig val 10
+			sendPaddleUpdate();
+		  }
+		} else {
+		  if (keysPressed['ArrowUp'] && player2PaddleY > 0) {
+			player2PaddleY -= 20;//orig val 10
+			sendPaddleUpdate();
+		  } else if (keysPressed['ArrowDown'] && player2PaddleY < canvas.height - paddleHeight) {
+			player2PaddleY += 20;//orig val 10
+			sendPaddleUpdate();
+		  }
+		}
+	  }
+  
+	  function draw() {
+		ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+		ctx.fillStyle = 'white';
+		ctx.fillRect(10, player1PaddleY, paddleWidth, paddleHeight);
+		ctx.fillRect(canvas.width - paddleWidth - 10, player2PaddleY, paddleWidth, paddleHeight);
+  
+		ctx.beginPath();
+		ctx.arc(ballX, ballY, ballRadius, 0, Math.PI * 2);
+		ctx.fillStyle = 'white';
+		ctx.fill();
+		ctx.closePath();
+	  }
+  
+	  function updateScoreboard() {
+		document.getElementById("scoreboard").innerText = `${player1Username}: ${player1Score} | ${player2Username}: ${player2Score}`;
+	  }
+  
+	  function updateBallPosition() {
+		ballX += ballSpeedX;
+		ballY += ballSpeedY;
+  
+		// Ball collision with top and bottom walls
+		if (ballY + ballRadius > canvas.height) {
+		  ballY = canvas.height - ballRadius; // Ensure ball stays within bounds
+		  ballSpeedY = -ballSpeedY * 0.9; // Reduce speed on collision
+		} else if (ballY - ballRadius < 0) {
+		  ballY = ballRadius; // Ensure ball stays within bounds
+		  ballSpeedY = -ballSpeedY * 0.9; // Reduce speed on collision
+		}
+  
+		// Ball collision with left paddle (Player 1)
+		if (ballX - ballRadius <= 20 && ballY >= player1PaddleY && ballY <= player1PaddleY + paddleHeight) {
+		  ballSpeedX = -ballSpeedX * 0.9; // Reduce speed on collision
+		  let deltaY = ballY - (player1PaddleY + paddleHeight / 2);
+		  ballSpeedY = deltaY * 0.25; // Further reduced angle change
+		}
+		// Ball out of bounds on left (Point for Player 2)
+		else if (ballX - ballRadius < 0) {
+		  player2Score++;
+		  checkGameOver();
+		  resetBall();
+		}
+  
+		// Ball collision with right paddle (Player 2)
+		if (ballX + ballRadius >= canvas.width - 20 && ballY >= player2PaddleY && ballY <= player2PaddleY + paddleHeight) {
+		  ballSpeedX = -ballSpeedX * 0.9; // Reduce speed on collision
+		  let deltaY = ballY - (player2PaddleY + paddleHeight / 2);
+		  ballSpeedY = deltaY * 0.25; // Further reduced angle change
+		}
+		// Ball out of bounds on right (Point for Player 1)
+		else if (ballX + ballRadius > canvas.width) {
+		  player1Score++;
+		  checkGameOver();
+		  resetBall();
+		}
+  
+		// Throttle WebSocket messages
+		const currentTime = Date.now();
+		if (isPlayer1 && currentTime - lastSentTime > throttleInterval / 2) { // Increase update frequency for smoother ball movement
+		  ws.send(JSON.stringify({
+			'ballX': ballX,
+			'ballY': ballY,
+			'player1_score': player1Score,
+			'player2_score': player2Score
+		  }));
+		  lastSentTime = currentTime;
+		}
+	  }
+  
+	  function resetBall() {
+		ballX = canvas.width / 2;
+		ballY = canvas.height / 2;
+		ballSpeedX = -ballSpeedX;
+		ballSpeedY = 3;
+	  }
+  
+	  function checkGameOver() {
+		if (player1Score >= winningScore || player2Score >= winningScore) {
+		  let winner = player1Score >= winningScore ? player1Username : player2Username;
+		  updateScoreboard();
+  
+		  // Send final score to backend
+		  ws.send(JSON.stringify({
+			'type': 'game_over',
+			'winner': winner,
+			'player1_score': player1Score,
+			'player2_score': player2Score
+		  }));
+		  
+		  gameRunning = false; // Stop the game loop
+		  
+		  // Show in-page message announcing the winner
+		  const winnerMessage = document.getElementById("winnerMessage");
+		  winnerMessage.innerText = `${winner} wins!`;
+		  winnerMessage.style.display = "block";
+		  
+		  // Show 'Start New Game' button for Player 2
+		  if (!isPlayer1) {
+			  const newGameBtn = document.createElement("button");
+			  newGameBtn.innerText = "Start New Game";
+			  newGameBtn.style.position = "absolute";  
+			  newGameBtn.style.top = "60%";
+			  newGameBtn.style.left = "50%";
+			  newGameBtn.style.transform = "translate(-50%, -50%)";
+			  newGameBtn.style.padding = "10px 20px";
+			  newGameBtn.style.fontSize = "16px";
+			  newGameBtn.style.cursor = "pointer";
+			  
+			  newGameBtn.onclick = function() {
+				  ws.send(JSON.stringify({'type': 'new_game'}));
+				  location.reload(); // Refresh to start a new game
+			  };
+			  document.body.appendChild(newGameBtn);
+		  }
+		  player1Score = 0;
+		  player2Score = 0;
+		}
+	  }
+  
+	  function gameLoop() {
+		if (gameRunning) {
+		  movePaddles();
+		  if (isPlayer1) {
+			updateBallPosition();
+		  }
+		  draw();
+		  requestAnimationFrame(gameLoop);
+		}
+	  }
+  
+	  gameLoop();
+	</script>
+  </body>
+  </html>

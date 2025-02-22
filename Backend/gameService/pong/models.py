@@ -1,12 +1,11 @@
 from django.db import models
-
 from django.contrib.auth.models import User
 import uuid
 
-# models.py
 
 class GameSession(models.Model):
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    id = models.AutoField(primary_key=True)  # Default primary key
+    game_id = models.UUIDField(default=uuid.uuid4, db_index=True)  # Not unique
     player1 = models.ForeignKey(User, related_name="games_as_player1", on_delete=models.CASCADE)
     player2 = models.ForeignKey(User, related_name="games_as_player2", null=True, blank=True, on_delete=models.CASCADE)
     player1_score = models.IntegerField(default=0)
@@ -23,7 +22,7 @@ class GameSession(models.Model):
     ball_direction = models.JSONField(default=dict)  # Dictionary with ball x, y velocity/direction
     
     def get_invite_link(self):
-        return f"/pong-ws/{self.id}/"
+        return f"/pong-ws/{self.game_id}/"
         # return f"/pong/{self.id}/"
 
     def get_game_state(self):
@@ -47,6 +46,17 @@ class GameSession(models.Model):
         self.player2_paddle = player2_paddle
         self.ball_position = ball_position
         self.ball_direction = ball_direction
+        self.save()
+
+    def reset(self):
+        self.player1_score = 0
+        self.player2_score = 0
+        self.player1_paddle = 0
+        self.player2_paddle = 0
+        self.ball_position = {"x": 400, "y": 200}  # Reset to default position
+        self.ball_direction = {"dx": 3, "dy": 3}  # Reset to default direction
+        self.is_active = True
+        self.ended_at = None
         self.save()
 
 
