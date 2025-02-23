@@ -217,8 +217,14 @@
       <div v-if="showChat" class="overlay">
         <div class="chat-container">
           <div class="chat-header">
-            <button @click="sendGameInvite" class="btn primary-btn">
-              <i class="game-icon"></i>Invite to Play
+            <button 
+              @click="sendGameInvite" 
+              class="btn primary-btn"
+              :disabled="!selectedFriend.is_online"
+              :class="{ 'btn-disabled': !selectedFriend.is_online }"
+            >
+              <i class="game-icon"></i>
+              {{ selectedFriend.is_online ? 'Invite to Play' : 'Friend Offline' }}
             </button>
             
             <h4 class="chat-title">Chat with {{ activeChat }}</h4>
@@ -268,7 +274,26 @@
         </div>
       </div>
     </transition>
-  
+
+    <!-- Game Window -->
+    <transition name="fade">
+      <div v-if="showGameWindow" class="overlay">
+        <div class="game-container">
+          <div class="game-header">  
+            <h4 class="game-title">Game with {{ activeChat }}</h4>
+            <button @click="closeGameWindow" class="btn secondary-btn">Close</button>
+          </div>
+          <div class="game-content" style="display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 2rem;">
+            <h2 style="color: #03a670; margin-bottom: 1rem;">Coming Soon!</h2>
+            <p style="color: #ffffff; text-align: center;">
+              The game feature is currently under development.<br>
+              Stay tuned for exciting updates!
+            </p>
+          </div>
+        </div>
+      </div>
+    </transition>
+
   </div>
 
   <!-- Debugging -->
@@ -334,7 +359,11 @@ export default {
       newMessage: '',
       showChat: false,
       activeChat: null,
-      chatId: null
+      chatId: null,
+
+      // Game Functionality
+      showGameWindow: false,
+      gameInviteSent: false
     }
   },
 
@@ -1067,6 +1096,48 @@ export default {
         // For relative paths in the avatars directory
         return `${baseUrl}/media/${avatarPath}`;
     },
+
+    // Game Invite Methods
+    async sendGameInvite() {
+      try {
+        // First close chat window
+        this.showChat = false;
+        
+        // Then open game window
+        this.showGameWindow = true;
+        this.gameInviteSent = true;
+        
+        this.showStatus('Game window opened', {}, 'success');
+      } catch (error) {
+        console.error('Error sending game invite:', error);
+        this.showStatus('Failed to open game window', {}, 'error');
+      }
+    },
+
+    closeGameWindow() {
+      this.showGameWindow = false;
+      this.gameInviteSent = false;
+      
+      // Optionally reopen chat
+      this.showChat = true;
+    },
+
+    handleGameInvite(invite) {
+      const confirmation = confirm(`Would you like to play a game of Pong?`);
+      if (confirmation) {
+        this.$router.push(`/game/${invite.game_id}`);
+      }
+    },
+
+    handleTournamentNotification(notification) {
+      this.showStatus(
+        'Tournament game starting soon!', 
+        {}, 
+        'warning'
+      );
+      // Optional: Add sound notification
+      this.playNotificationSound();
+    },
   },
 
   messages: {
@@ -1083,49 +1154,6 @@ export default {
     if (this.chatSocket) {
       this.chatSocket.close();
     }
-  },
-
-
-  // Game Invite Methods
-  async sendGameInvite() {
-    if (!this.chatSocket || this.chatSocket.readyState !== WebSocket.OPEN) {
-      this.showStatus('Chat connection error', {}, 'error');
-      return;
-    }
-
-    try {
-      const inviteData = {
-        type: 'game_invite',
-        message: {
-          chat: this.chatId,
-          sender_id: this.currentUserId,
-          invite_type: 'pong_game'
-        }
-      };
-
-      this.chatSocket.send(JSON.stringify(inviteData));
-      this.showStatus('Game invitation sent', {}, 'success');
-    } catch (error) {
-      console.error('Error sending game invite:', error);
-      this.showStatus('Failed to send game invitation', {}, 'error');
-    }
-  },
-
-  handleGameInvite(invite) {
-    const confirmation = confirm(`Would you like to play a game of Pong?`);
-    if (confirmation) {
-      this.$router.push(`/game/${invite.game_id}`);
-    }
-  },
-
-  handleTournamentNotification(notification) {
-    this.showStatus(
-      'Tournament game starting soon!', 
-      {}, 
-      'warning'
-    );
-    // Optional: Add sound notification
-    this.playNotificationSound();
   },
 
 };
@@ -1334,6 +1362,20 @@ export default {
   color: #ffffff;
   border-radius: 10px 10px 0 0;
   gap: 1rem;
+}
+
+.btn-disabled {
+  background-color: #666666;
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.btn-disabled:hover {
+  background-color: #666666;
+  transform: none;
+  box-shadow: none;
 }
 
 .chat-input {
@@ -1691,4 +1733,45 @@ export default {
   text-overflow: ellipsis;
   max-width: 100px;
 }
+
+/* Game Window Styles */
+.game-container {
+  height: 75vh;
+  width: 75%;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  border-radius: 10px;
+  box-shadow: 2px 2px 30px #03a670;
+  margin: 20px auto;
+  max-width: 1200px;
+  min-width: 400px;
+  background: #1a1a1a;
+}
+
+.game-header {
+  padding: 1rem;
+  background: #2d2d2d;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #ffffff;
+  border-radius: 10px 10px 0 0;
+}
+
+.game-title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #ffffff;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
 </style>

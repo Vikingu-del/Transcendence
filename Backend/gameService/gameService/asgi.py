@@ -28,11 +28,9 @@ from channels.auth import AuthMiddlewareStack
 
 os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'test_proj.settings')
 
-import chat.routing
 import pong_ws.routing
 
 application = ProtocolTypeRouter({
     "http": get_asgi_application(),
-    "websocket": AuthMiddlewareStack(URLRouter(chat.routing.websocket_urlpatterns)),
     "websocket": AuthMiddlewareStack(URLRouter(pong_ws.routing.websocket_urlpatterns)),
 })

@@ -43,6 +43,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
+      - approle_game:/vault/approle/game
+      - approle_game_db:/vault/approle/game_db
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -72,6 +74,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
+      - approle_game:/vault/approle/game
+      - approle_game_db:/vault/approle/game_db
 
   user:
     container_name: user
@@ -244,6 +248,7 @@ services:
     
 
   game:
+    container_name: game
     build:
       context: ./Backend/gameService
       dockerfile: Dockerfile
@@ -251,37 +256,45 @@ services:
       - "8005:8005"
     volumes:
       - ./Backend/gameService:/app
+      - approle_game:/vault/approle/game:ro
     environment:
       - DJANGO_SETTINGS_MODULE=gameService.settings
-      - DB_NAME=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_HOST=game_db
-      - DB_PORT=5432  # Changed from 5435 to match game_db's internal port
-      - PYTHONPATH=/app
+      - USER_SERVICE_URL=http://game:8005  # For service communication
+      - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
+      # - PYTHONPATH=/app
     depends_on:
+      vault:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
       game_db:
         condition: service_healthy  # Add health check dependency
     networks:
       - backtier
 
   game_db:
-    image: postgres:latest
-    environment:
-      POSTGRES_USER: "postgres"
-      POSTGRES_PASSWORD: "postgres"
-      POSTGRES_DB: "postgres"
-    ports:
-      - "5435:5432"
-    volumes:
-      - game_db_data:/var/lib/postgresql/data
-    networks:
-      - backtier
+    container_name: game_db
+    build:
+      context: ./Database/game_db
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
       interval: 10s
       timeout: 5s
       retries: 5
+    ports:
+      - "5435:5432"
+    volumes:
+      - approle_game_db:/vault/approle/game_db:ro
+      - game_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
 
   gateway:
     container_name: gateway
@@ -344,6 +357,8 @@ volumes:
   user_db_data:
   chat_db_data:
   auth_db_data:
+  approle_game:
+  approle_game_db:
   approle_chat:
   approle_chat_db:
   approle_auth:

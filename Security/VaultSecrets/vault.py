@@ -115,6 +115,14 @@ secrets_to_store_auth = {
     "AUTH_DB_NAME": env_vars.get("AUTH_DB_NAME"),
 }
 
+secrets_to_store_game = {
+    "GAME_DB_USER": env_vars.get("GAME_DB_USER"),
+    "GAME_DB_PASSWORD": env_vars.get("GAME_DB_PASSWORD"),
+    "GAME_DB_HOST": env_vars.get("GAME_DB_HOST"),
+    "GAME_DB_PORT": env_vars.get("GAME_DB_PORT"),
+    "GAME_DB_NAME": env_vars.get("GAME_DB_NAME"),
+}
+
 secrets_to_store_gateway = {
     "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
 }
@@ -126,9 +134,11 @@ write_secret_to_vault("chat_db", secrets_to_store_chat)
 write_secret_to_vault("chat", secrets_to_store_chat)
 write_secret_to_vault("auth_db", secrets_to_store_auth)
 write_secret_to_vault("auth", secrets_to_store_auth)
+write_secret_to_vault("game", secrets_to_store_game)
+write_secret_to_vault("game_db", secrets_to_store_game)
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

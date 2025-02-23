@@ -5,5 +5,4 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('pong/', include('pong.urls')), # local multiplayer
     path('pong-ws/', include('pong_ws.urls')), # remote multiplayer
-    path('', include('chat.urls')),
 ]
