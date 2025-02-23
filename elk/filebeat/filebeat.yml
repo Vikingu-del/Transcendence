@@ -9,146 +9,167 @@ filebeat.config:
     path: ${path.config}/modules.d/*.yml
     reload.enabled: false
 
-#================================ Autodiscover =======================================
+# ================================ Autodiscover =======================================
 # Autodiscover all containers with elasticsearch images, and add an separate input for
-# each container and log type.
-# filebeat.autodiscover:
-#   providers:
-#     - type: docker
-#       templates:
-#         - condition:
-#             contains:
-#               docker.container.image: elasticsearch
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             # - module: elasticsearch
-#             #   server:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             #   gc:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             #   audit:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             #   slowlog:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             #   deprecation:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: kibana
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             # - module: kibana
-#             #   log:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: logstash
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             # - module: logstash
-#             #   log:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#             #   slowlog:
-#             #     input:
-#             #       type: container
-#             #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: frontend
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: vault
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: vault_secrets
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         # - condition:
-#         #     contains:
-#         #       docker.container.image: 
-#         #   config:
-#         #     - type: container
-#         #       paths:
-#         #         - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: user
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: user_db
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: chat
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: chat_db
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: auth
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: auth_db
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
-#         - condition:
-#             contains:
-#               docker.container.image: gateway
-#           config:
-#             - type: container
-#               paths:
-#                 - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+# each container and log type:
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              docker.container.image: elasticsearch
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            # - module: elasticsearch
+            #   server:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            #   gc:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            #   audit:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            #   slowlog:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            #   deprecation:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: kibana
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            # - module: kibana
+            #   log:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: logstash
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            # - module: logstash
+            #   log:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+            #   slowlog:
+            #     input:
+            #       type: container
+            #       paths: '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: frontend
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: vault
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: vault_secrets
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        # - condition:
+        #     contains:
+        #       docker.container.image: 
+        #   config:
+        #     - type: container
+        #       paths:
+        #         - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: user
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: user_db
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: chat
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: chat_db
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: auth
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: auth_db
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: gateway
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: grafana
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: prometheus
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
+        - condition:
+            contains:
+              docker.container.image: node-exporter
+          config:
+            - type: container
+              paths:
+                - '/var/lib/docker/containers/${data.docker.container.id}/*.log'
 
 # processors:
 #   - add_cloud_metadata: ~
@@ -210,3 +231,6 @@ xpack.monitoring:
 http.enabled: true
 http.host: 0.0.0.0
 http.port: 5066
+
+logging.json: true
+logging.metrics.enabled: false
