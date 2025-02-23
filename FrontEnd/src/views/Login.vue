@@ -15,10 +15,10 @@
       </button>
     </form>
     <p v-if="error" class="message error">{{ error }}</p> 
-	<form v-if="tfa">
+	<form v-if="tfa" @submit.prevent="verifyOTP">
 		<label for="OTP">OTP</label>
-		<input id="otp" type="number" placeholder="Please Enter your OTP" required>
-		<button>Verify</button>
+		<input id="otp" type="number"  v-model="otp" placeholder="Please Enter your OTP" required>
+		<button type="submit" class="submit-btn">Verify</button>
 	</form>
   </div>
 </template>
@@ -37,6 +37,7 @@ export default {
       loading: false,
       redirect: null,
 	  tfa: false,
+	  otp: ''
       // tfa: true, for walid
     };
   },
@@ -62,7 +63,6 @@ export default {
               body: JSON.stringify({
                   username: this.username,
                   password: this.password,
-				  otp: this.otp,
               })
           });
 
@@ -74,7 +74,7 @@ export default {
                 refreshToken: data.refresh
               });
               
-              this.password = '';
+            //   this.password = '';
               await this.$nextTick();
 			  this.tfa = true;
               
@@ -94,6 +94,19 @@ export default {
           this.loading = false;
       }
     },
+
+	verifyOTP(){
+		const response = fetch('api/auth/validate_otp/', {
+			method: 'POST',
+			headers: { 
+				'Content-Type': 'application/json',
+				'Accept': 'application/json'
+			},
+			body: JSON.stringify({
+				otp: this.otp
+			}),
+		});
+	},
 
     resetForm() {
       this.username = '';

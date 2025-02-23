@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
 import logging
+import pyotp
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,6 @@ class RegistrationSerializer(serializers.ModelSerializer):
 			raise serializers.ValidationError("Passwords do not match")
 		return data
 
-
 	def create(self, validated_data):
 		user = User.objects.create_user(
 			username=validated_data['username'],
@@ -57,5 +57,5 @@ class RegistrationSerializer(serializers.ModelSerializer):
 	def to_representation(self, instance):
 		return {
 			"id": instance.id,
-			"username": instance.username
+			"username": instance.username,	
 		}

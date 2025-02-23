@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken # Eric Added
 from rest_framework_simplejwt.authentication import JWTAuthentication # Eric Added
 from rest_framework.permissions import IsAuthenticated
+from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from rest_framework import status
 import requests
@@ -15,6 +16,7 @@ from asgiref.sync import async_to_sync
 import pyotp #Walid Added for 2fa
 from .qrcode import generateQRCode
 
+otp_secret = ''
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +40,8 @@ class RegisterView(generics.CreateAPIView):
 			return Response({
 				'message': 'Registration successful',
 				'user': serializer.data,
-				'qr_code': f"data:image/png;base64,{qr_code}"
+				'qr_code': f"data:image/png;base64,{qr_code}",
+				'totp_secret': totp_secret
 			}, status=status.HTTP_201_CREATED)
 		return Response({
 			"error": "Registration failed", 
@@ -56,7 +59,6 @@ class LoginView(APIView):
 		try:
 			username = request.data.get("username")
 			password = request.data.get("password")
-			
 			user = authenticate(username=username, password=password)
 			
 			if user:
@@ -103,6 +105,17 @@ class LoginView(APIView):
 				'error': 'Authentication failed'
 			}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+class ValidateOTPView(APIView):
+	
+	def post(self, request):
+		try:
+			otp = request.data.get("otp")
+			print(f"OTP: {otp}")
+		except Exception as e:
+			logger.error(f"OTP validation failed: {str(e)}")
+			return Response({
+				'error': 'OTP Validation Failed',
+			}, status=status.HTTP_401_UNAUTHORIZED)
 
 class LogoutView(APIView):
 	authentication_classes = [JWTAuthentication]
