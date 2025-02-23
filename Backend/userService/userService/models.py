@@ -2,6 +2,7 @@ from django.db import models
 from django.db.models import Q
 from django.contrib.auth.models import User
 from django.conf import settings
+import pyotp
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -14,7 +15,6 @@ class Profile(models.Model):
     )
     is_online = models.BooleanField(default=False)
     blocked_users = models.ManyToManyField(User, related_name='blocked_users')
-    totp_secret = models.CharField(max_length=16, blank=True, null=True)
 
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):
@@ -50,8 +50,7 @@ class Profile(models.Model):
 
     def get_blocked_users(self):
         return self.blocked_users.all()
-    
-    
+
 
 class Friendship(models.Model):
     from_profile = models.ForeignKey(Profile, related_name='from_friend_set', on_delete=models.CASCADE)

@@ -6,7 +6,7 @@
 #    By: marvin <marvin@student.42.fr>              +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/22 16:14:08 by marvin           ###   ########.fr        #
+#    Updated: 2025/02/23 17:13:22 by marvin           ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -45,11 +45,13 @@ class UserSerializer(serializers.ModelSerializer):
 			display_name = f"{base_display_name}{random.randint(100000, 999999)}"
 
 		# Create profile with default avatar
-		Profile.objects.create(
+		profile = Profile.objects.create(
 			user=user,
 			display_name=display_name,
 			avatar=settings.DEFAULT_AVATAR_PATH
 		)
+  
+		profile.generate_totp_secret()
 		return user
 
 class UserProfileSerializer(serializers.ModelSerializer):

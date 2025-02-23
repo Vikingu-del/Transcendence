@@ -56,18 +56,10 @@ class LoginView(APIView):
 		try:
 			username = request.data.get("username")
 			password = request.data.get("password")
-			otp_code = request.data.get("otp")
 			
 			user = authenticate(username=username, password=password)
 			
 			if user:
-				# Generate JWT token
-				if user.otp_code:
-					totp = pyotp.TOTP(user.otp_code)
-					if not totp.verify(otp_code):
-						return Response({
-							'error': 'Invalid OTP.'
-						}, status=status.HTTP_401_UNAUTHORIZED)
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
 				

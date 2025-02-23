@@ -26,6 +26,7 @@
 <script>
 import router from '@/router';
 import { auth } from '@/utils/auth';
+// import { faL } from '@fortawesome/free-solid-svg-icons';
 
 export default {
   data() {
@@ -99,6 +100,7 @@ export default {
       this.password = '';
       this.error = '';
       this.loading = false;
+	  this.tfa = false;
     }
   }
 };
