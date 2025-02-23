@@ -60,6 +60,7 @@ class LoginView(APIView):
 			user = authenticate(username=username, password=password)
 			
 			if user:
+				# print(user)
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
 				
