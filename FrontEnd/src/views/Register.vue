@@ -53,22 +53,23 @@
 	  </form>
 	</div>
 
-	<!-- <div v-else class="success-container">
+	<div v-else class="success-container">
 	  <h2>Registration Successful!</h2>
 	  <p>Redirecting to login page...</p>
 	  <div class="loader"></div>
-	</div> -->
+	</div>
+
+	
+	<p v-if="message" :class="['message', messageType]">{{ message }}</p>
+	<ul v-if="errors.length" class="errors-list">
+		<li v-for="error in errors" :key="error">{{ error }}</li>
+	</ul>
 
 	<div v-if="showQRCode">
-		<p v-if="message" :class="['message', messageType]">{{ message }}</p>
 		<h2>Hint: Use Google or Microsoft Authenticator app</h2>
 		<img :src="qrCode" alt="2FA QR CODE">
 		<button type="submit" class="submit-btn" @click="redirectToLogin">Done</button>
 	</div>
-
-	<ul v-if="errors.length" class="errors-list">
-	  <li v-for="error in errors" :key="error">{{ error }}</li>
-	</ul>
   </div>
 </template>
 
@@ -102,10 +103,7 @@ export default {
 	  this.messageType = '';
 	  this.errors = [];
 	  this.loading = false;
-	},
-
-	redirectToLogin() {
-		this.$router.push("/login");
+	  this.showQRCode = false;
 	},
 
 	async register() {
@@ -127,13 +125,13 @@ export default {
 		if (authResponse.ok) {
 		  this.isRegistrationSuccessful = true;
 		  this.messageType = 'success';
+		  this.message = 'Successfully registered user. Please scan the QR code using an Authenticator app to continue';
 		  
 		  // Clear sensitive data
 		  this.password = '';
 		  this.passwordConfirm = '';
 		  this.showQRCode = true;
 		  this.qrCode = authData.qr_code;
-		  this.message = 'Successfully registered user. Please scan the QR code using an Authenticator app to continue';
 		} else {
 		  console.log('Cause: ', authData.details);
 		  // Handle auth service error
@@ -155,7 +153,9 @@ export default {
 		this.loading = false;
 	  }
 	},
-
+	redirectToLogin() {
+		this.$router.push("/login");
+	},
   }
 };
 </script>

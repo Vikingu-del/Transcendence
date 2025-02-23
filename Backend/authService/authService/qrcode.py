@@ -7,5 +7,5 @@ def generateQRCode(email, totp_secret):
 	qr = qrcode.make(qr_data)
 	buffer = BytesIO()
 	qr.save(buffer, format="PNG")
-	qr_base64 = base64.b64encode(buffer.getvalue().decode('utf-8'))
+	qr_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
 	return (qr_base64)

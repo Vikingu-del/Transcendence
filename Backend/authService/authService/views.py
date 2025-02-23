@@ -62,8 +62,8 @@ class LoginView(APIView):
 			
 			if user:
 				# Generate JWT token
-				if user.totp_secret:
-					totp = pyotp.TOTP(user.totp_secret)
+				if user.otp_code:
+					totp = pyotp.TOTP(user.otp_code)
 					if not totp.verify(otp_code):
 						return Response({
 							'error': 'Invalid OTP.'
