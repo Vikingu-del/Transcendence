@@ -350,43 +350,49 @@ export default defineComponent({
 				const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
 				const wsHost = window.location.hostname;
 				const token = localStorage.getItem('token');
-				// Use the UUID directly, no need to clean it
 				const wsUrl = `${wsProtocol}//${wsHost}/ws/game/${props.gameId}/?token=${token}`;
 				
 				console.log('Connecting to WebSocket:', wsUrl);
 				
+				if (gameSocket.value) {
+					gameSocket.value.close();
+				}
+				
 				gameSocket.value = new WebSocket(wsUrl);
 				
 				gameSocket.value.onopen = () => {
-				console.log('Game WebSocket connection established');
-				if (!props.isHost) {
-					gameSocket.value?.send(JSON.stringify({
-					type: 'join_game',
-					gameId: props.gameId
-					}));
-				}
+					console.log('Game WebSocket connection established');
+					if (!props.isHost) {
+						gameSocket.value?.send(JSON.stringify({
+							type: 'join_game',
+							gameId: props.gameId
+						}));
+					}
 				};
 				
 				gameSocket.value.onmessage = (event) => {
-				try {
-					const data = JSON.parse(event.data);
-					console.log('Received game message:', data);
-					handleGameMessage(data);
-				} catch (error) {
-					console.error('Error parsing game message:', error);
-				}
+					try {
+						const data = JSON.parse(event.data);
+						console.log('Received game message:', data);
+						// Use Vue.nextTick to ensure DOM updates are synchronized
+						nextTick(() => {
+							handleGameMessage(data);
+						});
+					} catch (error) {
+						console.error('Error parsing game message:', error);
+					}
 				};
 				
 				gameSocket.value.onerror = (error) => {
-				console.error('Game WebSocket error:', error);
+					console.error('Game WebSocket error:', error);
 				};
 				
 				gameSocket.value.onclose = (event) => {
-				console.log('Game WebSocket closed:', event);
-				if (!event.wasClean && gameStarted.value) {
-					console.log('Game connection lost, attempting to reconnect...');
-					setTimeout(initializeGameSocket, 3000);
-				}
+					console.log('Game WebSocket closed:', event);
+					if (!event.wasClean && gameStarted.value) {
+						console.log('Game connection lost, attempting to reconnect...');
+						setTimeout(initializeGameSocket, 3000);
+					}
 				};
 			} catch (error) {
 				console.error('Error initializing game WebSocket:', error);

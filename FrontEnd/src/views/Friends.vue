@@ -946,34 +946,12 @@ export default {
           this.$nextTick(() => {
             this.scrollToBottom();
           });
-            break;
-            
-            case 'game_invite':
-              // Only show invite if not already in a game
-              if (!this.showGameWindow) {
-                console.log('Received game invite:', data);
-                this.handleGameInvite({
-                  sender: data.sender_name,
-                  gameId: data.game_id
-                });
-              }
-              break;
-
-            case 'game_invite_accepted':
-              if (this.showGameWindow && this.gameInviteSent) {
-                console.log('Game invite accepted');
-                // Start the game
-                this.gameStarted = true;
-              }
-              break;
-
-            case 'game_invite_declined':
-              if (this.showGameWindow && this.gameInviteSent) {
-                console.log('Game invite declined');
-                this.showStatus('Game invite declined', {}, 'warning');
-                this.closeGameWindow();
-              }
-              break;
+        }
+        else if (data.type === 'game_invite') {
+        this.handleGameInvite(data.message);
+        }
+        else if (data.type === 'tournament_notification') {
+          this.handleTournamentNotification(data.message);
         }
       } catch (error) {
         console.error('Error processing message:', error);
