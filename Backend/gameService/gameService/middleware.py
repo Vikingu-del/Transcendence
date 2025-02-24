@@ -128,6 +128,17 @@ class TokenAuthMiddleware(BaseMiddleware):
             logger.error(f"Error in get_or_create_user: {str(e)}")
             return None
 
+<<<<<<< HEAD
+=======
+    async def close_connection(self, send, code, message):
+        """Helper method to close WebSocket connection with specific code and message"""
+        await send({
+            "type": "websocket.close",
+            "code": code,
+            "text": message,
+        })
+        
+>>>>>>> refs/remotes/origin/final_structure_copy
     async def __call__(self, scope, receive, send):
         try:
             # Initialize url_route if not present

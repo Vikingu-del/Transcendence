@@ -72,7 +72,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
             # Format the message for broadcasting
             message_data = {
-                'type': 'chat.message',
+                'type': 'chat_message',
                 'message': {
                     'id': str(saved_message.id),
                     'chat': self.chat_id,
@@ -105,7 +105,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         }
         
         await self.send(text_data=json.dumps({
-            'type': 'chat.message',
+            'type': 'chat_message',
             'message': formatted_message
         }))
 

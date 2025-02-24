@@ -1,68 +1,72 @@
 <template>
-	<!-- <div class="game-container"> -->
-	  <!-- <div class="game-header"> -->
-		<!-- <h4 class="game-title">Game with {{ opponent }}</h4> -->
-		<!-- <button @click="$emit('close')" class="btn secondary-btn">Close</button> -->
-	  <!-- </div> -->
+	<div class="game-container">
+	  <div class="game-header">
+		<h4 class="game-title">Game with {{ opponent }}</h4>
+		<button @click="$emit('close')" class="btn secondary-btn">Close</button>
+	  </div>
 	  
-	  <!-- <div class="game-content"> -->
+	  <div class="game-content">
 		<!-- Show waiting message for host -->
-		<!-- <div v-if="isWaiting" class="waiting-screen"> -->
-		  <!-- <h2>Waiting for player to join...</h2> -->
-		  <!-- <p>Share this game ID: {{ gameId }}</p> -->
-		<!-- </div> -->
+		<div v-if="isWaiting" class="waiting-screen">
+		  <h2>Waiting for player to join...</h2>
+		  <p>Share this game ID: {{ gameId }}</p>
+		</div>
 		
 		<!-- Show join screen for guest -->
-		<!-- <div v-else-if="!gameStarted && !isHost" class="join-screen"> -->
-		  <!-- <button  -->
-			<!-- @click="startGame"  -->
-			<!-- class="btn primary-btn" -->
-		  <!-- > -->
-			<!-- Start Game -->
-		  <!-- </button> -->
-		<!-- </div> -->
+		<div v-else-if="!gameStarted && !isHost" class="join-screen">
+		  <button 
+			@click="startGame" 
+			class="btn primary-btn"
+		  >
+			Start Game
+		  </button>
+		</div>
 		
 		<!-- Game canvas -->
-		<!-- <template v-else> -->
-		  <!-- <canvas ref="gameCanvas" width="800" height="400"></canvas> -->
-		  <!-- <div class="game-info"> -->
-			<!-- <p class="score">{{ playerScore }} - {{ opponentScore }}</p> -->
-		  <!-- </div> -->
-		  <!-- <div class="game-controls" v-if="showNewGameButton"> -->
-			<!-- <button  -->
-			  <!-- @click="restartGame"  -->
-			  <!-- class="btn primary-btn"
+		<template v-else>
+		  <canvas ref="gameCanvas" width="800" height="400"></canvas>
+		  <div class="game-info">
+			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
+		  </div>
+		  <div class="game-controls" v-if="showNewGameButton">
+			<button 
+			  @click="restartGame" 
+			  class="btn primary-btn"
 			>
 			  Start New Game
 			</button>
 		  </div>
 		</template>
 	  </div>
-	</div> --->
+	</div>
 </template>
   
-<!-- <script lang="ts">
-import { defineComponent, ref } from 'vue';
+<script lang="ts">
+import { defineComponent, ref, nextTick } from 'vue';
 import { onMounted, onUnmounted } from 'vue';
 
 interface GameState {
-	ball: {
-		x: number;
-		y: number;
-		dx: number;
-		dy: number;
-		radius: number;
-	};
-	paddles: {
-		player: { x: number; y: number; };
-		opponent: { x: number; y: number; };
-		width: number;
-		height: number;
-	};
-	score: {
-		player: number;
-		opponent: number;
-	};
+    ball: {
+        x: number;
+        y: number;
+        dx: number;
+        dy: number;
+        radius: number;
+    };
+    paddles: {
+        player: { x: number; y: number; };
+        opponent: { x: number; y: number; };
+        width: number;
+        height: number;
+    };
+    score: {
+        player: number;
+        opponent: number;
+    };
+    players: {
+        player1: string;
+        player2: string;
+    };
 }
 
 export default defineComponent({
@@ -93,8 +97,6 @@ export default defineComponent({
 		const showNewGameButton = ref<boolean>(false);
 		const playerScore = ref<number>(0);
 		const opponentScore = ref<number>(0);
-		const player1Username = ref<string>("");
-		const player2Username = ref<string>("Waiting for Player 2...");
 
 		const INITIAL_BALL_SPEED = 5;
 		const CANVAS_WIDTH = 800;
@@ -123,6 +125,10 @@ export default defineComponent({
 			score: {
 				player: 0,
 				opponent: 0
+			},
+			players: {
+				player1: '',
+				player2: ''
 			}
 		});
 
@@ -182,9 +188,9 @@ export default defineComponent({
 
 		const updateGameState = (state: GameState) => {
 			gameState.value = state;
-		}; -->
+		};
 
-		<!-- const updateGame = () => {
+		const updateGame = () => {
 			const now = Date.now();
 			const deltaTime = (now - lastUpdate.value) / 16.67; // normalize to 60fps
 			lastUpdate.value = now;
@@ -228,9 +234,9 @@ export default defineComponent({
 			} else {
 				paddles.opponent.y = Math.max(paddles.opponent.y - aiSpeed, 0);
 			}
-		}; -->
+		};
 
-		<!-- const drawGame = () => {
+		const drawGame = () => {
 			if (!ctx.value) return;
 			const { ball, paddles } = gameState.value;
 
@@ -341,8 +347,8 @@ export default defineComponent({
 		// Update the initializeGameSocket function
 		const initializeGameSocket = () => {
 			try {
-				const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'; -->
-				<!-- const wsHost = window.location.hostname;
+				const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+				const wsHost = window.location.hostname;
 				const token = localStorage.getItem('token');
 				// Use the UUID directly, no need to clean it
 				const wsUrl = `${wsProtocol}//${wsHost}/ws/game/${props.gameId}/?token=${token}`;
@@ -388,55 +394,70 @@ export default defineComponent({
 		};
 
 		const handleGameMessage = (data: any) => {
-			if (data.player1_username && data.player2_username) {
-				// Update player names immediately when received
-				player1Username.value = data.player1_username;
-				player2Username.value = data.player2_username === "Waiting for Player 2" 
-					? "Waiting for Player 2..."
-					: data.player2_username;
-			}
-					: data.player2_username;
-			}
-
+			console.log('Handling game message:', data);
+			
 			switch (data.type) {
+				case 'game_state':
+           			// Update player names only if they're actual players (not "Waiting...")
+					const player1Username = data.player1_username || 'Unknown';
+					const player2Username = data.player2_username || 'Waiting for Player 2';
+					
+					if (player1Username !== 'Unknown') {
+						gameState.value.players.player1 = player1Username;
+						
+						// Only update player2 if it's not the waiting message
+						if (player2Username && !player2Username.includes('Waiting')) {
+							gameState.value.players.player2 = player2Username;
+						}
+					}
+					
+					console.log('Updated player names:', {
+						player1: gameState.value.players.player1,
+						player2: gameState.value.players.player2
+					});
+					break;
+
 				case 'player_joined':
-				if (props.isHost) {
-					console.log('Player joined, waiting for them to start');
-					isWaiting.value = false;
-				}
-				break;
+					if (props.isHost) {
+						console.log('Player joined, updating game state');
+						isWaiting.value = false;
+					}
+					break;
 
 				case 'game_start':
-				console.log('Game starting');
-				gameStarted.value = true;
-				startGame();
-				break;
+					console.log('Game starting');
+					gameStarted.value = true;
+					startGame();
+					break;
 
 				case 'paddle_move':
-				if (data.player !== props.isHost) {
-					gameState.value.paddles.opponent.y = data.y;
-					// Send paddle position to opponent if we're the host
-					if (props.isHost && gameSocket.value?.readyState === WebSocket.OPEN) {
-					gameSocket.value.send(JSON.stringify({
-						type: 'paddle_update',
-						y: gameState.value.paddles.player.y
-					}));
+					if (data.player !== props.isHost) {
+						gameState.value.paddles.opponent.y = data.y;
+						// Send paddle position to opponent if we're the host
+						if (props.isHost && gameSocket.value?.readyState === WebSocket.OPEN) {
+							gameSocket.value.send(JSON.stringify({
+								type: 'paddle_update',
+								y: gameState.value.paddles.player.y
+							}));
+						}
 					}
-				}
-				break;
+					break;
 
 				case 'ball_update':
-				if (!props.isHost) {
-					gameState.value.ball = data.ball;
-					gameState.value.score = data.score;
-					playerScore.value = data.score.player;
-					opponentScore.value = data.score.opponent;
-				}
-				break;
+					if (!props.isHost) {
+						gameState.value.ball = data.ball;
+						gameState.value.score = data.score;
+						playerScore.value = data.score.player;
+						opponentScore.value = data.score.opponent;
+					}
+					break;
 
 				case 'game_over':
-				handleGameOver(data);
-				break;
+					handleGameOver(data);
+					break;
+
+				default:
+					console.log('Unknown message type:', data.type);
 			}
 		};
 
@@ -550,15 +571,13 @@ export default defineComponent({
 			}
 		});
 
+		return {
+			gameCanvas,
 			playerScore,
 			opponentScore,
 			showNewGameButton,
 			restartGame,
 			isWaiting,
-			gameStarted,
-			startGame,
-			player1Username,
-			player2Username,
 			gameStarted,
 			startGame,
 		};
@@ -724,4 +743,4 @@ canvas {
     max-height: calc(100% - 60px); /* Adjust for smaller screens */
   }
 }
-</style> -->
+</style>
