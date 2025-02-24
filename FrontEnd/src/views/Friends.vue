@@ -1181,7 +1181,7 @@ export default {
         // Send accept message through WebSocket
         if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
             const acceptData = {
-                type: 'game_invite_accept',
+                type: 'game_accept',
                 game_id: this.gameInviteNotification.gameId,
                 sender_id: this.gameInviteNotification.senderId,
                 recipient_id: this.currentUserId,
@@ -1395,37 +1395,37 @@ export default {
     },
 
     // In Friends.vue
-handleChatNotification(data) {
-  try {
-    // Add defensive checks for data structure
-    if (!data || typeof data !== 'object') {
-      console.error('Invalid notification data received:', data);
-      return;
-    }
+    handleChatNotification(data) {
+      try {
+        // Add defensive checks for data structure
+        if (!data || typeof data !== 'object') {
+          console.error('Invalid notification data received:', data);
+          return;
+        }
 
-    const senderId = data.sender_id?.toString();
-    const senderName = data.sender_name || 'Someone';
-    const currentChatId = this.chatId;
+        const senderId = data.sender_id?.toString();
+        const senderName = data.sender_name || 'Someone';
+        const currentChatId = this.chatId;
 
-    // Log the received data for debugging
-    console.log('Received chat notification:', {
-      senderId,
-      senderName,
-      currentChatId,
-      fullData: data
-    });
-    
-    if (!currentChatId || !currentChatId.includes(senderId)) {
-      this.showStatus(
-        `New message from ${senderName}`, 
-        {}, 
-        'info'
-      );
-    }
-  } catch (error) {
-    console.error('Error processing chat notification:', error);
-  }
-},
+        // Log the received data for debugging
+        console.log('Received chat notification:', {
+          senderId,
+          senderName,
+          currentChatId,
+          fullData: data
+        });
+        
+        if (!currentChatId || !currentChatId.includes(senderId)) {
+          this.showStatus(
+            `New message from ${senderName}`, 
+            {}, 
+            'info'
+          );
+        }
+      } catch (error) {
+        console.error('Error processing chat notification:', error);
+      }
+    },
 
     closeGameWindow() {
       this.showGameWindow = false;

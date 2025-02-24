@@ -23,8 +23,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
-      # - approle_game:/vault/approle/game
-      # - approle_game_db:/vault/approle/game_db
+      - approle_game:/vault/approle/game
+      - approle_game_db:/vault/approle/game_db
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -54,8 +54,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
-      # - approle_game:/vault/approle/game
-      # - approle_game_db:/vault/approle/game_db
+      - approle_game:/vault/approle/game
+      - approle_game_db:/vault/approle/game_db
 
   user:
     container_name: user
@@ -330,7 +330,7 @@ volumes:
   approle_gateway:
   user_media:
   user_static:
-  # game_db_data:
+  game_db_data:
   user_db_data:
   chat_db_data:
   auth_db_data:
