@@ -150,8 +150,6 @@
       {{ statusMessage.text }}
     </div>
 
-
-
     <!-- Add this right before the closing </div> of friends-container -->
     <transition name="fade">
       <div v-if="showFriendProfile && selectedFriend" class="overlay">
@@ -278,38 +276,47 @@
     <!-- Game Window -->
     <transition name="fade">
       <div v-if="showGameWindow" class="overlay">
-        <div class="game-container">
-          <div class="game-header">  
-            <h4 class="game-title">Game with {{ activeChat }}</h4>
-            <button @click="closeGameWindow" class="btn secondary-btn">Close</button>
-          </div>
-          <div class="game-content" style="display: flex; justify-content: center; align-items: center; flex-direction: column; padding: 2rem;">
-            <h2 style="color: #03a670; margin-bottom: 1rem;">Coming Soon!</h2>
-            <p style="color: #ffffff; text-align: center;">
-              The game feature is currently under development.<br>
-              Stay tuned for exciting updates!
-            </p>
+        <PongGame 
+          :opponent="activeChat"
+          :gameId="currentGameId"
+          :isHost="gameInviteSent"
+          @close="closeGameWindow"
+        />
+      </div>
+    </transition>
+
+    <transition name="slide-down">
+      <div v-if="gameInviteNotification" class="game-invite-banner">
+        <div class="game-invite-content">
+          <span class="game-invite-text">
+            {{ gameInviteNotification.sender }} invited you to play!
+          </span>
+          <div class="game-invite-actions">
+            <button @click="acceptGameInvite" class="btn primary-btn">Accept</button>
+            <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
           </div>
         </div>
       </div>
     </transition>
-
   </div>
 
-  <!-- Debugging -->
+  <!-- Debugging
   <div>
     <pre>{{ profile }}</pre>
     <pre>{{ incomingFriendRequests }}</pre>
     <pre>{{ searchResults }}</pre>
-  </div>
-
+  </div> -->
 </template>
 
 <script>
-import { SERVICE_URLS } from '@/config/services';
+import PongGame from './Game.vue';
 
 export default {
   name: 'Friends',
+
+    components: {
+      PongGame
+    },
   
     data() {
     return {
@@ -363,7 +370,10 @@ export default {
 
       // Game Functionality
       showGameWindow: false,
-      gameInviteSent: false
+      gameInviteSent: false,
+      currentGameId: null,
+      gameInviteNotification: null,
+      gameInviteTimeout: null
     }
   },
 
@@ -885,13 +895,13 @@ export default {
       this.chatSocket.onmessage = this.handleWebSocketMessage;
     },
 
-    // processes incoming messages
     handleWebSocketMessage(event) {
       try {
         const data = JSON.parse(event.data);
         console.log('Received WebSocket message:', data);
         
-        if (data.type === 'chat.message') {
+        switch (data.type) {
+          case 'chat.message':
           const newMessage = {
             id: data.message.id,
             chat: data.message.chat,
@@ -904,12 +914,34 @@ export default {
           this.$nextTick(() => {
             this.scrollToBottom();
           });
-        }
-        else if (data.type === 'game_invite') {
-        this.handleGameInvite(data.message);
-        }
-        else if (data.type === 'tournament_notification') {
-          this.handleTournamentNotification(data.message);
+            break;
+            
+            case 'game_invite':
+              // Only show invite if not already in a game
+              if (!this.showGameWindow) {
+                console.log('Received game invite:', data);
+                this.handleGameInvite({
+                  sender: data.sender_name,
+                  gameId: data.game_id
+                });
+              }
+              break;
+
+            case 'game_invite_accepted':
+              if (this.showGameWindow && this.gameInviteSent) {
+                console.log('Game invite accepted');
+                // Start the game
+                this.gameStarted = true;
+              }
+              break;
+
+            case 'game_invite_declined':
+              if (this.showGameWindow && this.gameInviteSent) {
+                console.log('Game invite declined');
+                this.showStatus('Game invite declined', {}, 'warning');
+                this.closeGameWindow();
+              }
+              break;
         }
       } catch (error) {
         console.error('Error processing message:', error);
@@ -1059,6 +1091,80 @@ export default {
       });
     },
 
+    handleGameInvite(data) {
+    // Clear any existing timeout
+    if (this.gameInviteTimeout) {
+      clearTimeout(this.gameInviteTimeout);
+    }
+
+    // Set notification data
+    this.gameInviteNotification = {
+      sender: data.sender_name,
+      gameId: data.game_id
+    };
+
+    // Play notification sound
+    this.playNotificationSound();
+
+      // Auto-hide notification after 10 seconds
+      this.gameInviteTimeout = setTimeout(() => {
+        this.declineGameInvite();
+      }, 10000);
+    },
+
+    acceptGameInvite() {
+      if (!this.gameInviteNotification) return;
+
+      // Clear the timeout
+      if (this.gameInviteTimeout) {
+        clearTimeout(this.gameInviteTimeout);
+      }
+
+      // Send accept message through WebSocket
+      if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+        const acceptData = {
+          type: 'game_invite_accept',
+          game_id: this.gameInviteNotification.gameId,
+          recipient_id: this.selectedFriend.id
+        };
+        
+        console.log('Sending game accept:', acceptData);
+        this.chatSocket.send(JSON.stringify(acceptData));
+      }
+
+      // Join the game
+      this.currentGameId = this.gameInviteNotification.gameId;
+      this.showGameWindow = true;
+      this.gameInviteSent = false;
+
+      // Clear the notification
+      this.gameInviteNotification = null;
+    },
+
+    declineGameInvite() {
+      if (!this.gameInviteNotification) return;
+
+      // Clear the timeout
+      if (this.gameInviteTimeout) {
+        clearTimeout(this.gameInviteTimeout);
+      }
+
+      // Send decline message through WebSocket
+      if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+        const declineData = {
+          type: 'game_invite_decline',
+          game_id: this.gameInviteNotification.gameId,
+          recipient_id: this.selectedFriend.id
+        };
+        
+        console.log('Sending game decline:', declineData);
+        this.chatSocket.send(JSON.stringify(declineData));
+      }
+
+      // Clear the notification
+      this.gameInviteNotification = null;
+    },
+
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
       const validTypes = ['success', 'warning', 'error'];
@@ -1100,18 +1206,37 @@ export default {
     // Game Invite Methods
     async sendGameInvite() {
       try {
-        // First close chat window
-        this.showChat = false;
+        const uuid = crypto.randomUUID();
+        this.currentGameId = uuid;
         
-        // Then open game window
+        if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+          const inviteData = {
+            type: 'game_invite',
+            game_id: this.currentGameId,
+            sender_name: this.profile.display_name,
+            recipient_id: this.selectedFriend.id
+          };
+          
+          console.log('Sending game invite:', inviteData);
+          this.chatSocket.send(JSON.stringify(inviteData));
+        }
+        
+        this.showChat = false;
         this.showGameWindow = true;
         this.gameInviteSent = true;
         
-        this.showStatus('Game window opened', {}, 'success');
+        this.showStatus('Game invite sent, waiting for player...', {}, 'info');
       } catch (error) {
         console.error('Error sending game invite:', error);
-        this.showStatus('Failed to open game window', {}, 'error');
+        this.showStatus('Failed to send game invite', {}, 'error');
       }
+    },
+
+    // Add method to handle game join
+    handleGameJoin(gameId) {
+      this.currentGameId = gameId;
+      this.showGameWindow = true;
+      this.gameInviteSent = false; // Since we're joining, not hosting
     },
 
     closeGameWindow() {
@@ -1122,22 +1247,35 @@ export default {
       this.showChat = true;
     },
 
-    handleGameInvite(invite) {
-      const confirmation = confirm(`Would you like to play a game of Pong?`);
-      if (confirmation) {
-        this.$router.push(`/game/${invite.game_id}`);
+    handleGameInvite(data) {
+      console.log('Handling game invite:', data);
+      
+      // Clear any existing timeout
+      if (this.gameInviteTimeout) {
+        clearTimeout(this.gameInviteTimeout);
       }
+
+      // Set notification data
+      this.gameInviteNotification = {
+        sender: data.sender,
+        gameId: data.gameId
+      };
+
+      // Auto-hide notification after 10 seconds
+      this.gameInviteTimeout = setTimeout(() => {
+        this.declineGameInvite();
+      }, 10000);
     },
 
-    handleTournamentNotification(notification) {
-      this.showStatus(
-        'Tournament game starting soon!', 
-        {}, 
-        'warning'
-      );
-      // Optional: Add sound notification
-      this.playNotificationSound();
-    },
+    // handleTournamentNotification(notification) {
+    //   this.showStatus(
+    //     'Tournament game starting soon!', 
+    //     {}, 
+    //     'warning'
+    //   );
+    //   // Optional: Add sound notification
+    //   this.playNotificationSound();
+    // },
   },
 
   messages: {
@@ -1298,7 +1436,7 @@ export default {
 .secondary-btn {
   background: #a60303;
   color: white;
-  
+
 }
 
 .secondary-btn:hover {
@@ -1473,12 +1611,12 @@ export default {
 /* Add media queries for responsive design */
 @media (max-width: 768px) {
   .message-content {
-    max-width: 85%; /* Wider messages on smaller screens */
+  max-width: 85%; /* Wider messages on smaller screens */
   }
-  
+
   .chat-container {
-    width: 90%; /* Wider container on smaller screens */
-    min-width: 300px;
+  width: 90%; /* Wider container on smaller screens */
+  min-width: 300px;
   }
 }
 
@@ -1550,7 +1688,7 @@ export default {
 }
 
 .friend-avatar {
-  width: 150px;  /* Changed from 50% to fixed size */
+  width: 150px; /* Changed from 50% to fixed size */
   height: 150px; /* Changed from 50% to fixed size */
   object-fit: cover;
   border-radius: 50%;
@@ -1774,4 +1912,53 @@ export default {
   opacity: 0;
 }
 
+/* Game Invite */
+.game-invite-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(3, 166, 112, 0.95);
+  color: white;
+  padding: 1rem;
+  z-index: 2000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.game-invite-content {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.game-invite-text {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.game-invite-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+/* Animation for the banner */
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  transform: translateY(0);
+  opacity: 1;
+}
 </style>

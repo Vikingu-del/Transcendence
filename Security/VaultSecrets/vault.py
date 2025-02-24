@@ -124,6 +124,37 @@ secrets_to_store_game = {
 }
 
 secrets_to_store_gateway = {
+    "MODSEC_RULE_ENGINE": env_vars.get("MODSEC_RULE_ENGINE"),
+    "MODSEC_REQUEST_BODY_ACCESS": env_vars.get("MODSEC_REQUEST_BODY_ACCESS"),
+    "MODSEC_REQUEST_BODY_LIMIT": env_vars.get("MODSEC_REQUEST_BODY_LIMIT"),
+    "MODSEC_REQUEST_BODY_NO_FILES_LIMIT": env_vars.get("MODSEC_REQUEST_BODY_NO_FILES_LIMIT"),
+    "MODSEC_REQUEST_BODY_LIMIT_ACTION": env_vars.get("MODSEC_REQUEST_BODY_LIMIT_ACTION"),
+    "MODSEC_REQUEST_BODY_JSON_DEPTH": env_vars.get("MODSEC_REQUEST_BODY_JSON_DEPTH"),
+    "MODSEC_REQBODY_ERROR_ACTION": env_vars.get("MODSEC_REQBODY_ERROR_ACTION"),
+    "MODSEC_MULTIPART_STRICT_ERROR_ACTION": env_vars.get("MODSEC_MULTIPART_STRICT_ERROR_ACTION"),
+    "MODSEC_MULTIPART_UNMATCHED_BOUNDARY_ACTION": env_vars.get("MODSEC_MULTIPART_UNMATCHED_BOUNDARY_ACTION"),
+    "MODSEC_PCRE_MATCH_LIMIT": env_vars.get("MODSEC_PCRE_MATCH_LIMIT"),
+    "MODSEC_PCRE_MATCH_LIMIT_RECURSION": env_vars.get("MODSEC_PCRE_MATCH_LIMIT_RECURSION"),
+    "MODSEC_RESPONSE_BODY_ACCESS": env_vars.get("MODSEC_RESPONSE_BODY_ACCESS"),
+    "MODSEC_RESPONSE_BODY_MIME_TYPE": env_vars.get("MODSEC_RESPONSE_BODY_MIME_TYPE"),
+    "MODSEC_RESPONSE_BODY_LIMIT": env_vars.get("MODSEC_RESPONSE_BODY_LIMIT"),
+    "MODSEC_RESPONSE_BODY_LIMIT_ACTION": env_vars.get("MODSEC_RESPONSE_BODY_LIMIT_ACTION"),
+    "MODSEC_TMP_DIR": env_vars.get("MODSEC_TMP_DIR"),
+    "MODSEC_DATA_DIR": env_vars.get("MODSEC_DATA_DIR"),
+    "MODSEC_UPLOAD_DIR": env_vars.get("MODSEC_UPLOAD_DIR"),
+    "MODSEC_UPLOAD_KEEP_FILES": env_vars.get("MODSEC_UPLOAD_KEEP_FILES"),
+    "MODSEC_UPLOAD_FILE_MODE": env_vars.get("MODSEC_UPLOAD_FILE_MODE"),
+    "MODSEC_DEBUG_LOG": env_vars.get("MODSEC_DEBUG_LOG"),
+    "MODSEC_DEBUG_LOG_LEVEL": env_vars.get("MODSEC_DEBUG_LOG_LEVEL"),
+    "MODSEC_AUDIT_ENGINE": env_vars.get("MODSEC_AUDIT_ENGINE"),
+    "MODSEC_AUDIT_LOG_RELEVANT_STATUS": env_vars.get("MODSEC_AUDIT_LOG_RELEVANT_STATUS"),
+    "MODSEC_AUDIT_LOG_PARTS": env_vars.get("MODSEC_AUDIT_LOG_PARTS"),
+    "MODSEC_AUDIT_LOG_TYPE": env_vars.get("MODSEC_AUDIT_LOG_TYPE"),
+    "MODSEC_AUDIT_LOG": env_vars.get("MODSEC_AUDIT_LOG"),
+    "MODSEC_ARGUMENT_SEPARATOR": env_vars.get("MODSEC_ARGUMENT_SEPARATOR"),
+    "MODSEC_COOKIE_FORMAT": env_vars.get("MODSEC_COOKIE_FORMAT"),
+    "MODSEC_UNICODE_MAP_FILE": env_vars.get("MODSEC_UNICODE_MAP_FILE"),
+    "MODSEC_STATUS_ENGINE": env_vars.get("MODSEC_STATUS_ENGINE"),
     "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
 }
 
@@ -136,6 +167,7 @@ write_secret_to_vault("auth_db", secrets_to_store_auth)
 write_secret_to_vault("auth", secrets_to_store_auth)
 write_secret_to_vault("game", secrets_to_store_game)
 write_secret_to_vault("game_db", secrets_to_store_game)
+
 
 # Generate AppRoles for services
 services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db']

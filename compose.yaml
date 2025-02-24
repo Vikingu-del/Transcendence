@@ -1,25 +1,5 @@
 services:
 
-  # swagger:
-  #   container_name: swagger
-  #   build:
-  #     context: ./Swagger
-  #     dockerfile: Dockerfile
-  #   environment:
-  #     URLS_PRIMARY_NAME: "UserService" # Default API to display in Swagger UI
-  #     URLS: '[{ "url": "/doc/ApiGateway.yaml", "name": "ApiGateway" }, 
-  #        { "url": "/doc/UserService.yaml", "name": "UserService" },
-  #        { "url": "/doc/Security.yaml", "name": "Security" },
-  #        { "url": "/doc/Database.yaml", "name": "Database" },
-  #        { "url": "/doc/FrontEnd.yaml", "name": "FrontEnd" }]'
-  #   volumes:
-  #     - ./docs/openapi:/usr/share/nginx/html/doc # Mount local OpenAPI specs
-  #   ports:
-  #     - "8080:8080"  # Swagger UI available at localhost:8080
-  #   restart: always
-  #   networks:
-  #     backtier:
-
   vault:
     container_name: vault
     build:
@@ -43,8 +23,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
-      - approle_game:/vault/approle/game
-      - approle_game_db:/vault/approle/game_db
+      # - approle_game:/vault/approle/game
+      # - approle_game_db:/vault/approle/game_db
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -74,8 +54,8 @@ services:
       - approle_chat_db:/vault/approle/chat_db
       - approle_auth:/vault/approle/auth
       - approle_auth_db:/vault/approle/auth_db
-      - approle_game:/vault/approle/game
-      - approle_game_db:/vault/approle/game_db
+      # - approle_game:/vault/approle/game
+      # - approle_game_db:/vault/approle/game_db
 
   user:
     container_name: user
@@ -247,54 +227,54 @@ services:
       - backtier
     
 
-  game:
-    container_name: game
-    build:
-      context: ./Backend/gameService
-      dockerfile: Dockerfile
-    ports:
-      - "8005:8005"
-    volumes:
-      - ./Backend/gameService:/app
-      - approle_game:/vault/approle/game:ro
-    environment:
-      - DJANGO_SETTINGS_MODULE=gameService.settings
-      - USER_SERVICE_URL=http://game:8005  # For service communication
-      - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
-      # - PYTHONPATH=/app
-    depends_on:
-      vault:
-        condition: service_started
-      vault_secrets:
-        condition: service_completed_successfully
-      game_db:
-        condition: service_healthy  # Add health check dependency
-    networks:
-      - backtier
+  # game:
+  #   container_name: game
+  #   build:
+  #     context: ./Backend/gameService
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8005:8005"
+  #   volumes:
+  #     - ./Backend/gameService:/app
+  #     - approle_game:/vault/approle/game:ro
+  #   environment:
+  #     - DJANGO_SETTINGS_MODULE=gameService.settings
+  #     - USER_SERVICE_URL=http://game:8005  # For service communication
+  #     - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
+  #     # - PYTHONPATH=/app
+  #   depends_on:
+  #     vault:
+  #       condition: service_started
+  #     vault_secrets:
+  #       condition: service_completed_successfully
+  #     game_db:
+  #       condition: service_healthy  # Add health check dependency
+  #   networks:
+  #     - backtier
 
-  game_db:
-    container_name: game_db
-    build:
-      context: ./Database/game_db
-      dockerfile: Dockerfile
-    restart: always
-    depends_on:
-      vault:
-        condition: service_healthy
-      vault_secrets:
-        condition: service_completed_successfully
-    healthcheck:
-      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    ports:
-      - "5435:5432"
-    volumes:
-      - approle_game_db:/vault/approle/game_db:ro
-      - game_db_data:/var/lib/postgresql/data
-    networks:
-      - backtier
+  # game_db:
+  #   container_name: game_db
+  #   build:
+  #     context: ./Database/game_db
+  #     dockerfile: Dockerfile
+  #   restart: always
+  #   depends_on:
+  #     vault:
+  #       condition: service_healthy
+  #     vault_secrets:
+  #       condition: service_completed_successfully
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   ports:
+  #     - "5435:5432"
+  #   volumes:
+  #     - approle_game_db:/vault/approle/game_db:ro
+  #     - game_db_data:/var/lib/postgresql/data
+  #   networks:
+  #     - backtier
 
   gateway:
     container_name: gateway
@@ -313,10 +293,7 @@ services:
       - auth
     volumes:
       - approle_gateway:/vault/approle/gateway:ro
-      - ./ApiGateway/config/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
-      - ./ApiGateway/config/modsecurity:/etc/nginx/templates/modsecurity:ro
       - ./ApiGateway/ssl:/etc/nginx/ssl:ro # Mount SSL certificates
-      - user_static:/app/static
       - user_media:/app/media
     # environment:
     #   - NGINX_HOST=${NGINX_HOST:-10.12.12.5}
@@ -353,7 +330,7 @@ volumes:
   approle_gateway:
   user_media:
   user_static:
-  game_db_data:
+  # game_db_data:
   user_db_data:
   chat_db_data:
   auth_db_data:

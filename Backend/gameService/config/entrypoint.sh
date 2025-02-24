@@ -42,6 +42,7 @@ export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.GAME_DB_HOST)
 export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.GAME_DB_PORT)
 
 # Wait for PostgreSQL
+echo "⏳ Waiting for PostgreSQL..."
 MAX_RETRIES=30
 count=0
 until PGPASSWORD=$DB_PASSWORD pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER"; do
@@ -53,7 +54,28 @@ until PGPASSWORD=$DB_PASSWORD pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USE
     echo "⏳ Waiting for database... ($count/$MAX_RETRIES)"
     sleep 2
 done
+echo "✅ PostgreSQL is ready"
 
-echo "✅ Database ready"
+# Wait for Redis
+echo "⏳ Waiting for Redis..."
+MAX_REDIS_RETRIES=30
+redis_count=0
+until nc -z redis 6379; do
+    redis_count=$((redis_count + 1))
+    if [ $redis_count -eq $MAX_REDIS_RETRIES ]; then
+        echo "❌ Redis connection timeout"
+        exit 1
+    fi
+    echo "⏳ Waiting for Redis... ($redis_count/$MAX_REDIS_RETRIES)"
+    sleep 1
+done
+echo "✅ Redis is ready"
+
+# Apply database migrations
+echo "🔄 Applying database migrations..."
 python manage.py migrate
-exec python manage.py runserver 0.0.0.0:8005
+echo "✅ Migrations applied"
+
+# Start Daphne
+echo "🚀 Starting Daphne server..."
+exec daphne -b 0.0.0.0 -p 8005 gameService.asgi:application

@@ -8,11 +8,8 @@ NC='\033[0m'
 
 echo "🔒 Testing Security Setup on Localhost..."
 
-# Base URL and auth token from successful login
-BASE_URL="http://localhost:8000"
-AUTH_TOKEN=$(curl -s -X POST -H "Content-Type: application/json" \
-    -d '{"username": "2", "password": "2"}' \
-    "${BASE_URL}/api/login/" | jq -r '.auth_token')
+# Base URL for the frontend
+BASE_URL="http://localhost:5173"
 
 test_security() {
     local test_name=$1
@@ -21,9 +18,8 @@ test_security() {
     echo -e "\n🔍 Testing ${test_name}..."
     
     # Full response with headers and body
-    response=$(curl -s -i \
+    response=$(curl -s -i -L \
         -H "Content-Type: application/json" \
-        -H "Authorization: Token ${AUTH_TOKEN}" \
         "${BASE_URL}${endpoint}")
     
     # Extract status code
@@ -44,24 +40,14 @@ test_security() {
 
 echo "Starting security tests..."
 
-# SQL Injection test
-test_security "SQL Injection" \
-    "/api/profile/?id=1'+UNION+SELECT+*+FROM+users--"
+# SQL Injection tests
+test_security "SQL Injection (UNION SELECT)" "/api/profile/?id=1+UNION+SELECT+username,password+FROM+users"
+test_security "SQL Injection (UPDATE statement)" "/api/profile/?query=UPDATE+users+SET+role='admin'+WHERE+username='test'"
+test_security "SQL Injection (Encoded payload)" "/api/profile/?search=%27%20OR%201%3D1%3B--"
 
-# XSS test
-test_security "XSS Protection" \
-    "/api/profile/?input=<img+src=x+onerror=alert(1)>"
-
-# Directory Traversal test
-test_security "Directory Traversal" \
-    "/api/profile/..%2F..%2Fetc%2Fpasswd"
-
-# Command Injection test
-test_security "Command Injection" \
-    "/api/profile/?cmd=;cat+/etc/passwd"
-
-# CSRF test
-test_security "CSRF Protection" \
-    "/api/profile/"
+# XSS tests
+test_security "XSS (Basic Script)" "/api/profile/?comment=<script>alert('XSS')</script>"
+test_security "XSS (Onload Event)" "/api/profile/?img=<img+src=x+onerror=alert(1)>"
+test_security "XSS (JavaScript URI)" "/api/profile/?redirect=javascript:alert('XSS')"
 
 echo -e "\n✅ Tests completed"

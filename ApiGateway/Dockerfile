@@ -20,38 +20,27 @@ RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_am
     mv vault /usr/local/bin/ && \
     rm vault.zip
 
-# Set up writable directories
-RUN mkdir -p /tmp/nginx/ssl && \
-    chown -R nginx:nginx /tmp/nginx && \
-    chmod -R 755 /tmp/nginx
+# Copy the files from the bin folder to the container's /usr/bin/ directory
+COPY src/bin/check-low-port /usr/bin/check-low-port
+COPY src/bin/entrypoint.sh /usr/bin/custom-entrypoint.sh
+COPY src/bin/generate-certificate /usr/bin/generate-certificate
+COPY src/bin/healthcheck /usr/bin/healthcheck
 
-# Set up ModSecurity and template directories
-RUN mkdir -p /etc/nginx/templates/conf.d && \
-    mkdir -p /etc/nginx/templates/modsecurity.d && \
-    mkdir -p /etc/nginx/templates/includes && \
-    mkdir -p /etc/nginx/conf && \
-    mkdir -p /etc/nginx/ssl && \
-    mkdir -p /etc/nginx/modsecurity.d/custom-rules && \
-    mkdir -p /etc/nginx/modsecurity.d/data && \
-    chmod 755 /etc/nginx/ssl && \
-    chmod 755 /etc/nginx/modsecurity.d/custom-rules && \
-    chmod 755 /etc/nginx/modsecurity.d/data && \
-    chown -R nginx:nginx /etc/nginx/ssl
+# Copy the modsecurity configuration files to /etc/nginx/modsecurity.d/
+COPY config/modsecurity/rules/RESPONSE-999-EXECLUSION-RULES-AFTER-CRS.conf /opt/owasp-crs/rules/RESPONSE-999-EXCLUSION-RULES-AFTER-CRS.conf.example
 
-# Copy configuration templates
-COPY config/nginx.conf.template /etc/nginx/templates/
-COPY config/entrypoint.sh /usr/local/bin/custom-entrypoint.sh
-COPY config/modsecurity/modsecurity.conf /etc/nginx/modsecurity.d/modsecurity.conf
-COPY config/modsecurity/rules/*.conf /etc/nginx/modsecurity.d/custom-rules/
-COPY config/modsecurity/data/*.dat /etc/nginx/modsecurity.d/data/
+# Copy the nginx configuration template to /etc/nginx/templates/
+COPY config/nginx/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
-# Set permissions
-RUN chmod +x /usr/local/bin/custom-entrypoint.sh && \
-    chmod -R 755 /etc/nginx/templates && \
-    chmod 644 /etc/nginx/modsecurity.d/data/*.dat && \
-    chmod 644 /etc/nginx/modsecurity.d/custom-rules/*.conf && \
-    chown -R nginx:nginx /etc/nginx/modsecurity.d/
+# Copy the error pages to the appropriate location
+COPY src/error_pages /usr/share/nginx/html/error_pages
+
+
+RUN chmod +x /usr/bin/check-low-port\
+    /usr/bin/custom-entrypoint.sh\
+    /usr/bin/generate-certificate\
+    /usr/bin/healthcheck
 
 EXPOSE 80 443
 
-ENTRYPOINT ["/usr/local/bin/custom-entrypoint.sh"]
+ENTRYPOINT ["/usr/bin/custom-entrypoint.sh"]

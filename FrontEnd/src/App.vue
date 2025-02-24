@@ -26,7 +26,6 @@ onMounted(async () => {
   const clearTokenAndRedirect = () => {
     localStorage.removeItem('token')
     store.commit('setToken', null)
-    store.commit('setIsAuthenticated', false)
     if (router.currentRoute.value.path !== '/login') {
       router.push('/login')
     }
@@ -49,7 +48,6 @@ onMounted(async () => {
     }
 
     store.commit('setToken', token)
-    store.commit('setIsAuthenticated', true)
   } catch (error) {
     console.error('Token validation error:', error)
     clearTokenAndRedirect()

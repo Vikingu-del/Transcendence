@@ -63,6 +63,18 @@ http {
         add_header 'Access-Control-Allow-Methods' 'GET, POST, OPTIONS' always;
         add_header 'Access-Control-Allow-Headers' 'Authorization,Content-Type,Accept,Origin,User-Agent' always;
         add_header 'Access-Control-Max-Age' 1728000 always;
+        
+        # Custom error pages
+        error_page 400 /error_pages/400.html;
+        error_page 403 /error_pages/403.html;
+        error_page 404 /error_pages/404.html;
+        error_page 405 /error_pages/405.html;
+        error_page 500 /error_pages/500.html;
+        error_page 505 /error_pages/505.html;
+
+        location /error_pages/ {
+            alias /usr/share/nginx/html/error_pages/;
+        }
 
         # Frontend proxy
         location / {
@@ -118,16 +130,16 @@ http {
         }
 
         # Game Service proxy
-        location /api/pong/ {
-            proxy_pass http://game:8005/pong/;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_set_header Authorization $http_authorization;
-            proxy_pass_header Authorization;
-        }
+        #location /api/pong/ {
+        #    proxy_pass http://game:8005/pong/;
+        #    proxy_http_version 1.1;
+        #    proxy_set_header Host $host;
+        #    proxy_set_header X-Real-IP $remote_addr;
+        #    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        #    proxy_set_header X-Forwarded-Proto $scheme;
+        #    proxy_set_header Authorization $http_authorization;
+        #    proxy_pass_header Authorization;
+        #}
 
         # Media location block
         location /api/user/media/ {
@@ -222,14 +234,15 @@ http {
         }
 
         # Game WebSocket proxy
-        location /ws/pong/ {
-            proxy_pass http://game:8005/ws/pong/;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
-            proxy_read_timeout 86400;
-        }
+        #location /ws/ {
+        #    proxy_pass http://game:8005;
+        #    proxy_http_version 1.1;
+        #    proxy_set_header Upgrade $http_upgrade;
+        #    proxy_set_header Connection "upgrade";
+        #    proxy_set_header Host $host;
+        #    proxy_set_header X-Real-IP $remote_addr;
+        #    proxy_read_timeout 86400;
+        #}
 
         # Vault proxy (internal only)
         location /vault/ {
