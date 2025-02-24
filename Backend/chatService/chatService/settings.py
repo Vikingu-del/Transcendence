@@ -218,4 +218,4 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "chat", "0.0.0.0", "0.0.0.0:8001", "gateway", "10.12.12.4"]
+ALLOWED_HOSTS = ["localhost", "127.0.0.1", "chat", "0.0.0.0", "0.0.0.0:8001", "gateway", "10.12.12.6"]

@@ -1,5 +1,25 @@
 services:
 
+  # swagger:
+  #   container_name: swagger
+  #   build:
+  #     context: ./Swagger
+  #     dockerfile: Dockerfile
+  #   environment:
+  #     URLS_PRIMARY_NAME: "UserService" # Default API to display in Swagger UI
+  #     URLS: '[{ "url": "/doc/ApiGateway.yaml", "name": "ApiGateway" }, 
+  #        { "url": "/doc/UserService.yaml", "name": "UserService" },
+  #        { "url": "/doc/Security.yaml", "name": "Security" },
+  #        { "url": "/doc/Database.yaml", "name": "Database" },
+  #        { "url": "/doc/FrontEnd.yaml", "name": "FrontEnd" }]'
+  #   volumes:
+  #     - ./docs/openapi:/usr/share/nginx/html/doc # Mount local OpenAPI specs
+  #   ports:
+  #     - "8080:8080"  # Swagger UI available at localhost:8080
+  #   restart: always
+  #   networks:
+  #     backtier:
+
   vault:
     container_name: vault
     build:
@@ -293,7 +313,10 @@ services:
       - auth
     volumes:
       - approle_gateway:/vault/approle/gateway:ro
+      - ./ApiGateway/config/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
+      - ./ApiGateway/config/modsecurity:/etc/nginx/templates/modsecurity:ro
       - ./ApiGateway/ssl:/etc/nginx/ssl:ro # Mount SSL certificates
+      - user_static:/app/static
       - user_media:/app/media
     # environment:
     #   - NGINX_HOST=${NGINX_HOST:-10.12.12.5}
