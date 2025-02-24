@@ -15,6 +15,7 @@ from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 import pyotp #Walid Added for 2fa
 from .qrcode import generateQRCode
+from .models import UserTOTP
 
 otp_secret = ''
 
@@ -34,14 +35,13 @@ class RegisterView(generics.CreateAPIView):
 			# Create the user without token
 			user = serializer.save()
 			totp_secret = pyotp.random_base32()
-			user.totp_secret = totp_secret
+			UserTOTP.objects.create(user=user, totp_secret=totp_secret)
 			user.save()
 			qr_code = generateQRCode(user.email, totp_secret)
 			return Response({
 				'message': 'Registration successful',
 				'user': serializer.data,
 				'qr_code': f"data:image/png;base64,{qr_code}",
-				'totp_secret': totp_secret
 			}, status=status.HTTP_201_CREATED)
 		return Response({
 			"error": "Registration failed", 
@@ -109,8 +109,17 @@ class ValidateOTPView(APIView):
 	
 	def post(self, request):
 		try:
+			username = request.data.get("username")
 			otp = request.data.get("otp")
-			print(f"OTP: {otp}")
+			user = User.objects.get(username=username)
+			totp_secret = user.totp.totp_secret
+			totp = pyotp.TOTP(totp_secret)
+			if totp.verify(otp):
+				return Response({'detail': 'OTP validated successfully!'}, status=status.HTTP_200_OK)
+			else:
+				return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+		except User.DoesNotExist:
+			return Response({'error':'User not found'}, status=status.HTTP_404_NOT_FOUND)
 		except Exception as e:
 			logger.error(f"OTP validation failed: {str(e)}")
 			return Response({
