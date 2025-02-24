@@ -259,16 +259,16 @@ services:
       - approle_game:/vault/approle/game:ro
     environment:
       - DJANGO_SETTINGS_MODULE=gameService.settings
-      - USER_SERVICE_URL=http://game:8005  # For service communication
-      - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
-      # - PYTHONPATH=/app
+      - USER_SERVICE_URL=http://gateway/user
+      - AUTH_SERVICE_URL=http://gateway/auth
+      - INTERNAL_API_KEY=your-secure-key-here
     depends_on:
       vault:
         condition: service_started
       vault_secrets:
         condition: service_completed_successfully
       game_db:
-        condition: service_healthy  # Add health check dependency
+        condition: service_healthy
     networks:
       - backtier
 

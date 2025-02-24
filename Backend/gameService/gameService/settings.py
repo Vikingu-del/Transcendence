@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from datetime import timedelta
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -27,8 +28,10 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'channels',
-    'pong',
-    'pong_ws',
+    'pong.apps.PongConfig',
+    'pong_ws.apps.PongWsConfig',
+	'rest_framework',
+	'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -62,13 +65,6 @@ TEMPLATES = [
 WSGI_APPLICATION = 'gameService.wsgi.application'
 ASGI_APPLICATION = 'gameService.asgi.application'
 
-# Channel Layers
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels.layers.InMemoryChannelLayer'
-    }
-}
-
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
@@ -76,20 +72,19 @@ CHANNEL_LAYERS = {
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'postgres'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
+        'NAME': os.environ.get('DB_NAME', 'game_dbname'),  # Match with entrypoint.sh
+        'USER': os.environ.get('DB_USER', 'game_dbuser'),  # Match with entrypoint.sh
         'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
-        'HOST': os.environ.get('DB_HOST', 'localhost'),
-        'PORT': os.environ.get('DB_PORT', '5432'),
+        'HOST': 'game_db',  # Use the service name from docker-compose
+        'PORT': '5432',
     }
 }
 
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
 CORS_ALLOWED_ORIGINS = [
-    "https://localhost",
     "http://localhost:5173",
-    "https://localhost:5173"
+    "http://127.0.0.1:5173",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -113,6 +108,22 @@ CORS_ALLOW_METHODS = [
     'OPTIONS'
 ]
 
+# Channels
+ASGI_APPLICATION = 'gameService.asgi.application'
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('redis', 6379)],
+        },
+    },
+}
+
+# Cross-Origin Resource Sharing (CORS) settings
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
 
 
 # Password validation
@@ -158,3 +169,32 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 LOGIN_REDIRECT_URL = "/"
 LOGIN_URL = '/'  # This tells Django to redirect to your actual login page
+
+ALLOWED_HOSTS = [
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "game",
+    "gateway"
+]
+
+USER_SERVICE_URL = 'http://user:8000'
+AUTH_SERVICE_URL = 'http://auth:8001'
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated',
+    ]
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=60),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    'USER_ID_FIELD': 'id',
+    'USER_ID_CLAIM': 'user_id',
+    'SIGNING_KEY': 'your-secret-key-here',  # Must match the key used in user service
+}

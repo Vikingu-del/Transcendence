@@ -21,9 +21,11 @@ class GameSession(models.Model):
     ball_position = models.JSONField(default=dict)  # Dictionary with ball x, y position
     ball_direction = models.JSONField(default=dict)  # Dictionary with ball x, y velocity/direction
     
+    class Meta:
+        ordering = ['-created_at']
+
     def get_invite_link(self):
         return f"/pong-ws/{self.game_id}/"
-        # return f"/pong/{self.id}/"
 
     def get_game_state(self):
         # Use hard-coded default values instead of canvas dimensions
