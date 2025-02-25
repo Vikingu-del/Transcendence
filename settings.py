@@ -134,11 +134,13 @@ LOGGING = {
     },
 }
 
-base_urls = ["localhost", "gateway", "127.0.0.1", "10.12.12.4"]
-protocols = ["http", "https", "ws", "wss"]
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [f"{protocol}://{url}" for url in base_urls for protocol in protocols] + ["http://localhost:5173"]
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://10.12.12.4",
+]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://\w+\.localhost$",
