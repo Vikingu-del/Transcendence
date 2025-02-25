@@ -57,5 +57,6 @@ until PGPASSWORD=$DB_PASSWORD pg_isready -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USE
 done
 
 echo "✅ Database ready"
+# python manage.py makemigrations authService
 python manage.py migrate
 exec python manage.py runserver 0.0.0.0:8001

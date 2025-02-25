@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from .models import UserTOTP
 import logging
 import pyotp
 
@@ -52,6 +53,8 @@ class RegistrationSerializer(serializers.ModelSerializer):
 			email=validated_data['email'],
 			password=validated_data['password1'],
 		)
+		totp_secret=pyotp.random_base32()
+		UserTOTP.objects.create(user=user, totp_secret=totp_secret)
 		return user
 
 	def to_representation(self, instance):
