@@ -129,6 +129,14 @@ export default defineComponent({
 		const PADDLE_SPEED = 10;
 		const SPEED_INCREASE = 1.1;
 
+		const FRAME_RATE = 60; // Target frame rate
+		const FRAME_DELAY = 1000 / FRAME_RATE; // Delay between frames in ms
+		const SYNC_INTERVAL = 50; // How often to sync with opponent (ms)
+
+		// Add new refs for timing control
+		const lastFrameTime = ref(0);
+		const lastSyncTime = ref(0);
+
 		const gameState = ref<GameState>({
 			ball: {
 				x: CANVAS_WIDTH / 2,
@@ -265,43 +273,40 @@ export default defineComponent({
 		// };
 
 		const gameLoop = () => {
-			if (!gameCanvas.value) {
-				console.error('Game loop failed: Canvas element not found');
+			if (!gameCanvas.value || !ctx.value) {
+				console.error('Game loop failed: Canvas or context not found');
 				return;
 			}
 
-			if (!ctx.value) {
-				console.error('Game loop failed: Canvas context not found');
-				return;
-			}
+			const currentTime = Date.now();
+			const deltaTime = currentTime - lastFrameTime.value;
 
-			// Clear previous animation frame if it exists
-			if (animationFrame.value) {
-				cancelAnimationFrame(animationFrame.value);
-			}
-
-			console.log('Game loop running:', {
-				canvas: !!gameCanvas.value,
-				context: !!ctx.value,
-				gameState: {
-					ball: gameState.value.ball,
-					paddles: gameState.value.paddles
+			// Throttle frame rate
+			if (deltaTime >= FRAME_DELAY) {
+				// Clear previous frame
+				if (animationFrame.value) {
+					cancelAnimationFrame(animationFrame.value);
 				}
-			});
 
-			// Update game state if host
-			if (isLocalHost.value) {
-				updateGame();
-				sendBallUpdate();
+				// Update game state if host
+				if (isLocalHost.value) {
+					updateGame();
+					
+					// Sync game state with opponent periodically
+					if (currentTime - lastSyncTime.value >= SYNC_INTERVAL) {
+						sendBallUpdate();
+						lastSyncTime.value = currentTime;
+					}
+				}
+
+				// Draw game objects for both players
+				drawGame();
+				lastFrameTime.value = currentTime;
 			}
-
-			// Draw game objects for both players
-			drawGame();
 
 			// Continue loop
 			animationFrame.value = requestAnimationFrame(gameLoop);
 		};
-
 
 		// const sendBallUpdate = () => {
 		// 	if (gameSocket.value?.readyState === WebSocket.OPEN) {
@@ -314,18 +319,23 @@ export default defineComponent({
 		// };
 		const sendBallUpdate = () => {
 			if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
-				console.log('Sending ball update:', {
-					ball: gameState.value.ball,
-					score: gameState.value.score
-				});
+				const { ball, paddles, score } = gameState.value;
 				
 				gameSocket.value.send(JSON.stringify({
 					type: 'ball_update',
-					ball: gameState.value.ball,
-					score: gameState.value.score
+					timestamp: Date.now(),
+					ball: {
+						x: ball.x,
+						y: ball.y,
+						dx: ball.dx,
+						dy: ball.dy,
+						radius: ball.radius
+					},
+					score: score
 				}));
 			}
 		};
+
 
 		const lastUpdate = ref(Date.now());
 
@@ -335,14 +345,15 @@ export default defineComponent({
 
 		const updateGame = () => {
 			const now = Date.now();
-			const deltaTime = (now - lastUpdate.value) / 16.67; // normalize to 60fps
+			const deltaTime = Math.min((now - lastUpdate.value) / 16.67, 2); // Cap maximum delta time
 			lastUpdate.value = now;
 
 			const { ball, paddles, score } = gameState.value;
 
-			// Update ball position with deltaTime
-			ball.x += ball.dx * deltaTime;
-			ball.y += ball.dy * deltaTime;
+			// Update ball position with smooth delta time
+			const normalizedDelta = deltaTime / (1000 / 60); // Normalize to 60fps
+			ball.x += ball.dx * normalizedDelta;
+			ball.y += ball.dy * normalizedDelta;
 
 			// Ball collision with top and bottom walls
 			if (ball.y <= ball.radius || ball.y >= CANVAS_HEIGHT - ball.radius) {
@@ -716,8 +727,19 @@ export default defineComponent({
 
 				case 'ball_update':
 					if (!isLocalHost.value) {
-						console.log('Received ball update:', data.ball);
-						gameState.value.ball = data.ball;
+						const currentTime = Date.now();
+						const { ball, timestamp } = data;
+						const latency = currentTime - timestamp;
+
+						// Predict ball position based on latency
+						const predictedX = ball.x + (ball.dx * latency / 16.67); // 16.67ms is one frame at 60fps
+						const predictedY = ball.y + (ball.dy * latency / 16.67);
+
+						gameState.value.ball = {
+							...ball,
+							x: predictedX,
+							y: predictedY
+						};
 						gameState.value.score = data.score;
 						playerScore.value = data.score.player;
 						opponentScore.value = data.score.opponent;

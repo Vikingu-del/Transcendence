@@ -95,9 +95,6 @@ def create_rematch_session(game_id, player1, player2):
 
 
 class PongConsumer(AsyncWebsocketConsumer):
-
-    
-
     async def connect(self):
         self.game_id = self.scope['url_route']['kwargs']['game_id']
         self.room_group_name = f"pong_{self.game_id}"
