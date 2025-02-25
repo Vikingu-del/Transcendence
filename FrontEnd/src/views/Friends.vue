@@ -274,28 +274,29 @@
     </transition>
 
     <!-- Game Window -->
+    <!-- filepath: /home/ipetruni/Desktop/Transcendence/FrontEnd/src/views/Friends.vue -->
     <transition name="fade">
-      <div v-if="showGameWindow" class="overlay">
-        <PongGame 
-          :opponent="activeChat"
-          :gameId="currentGameId"
-          :isHost="gameInviteSent"
-          @close="closeGameWindow"
-        />
-      </div>
+        <div v-if="showGameWindow" class="overlay">
+            <PongGame 
+                :opponent="opponent || ''"
+                :gameId="currentGameId || ''"
+                :isHost="gameInviteSent"
+                @close="closeGameWindow"
+            />
+        </div>
     </transition>
 
     <transition name="slide-down">
       <div v-if="gameInviteNotification" class="game-invite-banner">
-        <div class="game-invite-content">
-          <span class="game-invite-text">
-            {{ gameInviteNotification.sender }} invited you to play!
-          </span>
-          <div class="game-invite-actions">
-            <button @click="acceptGameInvite" class="btn primary-btn">Accept</button>
-            <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
+          <div class="game-invite-content">
+              <span class="game-invite-text">
+                  {{ gameInviteNotification.sender }} invited you to play!
+              </span>
+              <div class="game-invite-actions">
+                  <button @click="handleGameAccepted" class="btn primary-btn">Accept</button>
+                  <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
+              </div>
           </div>
-        </div>
       </div>
     </transition>
   </div>
@@ -371,6 +372,7 @@ export default {
       notificationSocket: null,
 
       // Game Functionality
+      opponent: null,
       showGameWindow: false,
       gameInviteSent: false,
       currentGameId: null,
@@ -900,6 +902,7 @@ export default {
             else if (data.type === 'game_invite') {
             this.handleGameInvite(data.message);
             }
+
             
         } catch (error) {
             console.error('Error processing message:', error);
@@ -949,6 +952,15 @@ export default {
         }
         else if (data.type === 'game_invite') {
         this.handleGameInvite(data.message);
+        }
+        else if (data.type === 'game_accepted') {
+          this.handleGameAccepted(data.message);
+        }
+        else if (data.type === 'game_state') {
+          this.handleGameState(data.message);
+        }
+        else if (data.type === 'game_declined') {
+          this.handleGameDeclined(data.message);
         }
         else if (data.type === 'tournament_notification') {
           this.handleTournamentNotification(data.message);
@@ -1149,40 +1161,164 @@ export default {
         }
     },
 
-    acceptGameInvite() {
-        if (!this.gameInviteNotification) return;
+    // handleGameAccepted(data) {
+    // if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
+    //     this.currentGameId = data.game_id;
+    //     this.showGameWindow = true;
+    //     this.showChat = false;
+    //     this.gameInviteSent = true;
+    //     this.player1Name = data.player1_name;
+    //     this.player2Name = data.player2_name;
+    //     this.showStatus('Game invite accepted!', {}, 'success');
+    //     }
+    // },
 
-        if (this.gameInviteTimeout) {
-            clearTimeout(this.gameInviteTimeout);
-        }
-
-        // Send accept message through WebSocket
-        if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
-            const acceptData = {
-                type: 'game_accept',
-                game_id: this.gameInviteNotification.gameId,
-                sender_id: this.gameInviteNotification.senderId,
-                recipient_id: this.currentUserId,
-                player1_name: this.gameInviteNotification.player1Name,
-                player2_name: this.gameInviteNotification.player2Name
-            };
-            
-            console.log('Sending game accept:', acceptData);
-            this.chatSocket.send(JSON.stringify(acceptData));
-        }
-
-        // Initialize game window for recipient
-        this.currentGameId = this.gameInviteNotification.gameId;
-        this.showGameWindow = true;
-        this.showChat = false;
-        this.gameInviteSent = false;
+    // handleGameAccepted(data) {
+    //     console.log('Game acceptance received:', data);
         
-        // Set player names
-        this.player1Name = this.gameInviteNotification.player1Name;
-        this.player2Name = this.gameInviteNotification.player2Name;
+    //     try {
+    //         // If we're handling a click event (recipient accepting)
+    //         if (!data || data instanceof Event) {
+    //             if (!this.gameInviteNotification) {
+    //                 console.error('No game invite notification found');
+    //                 return;
+    //             }
 
-        // Clear the notification
-        this.gameInviteNotification = null;
+    //             // Clear any existing timeout
+    //             if (this.gameInviteTimeout) {
+    //                 clearTimeout(this.gameInviteTimeout);
+    //             }
+
+    //             // Set game data for recipient
+    //             this.currentGameId = this.gameInviteNotification.gameId;
+    //             this.opponent = this.gameInviteNotification.sender;
+                
+    //             // Send accept message through notification WebSocket
+    //             if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+    //                 const acceptData = {
+    //                     type: 'game_accepted',
+    //                     game_id: this.currentGameId,
+    //                     sender_id: this.gameInviteNotification.senderId,
+    //                     recipient_id: this.currentUserId,
+    //                     recipient_name: this.profile.display_name,
+    //                     sender_name: this.gameInviteNotification.sender
+    //                 };
+                    
+    //                 console.log('Sending game acceptance:', acceptData);
+    //                 this.notificationSocket.send(JSON.stringify(acceptData));
+    //             }
+
+    //             // Show success message for recipient
+    //             this.showStatus('Game invite accepted! Starting game...', {}, 'success');
+    //         } 
+    //         // If we're handling a WebSocket message (sender receiving acceptance)
+    //         else {
+    //             // Set game data for sender
+    //             this.currentGameId = data.game_id;
+    //             this.opponent = data.recipient_name;
+    //             this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+    //         }
+
+    //         // Common actions for both sender and recipient
+    //         this.showGameWindow = true;
+    //         this.showChat = false;
+    //         this.gameInviteSent = data ? false : true;
+
+    //         // Clear the notification if it exists
+    //         if (this.gameInviteNotification) {
+    //             this.gameInviteNotification = null;
+    //         }
+
+    //         // Initialize game connection
+    //         this.initializeGameConnection(this.currentGameId);
+
+    //     } catch (error) {
+    //         console.error('Error handling game acceptance:', error);
+    //         this.showStatus('Failed to process game acceptance', {}, 'error');
+    //     }
+    // },
+    handleGameAccepted(data) {
+        console.log('Game acceptance received:', data);
+        
+        try {
+            // If we're handling a click event (recipient accepting)
+            if (!data || data instanceof Event) {
+                if (!this.gameInviteNotification) {
+                    console.error('No game invite notification found');
+                    return;
+                }
+
+                // Set game data for recipient
+                this.currentGameId = this.gameInviteNotification.gameId;
+                this.opponent = this.gameInviteNotification.sender;
+                
+                // Send accept message through notification WebSocket
+                if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+                    const acceptData = {
+                        type: 'game_accepted',
+                        game_id: this.currentGameId,
+                        sender_id: this.gameInviteNotification.senderId,
+                        recipient_id: this.currentUserId,
+                        recipient_name: this.profile.display_name,
+                        sender_name: this.gameInviteNotification.sender
+                    };
+                    
+                    console.log('Sending game acceptance:', acceptData);
+                    this.notificationSocket.send(JSON.stringify(acceptData));
+                }
+            } 
+            // If we're handling a WebSocket message (sender receiving acceptance)
+            else {
+                // Set game data for sender
+                this.currentGameId = data.game_id;
+                this.opponent = data.recipient_name;
+                this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+            }
+
+            // Common actions for both sender and recipient
+            this.showGameWindow = true;
+            this.showChat = false;
+            this.gameInviteSent = !data; // true for recipient, false for sender
+            
+            // Clear any existing notifications
+            if (this.gameInviteNotification) {
+                this.gameInviteNotification = null;
+            }
+
+            // Initialize game connection
+            this.initializeGameConnection(this.currentGameId);
+
+        } catch (error) {
+            console.error('Error handling game acceptance:', error);
+            this.showStatus('Failed to process game acceptance', {}, 'error');
+        }
+    },
+
+    initializeGameConnection(gameId) {
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = window.location.host;
+        const wsUrl = `${wsProtocol}//${wsHost}/ws/game/${gameId}/?token=${this.getToken}`;
+        
+        // Close existing game socket if any
+        if (this.gameSocket && this.gameSocket.readyState === WebSocket.OPEN) {
+            this.gameSocket.close();
+        }
+
+        // Create new game socket
+        this.gameSocket = new WebSocket(wsUrl);
+        
+        this.gameSocket.onopen = () => {
+            console.log('Game WebSocket connected');
+        };
+
+        this.gameSocket.onerror = (error) => {
+            console.error('Game WebSocket error:', error);
+            this.showStatus('Error connecting to game server', {}, 'error');
+        };
+
+        this.gameSocket.onclose = () => {
+            console.log('Game WebSocket closed');
+        };
     },
 
     declineGameInvite() {
@@ -1196,7 +1332,7 @@ export default {
       // Send decline message through WebSocket
       if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
         const declineData = {
-          type: 'game_invite_decline',
+          type: 'game_decline',
           game_id: this.gameInviteNotification.gameId,
           recipient_id: this.selectedFriend.id
         };
@@ -1230,25 +1366,25 @@ export default {
                 this.wsConnected = true;
             };
 
-            // Fix the message handler to properly handle promises
-            this.notificationSocket.onmessage = async (event) => {
+            // Update the message handler to use proper async/await
+            this.notificationSocket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
                     console.log('Received notification:', data);
 
-                    // Handle different notification types
+                    // Handle different notification types synchronously
                     switch (data.type) {
                         case 'game_invite':
-                            await this.handleGameInvite(data);
+                            this.handleGameInvite(data);
+                            break;
+                        case 'game_accepted':
+                            this.handleGameAccepted(data);
+                            break;
+                        case 'game_declined':
+                            this.handleGameDecline(data);
                             break;
                         case 'chat_message':
-                            await this.handleChatNotification(data.message || data);
-                              break;
-                        case 'game.accept':
-                            await this.handleGameAccept(data.message);
-                            break;
-                        case 'game.decline':
-                            await this.handleGameDecline(data.message);
+                            this.handleChatNotification(data);
                             break;
                         default:
                             console.log('Unknown notification type:', data.type);
@@ -1258,7 +1394,6 @@ export default {
                 }
             };
 
-            // Add error handling
             this.notificationSocket.onerror = (error) => {
                 console.error('Notification WebSocket error:', error);
                 this.wsConnected = false;
@@ -1268,7 +1403,10 @@ export default {
             this.notificationSocket.onclose = () => {
                 console.log('Notification WebSocket closed');
                 this.wsConnected = false;
-                setTimeout(() => this.initNotificationSocket(), 3000);
+                // Only attempt to reconnect if the component is still mounted
+                if (!this._isDestroyed) {
+                    setTimeout(() => this.initNotificationSocket(), 3000);
+                }
             };
 
         } catch (error) {
@@ -1277,25 +1415,15 @@ export default {
         }
     },
 
-    handleGameAccept(data) {
-    if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
-        this.currentGameId = data.game_id;
-        this.showGameWindow = true;
-        this.showChat = false;
-        this.gameInviteSent = true;
-        this.player1Name = data.player1_name;
-        this.player2Name = data.player2_name;
-        this.showStatus('Game invite accepted!', {}, 'success');
-        }
-    },
+    
 
-    handleGameDecline(data) {
-        if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
-            this.showStatus('Game invite declined', {}, 'warning');
-            this.gameInviteSent = false;
-            this.showGameWindow = false;
-        }
-    },
+    // handleGameDecline(data) {
+    //     if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
+    //         this.showStatus('Game invite declined', {}, 'warning');
+    //         this.gameInviteSent = false;
+    //         this.showGameWindow = false;
+    //     }
+    // },
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
@@ -1340,6 +1468,7 @@ export default {
         try {
             const uuid = crypto.randomUUID();
             this.currentGameId = uuid;
+            this.opponent = this.selectedFriend.display_name; // Set the opponent name
             
             if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
                 const inviteData = {
@@ -1347,8 +1476,8 @@ export default {
                     game_id: uuid,
                     sender_id: this.currentUserId,
                     recipient_id: this.selectedFriend.id,
-                    sender_name: this.profile.display_name,    // For displaying who sent the invite
-                    recipient_name: this.selectedFriend.display_name  // For displaying who receives
+                    sender_name: this.profile.display_name,
+                    recipient_name: this.selectedFriend.display_name
                 };
                 
                 console.log('Sending game invite:', inviteData);
@@ -1406,11 +1535,12 @@ export default {
     },
 
     closeGameWindow() {
-      this.showGameWindow = false;
-      this.gameInviteSent = false;
-      
-      // Optionally reopen chat
-      this.showChat = true;
+        this.showGameWindow = false;
+        this.gameInviteSent = false;
+        this.opponent = null; // Reset the opponent
+        
+        // Optionally reopen chat
+        this.showChat = true;
     },
 
     handleGameInvite(data) {
@@ -1456,11 +1586,15 @@ export default {
   },
 
   beforeDestroy() {
+    this._isDestroyed = true;
     if (this.notificationSocket) {
-      this.notificationSocket.close();
+        this.notificationSocket.close();
+    }
+    if (this.gameSocket) {
+        this.gameSocket.close();
     }
     if (this.chatSocket) {
-      this.chatSocket.close();
+        this.chatSocket.close();
     }
   },
 

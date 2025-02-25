@@ -1,29 +1,34 @@
 <template>
 	<div class="game-container">
-	  <div class="game-header">
-		<h4 class="game-title">Game with {{ opponent }}</h4>
-		<button @click="$emit('close')" class="btn secondary-btn">Close</button>
-	  </div>
-	  
-	  <div class="game-content">
-		<!-- Show waiting message for host -->
-		<div v-if="isWaiting" class="waiting-screen">
-		  <h2>Waiting for player to join...</h2>
-		  <p>Share this game ID: {{ gameId }}</p>
-		</div>
-		
-		<!-- Show join screen for guest -->
-		<div v-else-if="!gameStarted && !isHost" class="join-screen">
-		  <button 
-			@click="startGame" 
-			class="btn primary-btn"
-		  >
-			Start Game
-		  </button>
-		</div>
+		<div class="game-header">
+            <h4 class="game-title">Game with {{ opponent }}</h4>
+            <button @click="$emit('close')" class="btn secondary-btn">Close</button>
+        </div>
+        
+        <div class="game-content">
+            <!-- Show waiting message for host -->
+            <div v-if="isWaiting && !gameAccepted" class="waiting-screen">
+                <h2>Waiting for player to join...</h2>
+            </div>
+            
+            <!-- Show game accepted screen -->
+            <div v-else-if="gameAccepted && !gameStarted" class="acceptance-screen">
+				<h2>Game Accepted!</h2>
+				<p>Starting game with {{ opponent }}...</p>
+				<button 
+					v-if="isLocalHost"
+					@click="startGame" 
+					class="btn primary-btn"
+				>
+					Start Game
+				</button>
+				<p v-else class="waiting-message">
+					Waiting for host to start the game...
+				</p>
+			</div>
 		
 		<!-- Game canvas -->
-		<template v-else>
+		<template v-else-if="gameStarted">
 		  <canvas ref="gameCanvas" width="800" height="400"></canvas>
 		  <div class="game-info">
 			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
@@ -73,23 +78,25 @@ export default defineComponent({
 	name: 'Game',
 	props: {
 		opponent: {
-		type: String,
-		required: true
+			type: String,
+			required: true
 		},
 		gameId: {
-		type: String,
-		required: true
+			type: String,
+			required: true
 		},
 		isHost: {
-		type: Boolean,
-		default: false
+			type: Boolean,
+			default: false
 		}
 	},
 
 	setup(props, { emit }) {
 		// Add new reactive refs
+		const isLocalHost = ref(false);
 		const isWaiting = ref(props.isHost);
 		const gameStarted = ref(false);
+		const gameAccepted = ref(false);
 		const gameSocket = ref<WebSocket | null>(null);
 		const gameCanvas = ref<HTMLCanvasElement | null>(null);
 		const ctx = ref<CanvasRenderingContext2D | null>(null);
@@ -404,23 +411,44 @@ export default defineComponent({
 			
 			switch (data.type) {
 				case 'game_state':
-           			// Update player names only if they're actual players (not "Waiting...")
-					const player1Username = data.player1_username || 'Unknown';
-					const player2Username = data.player2_username || 'Waiting for Player 2';
-					
-					if (player1Username !== 'Unknown') {
-						gameState.value.players.player1 = player1Username;
+					if (data.game_status === 'accepted') {
+						gameAccepted.value = true;
+						isWaiting.value = false;
 						
-						// Only update player2 if it's not the waiting message
-						if (player2Username && !player2Username.includes('Waiting')) {
-							gameState.value.players.player2 = player2Username;
+						// Update player names
+						if (data.player1_username && data.player2_username) {
+							gameState.value.players.player1 = data.player1_username;
+							gameState.value.players.player2 = data.player2_username;
 						}
+
+						// Set host status based on player role
+						isLocalHost.value = data.is_host;
+						
+						console.log('Game accepted, updated state:', {
+							gameAccepted: gameAccepted.value,
+							isWaiting: isWaiting.value,
+							players: gameState.value.players,
+							isHost: isLocalHost.value,
+							playerRole: data.player_role
+						});
+					} else if (data.game_status === 'waiting') {
+						isWaiting.value = true;
+						gameAccepted.value = false;
+						isLocalHost.value = data.is_host;
+					} else if (data.game_status === 'started') {
+						// Start the game for both players
+						gameStarted.value = true;
+						gameAccepted.value = true;
+						isWaiting.value = false;
+						resetBall();
+						gameLoop();
+						
+						console.log('Game started:', {
+							gameStarted: gameStarted.value,
+							gameAccepted: gameAccepted.value,
+							isHost: isLocalHost.value
+						});
 					}
-					
-					console.log('Updated player names:', {
-						player1: gameState.value.players.player1,
-						player2: gameState.value.players.player2
-					});
 					break;
 
 				case 'player_joined':
@@ -435,7 +463,21 @@ export default defineComponent({
 					gameStarted.value = true;
 					startGame();
 					break;
+				
+		// 			case 'paddle_move':
+        //     if (data.player !== isLocalHost.value) {
+        //         gameState.value.paddles.opponent.y = data.y;
+        //     }
+        //     break;
 
+        // case 'ball_update':
+        //     if (!isLocalHost.value) {
+        //         gameState.value.ball = data.ball;
+        //         gameState.value.score = data.score;
+        //         playerScore.value = data.score.player;
+        //         opponentScore.value = data.score.opponent;
+        //     }
+        //     break;	
 				case 'paddle_move':
 					if (data.player !== props.isHost) {
 						gameState.value.paddles.opponent.y = data.y;
@@ -474,16 +516,17 @@ export default defineComponent({
 				return;
 			}
 
-			// Only send start_game message if we're not the host
-			if (!props.isHost) {
+			// Use isLocalHost instead of props.isHost
+			if (isLocalHost.value) {
+				console.log('Host starting game...');
 				gameSocket.value.send(JSON.stringify({
-				type: 'start_game'
+					type: 'start_game',
+					game_id: props.gameId
 				}));
+				gameStarted.value = true;
+				resetBall();
+				gameLoop();
 			}
-
-			gameStarted.value = true;
-			resetBall();
-			gameLoop();
 		};
 
 		const sendPaddleUpdate = () => {
@@ -586,6 +629,8 @@ export default defineComponent({
 			isWaiting,
 			gameStarted,
 			startGame,
+			gameAccepted,
+			isLocalHost,
 		};
 	}
 });
@@ -666,6 +711,14 @@ canvas {
   z-index: 1;
 }
 
+.waiting-message {
+    color: #888;
+    background: #2d2d2d;
+    padding: 1rem;
+    border-radius: 4px;
+    font-family: monospace;
+    text-align: center;
+}
 
 .score {
   color: white;

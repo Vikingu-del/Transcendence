@@ -98,6 +98,7 @@ class PongConsumer(AsyncWebsocketConsumer):
     async def connect(self):
         self.game_id = self.scope['url_route']['kwargs']['game_id']
         self.room_group_name = f"pong_{self.game_id}"
+        self.user_group_name = f"user_{self.scope['user'].id}"
         self.user = self.scope['user']
 
         if not self.user or self.user.is_anonymous:
@@ -130,6 +131,21 @@ class PongConsumer(AsyncWebsocketConsumer):
             data = json.loads(text_data)
             logger.info(f"Received game message type: {data.get('type')} from user {self.user.username}")
             
+            if data.get('type') == 'start_game':
+                # Broadcast game start to all players in the room
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'game_state_update',
+                        'message': {
+                            'type': 'game_state',
+                            'game_status': 'started',
+                            'game_id': self.game_id,
+                            'player1_username': await self.get_username(self.scope['user']),
+                            'player2_username': await self.get_username(self.scope['user']),
+                        }
+                    }
+                )
             # Handle only game-specific messages
             if data.get('type') == 'paddle_move':
                 await self.handle_paddle_move(data)
@@ -152,26 +168,57 @@ class PongConsumer(AsyncWebsocketConsumer):
         if not game_session:
             return
 
-        game_session = await self.assign_players(game_session)
-        player1_username = await self.get_username(game_session.player1)
-        player2_username = await self.get_username(game_session.player2) if game_session.player2 else "Waiting for Player 2"
+        try:
+            # Get player information asynchronously
+            game_session = await self.assign_players(game_session)
+            player1_username = await self.get_username(game_session.player1)
+            player2_username = await self.get_username(game_session.player2) if game_session.player2 else "Waiting for Player 2"
 
-        # Determine player role
-        player_role = "spectator"
-        if game_session.player1 == self.user:
-            player_role = "player1"
-        elif game_session.player2 == self.user:
-            player_role = "player2"
+            # Determine player role and host status
+            is_host = game_session.player1 and game_session.player1.id == self.user.id
+            player_role = await self.get_player_role(game_session)
 
-        logger.info(f"Sending game state: P1={player1_username}, P2={player2_username}, Role={player_role}")
+            game_status = 'accepted' if game_session.player2 else 'waiting'
+            
+            logger.info(f"Sending game state: P1={player1_username}, P2={player2_username}, Role={player_role}, IsHost={is_host}")
 
-        # Send game state to the client
-        await self.send(text_data=json.dumps({
-            'type': 'game_state',
-            'player1_username': player1_username,
-            'player2_username': player2_username,
-            'player_role': player_role
-        }))
+            # Send the game state
+            await self.send(text_data=json.dumps({
+                'type': 'game_state',
+                'game_status': game_status,
+                'player1_username': player1_username,
+                'player2_username': player2_username,
+                'player_role': player_role,
+                'is_host': is_host
+            }))
+
+        except Exception as e:
+            logger.error(f"Error sending game state: {str(e)}")
+
+    @database_sync_to_async
+    def get_player_role(self, game_session):
+        """Determine player role"""
+        if game_session.player1 and game_session.player1.id == self.user.id:
+            return "player1"
+        elif game_session.player2 and game_session.player2.id == self.user.id:
+            return "player2"
+        return "spectator"
+
+    async def game_state_update(self, event):
+        """Handle game state updates"""
+        try:
+            message = event['message']
+            game_session = await self.get_game_session()
+            
+            if game_session:
+                # Update the message with current player role and host status
+                message['player_role'] = await self.get_player_role(game_session)
+                message['is_host'] = game_session.player1 and game_session.player1.id == self.user.id
+            
+            await self.send(text_data=json.dumps(message))
+            
+        except Exception as e:
+            logger.error(f"Error in game state update: {str(e)}")
 
     # 🎮 New Game ID Handler
     async def new_game_id(self, event):
@@ -254,26 +301,66 @@ class PongConsumer(AsyncWebsocketConsumer):
             print(f"Error initializing game session: {str(e)}")
             return None
 
-
     @database_sync_to_async
     def assign_players(self, game_session):
         """Assigns players and updates their names"""
         user = self.scope['user']
         logger.info(f"Connected User: {user.username}")
 
-        if not game_session.player1:
-            game_session.player1 = user
-            logger.info(f"Setting {user.username} as Player 1")
-        elif not game_session.player2 and game_session.player1 != user:
-            game_session.player2 = user
-            logger.info(f"Setting {user.username} as Player 2")
+        try:
+            # If user is already player1, keep that role
+            if game_session.player1 and game_session.player1.id == user.id:
+                logger.info(f"{user.username} is Player 1")
+                return game_session
 
-        game_session.save()
+            # If user is already player2, keep that role
+            if game_session.player2 and game_session.player2.id == user.id:
+                logger.info(f"{user.username} is Player 2")
+                return game_session
 
-        player1_name = game_session.player1.username if game_session.player1 else "Waiting"
-        player2_name = game_session.player2.username if game_session.player2 else "Waiting for Player 2"
+            # If player1 slot is empty, assign as player1
+            if not game_session.player1:
+                game_session.player1 = user
+                logger.info(f"Setting {user.username} as Player 1")
+            # If player2 slot is empty and user isn't player1, assign as player2
+            elif not game_session.player2 and game_session.player1.id != user.id:
+                game_session.player2 = user
+                logger.info(f"Setting {user.username} as Player 2")
 
-        return game_session
+            game_session.save()
+            return game_session
+        except Exception as e:
+            logger.error(f"Error assigning players: {str(e)}")
+            return game_session
+
+    # @database_sync_to_async
+    # def assign_players(self, game_session):
+    #     """Assigns players and updates their names"""
+    #     user = self.scope['user']
+    #     logger.info(f"Connected User: {user.username}")
+
+    #     if not game_session.player1:
+    #         game_session.player1 = user
+    #         logger.info(f"Setting {user.username} as Player 1")
+    #     elif not game_session.player2 and game_session.player1 != user:
+    #         game_session.player2 = user
+    #         logger.info(f"Setting {user.username} as Player 2")
+    #         # Send notification that player 2 has joined
+    #         async_to_sync(self.channel_layer.group_send)(
+    #             self.room_group_name,
+    #             {
+    #                 'type': 'game_state_update',
+    #                 'message': {
+    #                     'type': 'game_state',
+    #                     'game_status': 'accepted',
+    #                     'player1_username': game_session.player1.username,
+    #                     'player2_username': user.username
+    #                 }
+    #             }
+    #         )
+
+    #     game_session.save()
+    #     return game_session
 
     @database_sync_to_async
     def get_username(self, user):
@@ -317,9 +404,9 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
             if message_type == 'game_invite':
                 await self.handle_game_invite(data)
-            elif message_type == 'game_accept':
+            elif message_type == 'game_accepted':
                 await self.handle_game_accept(data)
-            elif message_type == 'game_decline':
+            elif message_type == 'game_declined':
                 await self.handle_game_decline(data)
             elif message_type == 'chat_message':
                 await self.handle_chat_message(data)
@@ -376,14 +463,56 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         """Handle game accept from client"""
         try:
             sender_id = data.get('sender_id')
+            game_id = data.get('game_id')
+            
+            # Get players
+            player1 = await self.get_user(sender_id)
+            player2 = await self.get_user(data.get('recipient_id'))
+            
+            # Create game session
+            game_session = await create_game_session(
+                game_id=game_id,
+                player1=player1,
+                player2=player2
+            )
+            
+            if not game_session:
+                logger.error("Failed to create game session")
+                return
+
+            # Send game state update to all players
+            await self.channel_layer.group_send(
+                f"pong_{game_id}", 
+                {
+                    'type': 'game_state_update',
+                    'message': {
+                        'type': 'game_state',
+                        'game_status': 'accepted',
+                        'player1_username': player1.username,
+                        'player2_username': player2.username,
+                        'game_id': game_id
+                    }
+                }
+            )
+            
+            # Send direct acceptance message to sender
             await self.channel_layer.group_send(
                 f"user_{sender_id}",
                 {
                     'type': 'game.accept',
-                    'message': data
+                    'message': {
+                        'type': 'game_accepted',
+                        'game_id': game_id,
+                        'sender_id': sender_id,
+                        'recipient_id': data.get('recipient_id'),
+                        'recipient_name': data.get('recipient_name'),
+                        'sender_name': data.get('sender_name'),
+                        'player1_name': game_session.player1.username,
+                        'player2_name': game_session.player2.username
+                    }
                 }
             )
-            logger.info(f"Game accept sent to user_{sender_id}")
+            logger.info(f"Game accept notification sent to user_{sender_id}")
         except Exception as e:
             logger.error(f"Error handling game accept: {str(e)}")
 
@@ -442,12 +571,67 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error sending chat notification: {str(e)}")
 
+    # async def game_accept(self, event):
+    #     """Handle game accept from channel layer"""
+    #     try:
+    #         message = event['message']
+    #         # Send the acceptance message to both players
+    #         await self.send(text_data=json.dumps({
+    #             'type': 'game_accepted',
+    #             'game_id': message['game_id'],
+    #             'sender_id': message['sender_id'],
+    #             'recipient_id': message['recipient_id'],
+    #             'sender_name': message['sender_name'],
+    #             'recipient_name': message['recipient_name'],
+    #             'player1_name': message['player1_name'],
+    #             'player2_name': message['player2_name']
+    #         }))
+            
+    #         logger.info(f"Game acceptance processed for game {message['game_id']}")
+    #     except Exception as e:
+    #         logger.error(f"Error sending game accept: {str(e)}")
     async def game_accept(self, event):
         """Handle game accept from channel layer"""
         try:
-            await self.send(text_data=json.dumps(event['message']))
+            message = event['message']
+            # Send acceptance notification to both players through game channel
+            await self.channel_layer.group_send(
+                f"pong_{message['game_id']}", 
+                {
+                    'type': 'game_state_update',
+                    'message': {
+                        'type': 'game_state',
+                        'game_id': message['game_id'],
+                        'player1_username': message['player1_name'],
+                        'player2_username': message['player2_name'],
+                        'game_status': 'accepted'
+                    }
+                }
+            )
+            
+            # Also send the direct acceptance message
+            await self.send(text_data=json.dumps({
+                'type': 'game_accepted',
+                'game_id': message['game_id'],
+                'sender_id': message['sender_id'],
+                'recipient_id': message['recipient_id'],
+                'sender_name': message['sender_name'],
+                'recipient_name': message['recipient_name'],
+                'player1_name': message['player1_name'],
+                'player2_name': message['player2_name']
+            }))
+            
+            logger.info(f"Game acceptance processed for game {message['game_id']}")
         except Exception as e:
             logger.error(f"Error sending game accept: {str(e)}")
+
+    @database_sync_to_async
+    def get_user(self, user_id):
+        """Get user by ID"""
+        try:
+            return User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return None
 
     async def game_decline(self, event):
         """Handle game decline from channel layer"""
