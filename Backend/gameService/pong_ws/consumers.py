@@ -129,26 +129,10 @@ class PongConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
-            logger.info(f"Received game message type: {data.get('type')} from user {self.user.username}")
+            # logger.info(f"Received game message type: {data.get('type')} from user {self.user.username}")
             
             if data.get('type') == 'start_game':
                 await self.handle_game_start(data)
-            # if data.get('type') == 'start_game':
-            #     # Broadcast game start to all players in the room
-                # await self.channel_layer.group_send(
-                #     self.room_group_name,
-                #     {
-                #         'type': 'game_state_update',
-                #         'message': {
-                #             'type': 'game_state',
-                #             'game_status': 'started',
-                #             'game_id': self.game_id,
-                #             'player1_username': await self.get_username(self.scope['user']),
-                #             'player2_username': await self.get_username(self.scope['user']),
-                #         }
-                #     }
-                # )
-            # Handle only game-specific messages
             elif data.get('type') == 'paddle_move':
                 await self.handle_paddle_move(data)
             elif data.get('type') == 'ball_update':
@@ -225,7 +209,7 @@ class PongConsumer(AsyncWebsocketConsumer):
                 }
             )
 
-            logger.info(f"Paddle move processed for {player_role} at y={paddle_y}")
+            # logger.info(f"Paddle move processed for {player_role} at y={paddle_y}")
 
         except Exception as e:
             logger.error(f"Error handling paddle move: {str(e)}")
@@ -282,8 +266,8 @@ class PongConsumer(AsyncWebsocketConsumer):
                 game_session.player2_score = score_data['player2']
                 await save_game_session(game_session)
 
-            logger.info(f"Ball update processed: pos=({ball_data.get('x')}, {ball_data.get('y')}), "
-                    f"score={score_data.get('player1', 0)}-{score_data.get('player2', 0)}")
+            # logger.info(f"Ball update processed: pos=({ball_data.get('x')}, {ball_data.get('y')}), "
+            #         f"score={score_data.get('player1', 0)}-{score_data.get('player2', 0)}")
 
         except Exception as e:
             logger.error(f"Error handling ball update: {str(e)}")
@@ -463,7 +447,7 @@ class PongConsumer(AsyncWebsocketConsumer):
             game_session = GameSession.objects.filter(game_id=game_uuid).order_by('-created_at').first()
             
             if game_session:
-                print(f"Found game session with ID: {game_session.game_id}")
+                # print(f"Found game session with ID: {game_session.game_id}")
                 return game_session
             else:
                 print(f"No game session found with ID: {game_uuid}")
