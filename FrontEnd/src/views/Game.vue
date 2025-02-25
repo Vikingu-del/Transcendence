@@ -119,19 +119,19 @@ export default defineComponent({
 		const playerScore = ref<number>(0);
 		const opponentScore = ref<number>(0);
 
-		const INITIAL_BALL_SPEED = 5;
 		const CANVAS_WIDTH = 800;
 		const CANVAS_HEIGHT = 400;
 		const MIN_WIDTH = 450;
-
+		
 		// Add these new constants for game physics
-		const MAX_BALL_SPEED = INITIAL_BALL_SPEED * 2;
+		const INITIAL_BALL_SPEED = 8; // Increased from 5
+		const MAX_BALL_SPEED = INITIAL_BALL_SPEED * 1.5;
+		const SPEED_INCREASE = 1.05;
 		const PADDLE_SPEED = 10;
-		const SPEED_INCREASE = 1.1;
 
 		const FRAME_RATE = 60; // Target frame rate
 		const FRAME_DELAY = 1000 / FRAME_RATE; // Delay between frames in ms
-		const SYNC_INTERVAL = 50; // How often to sync with opponent (ms)
+		const SYNC_INTERVAL = 30;// How often to sync with opponent (ms)
 
 		// Add new refs for timing control
 		const lastFrameTime = ref(0);
@@ -351,13 +351,14 @@ export default defineComponent({
 			const { ball, paddles, score } = gameState.value;
 
 			// Update ball position with smooth delta time
-			const normalizedDelta = deltaTime / (1000 / 60); // Normalize to 60fps
-			ball.x += ball.dx * normalizedDelta;
-			ball.y += ball.dy * normalizedDelta;
+			ball.x += ball.dx;
+			ball.y += ball.dy;
 
 			// Ball collision with top and bottom walls
 			if (ball.y <= ball.radius || ball.y >= CANVAS_HEIGHT - ball.radius) {
 				ball.dy *= -1;
+				// Keep ball in bounds
+				ball.y = ball.y <= ball.radius ? ball.radius : CANVAS_HEIGHT - ball.radius;
 			}
 
 			// Ball collision with paddles
@@ -415,12 +416,11 @@ export default defineComponent({
 		// 	ctx.value.fill();
 		// };
 		const drawGame = () => {
-			if (!ctx.value) return;
+			if (!ctx.value || !gameCanvas.value) return;
 			
-			// Store game state locally
 			const { ball, paddles } = gameState.value;
 
-			// Clear the canvas with a dark background
+			// Clear canvas with background
 			ctx.value.fillStyle = '#000000';
 			ctx.value.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -433,35 +433,46 @@ export default defineComponent({
 			ctx.value.stroke();
 			ctx.value.setLineDash([]);
 
-			// Log positions for debugging
-			console.log('Drawing game objects:', {
-				ball: { x: ball.x, y: ball.y },
-				player: { x: paddles.player.x, y: paddles.player.y },
-				opponent: { x: paddles.opponent.x, y: paddles.opponent.y }
-			});
-
-			// Draw paddles with rounded corners
+			// Draw paddles
 			ctx.value.fillStyle = '#03a670';
-			[paddles.player, paddles.opponent].forEach(paddle => {
-				ctx.value!.beginPath();
-				ctx.value!.roundRect(
-					paddle.x, 
-					paddle.y, 
-					paddles.width, 
-					paddles.height, 
-					[5]
-				);
-				ctx.value!.fill();
-			});
+			
+			// Draw player paddle (left for host, right for non-host)
+			const playerPaddleX = isLocalHost.value ? 50 : CANVAS_WIDTH - 60;
+			ctx.value.beginPath();
+			ctx.value.roundRect(
+				playerPaddleX,
+				paddles.player.y,
+				paddles.width,
+				paddles.height,
+				[5]
+			);
+			ctx.value.fill();
+
+			// Draw opponent paddle (right for host, left for non-host)
+			const opponentPaddleX = isLocalHost.value ? CANVAS_WIDTH - 60 : 50;
+			ctx.value.beginPath();
+			ctx.value.roundRect(
+				opponentPaddleX,
+				paddles.opponent.y,
+				paddles.width,
+				paddles.height,
+				[5]
+			);
+			ctx.value.fill();
 
 			// Draw ball with glow effect
-			ctx.value.fillStyle = '#ffffff';
-			ctx.value.shadowBlur = 15;
-			ctx.value.shadowColor = '#03a670';
-			ctx.value.beginPath();
-			ctx.value.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-			ctx.value.fill();
-			ctx.value.shadowBlur = 0;
+			if (ball) {
+				ctx.value.fillStyle = '#ffffff';
+				ctx.value.shadowBlur = 15;
+				ctx.value.shadowColor = '#03a670';
+				ctx.value.beginPath();
+				ctx.value.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+				ctx.value.fill();
+				ctx.value.shadowBlur = 0;
+			}
+
+			// Debug - log ball position
+			console.log('Drawing ball at:', { x: ball.x, y: ball.y });
 		};
 		const checkPaddleCollision = (): boolean => {
 			const { ball, paddles } = gameState.value;
@@ -725,25 +736,33 @@ export default defineComponent({
 				// 	}
 				// 	break;
 
+				// In the handleGameMessage function, update the ball_update case:
 				case 'ball_update':
-					if (!isLocalHost.value) {
-						const currentTime = Date.now();
-						const { ball, timestamp } = data;
-						const latency = currentTime - timestamp;
-
-						// Predict ball position based on latency
-						const predictedX = ball.x + (ball.dx * latency / 16.67); // 16.67ms is one frame at 60fps
-						const predictedY = ball.y + (ball.dy * latency / 16.67);
-
+					// Update for both host and non-host players
+					const { ball, score } = data;
+					
+					if (ball) {
 						gameState.value.ball = {
-							...ball,
-							x: predictedX,
-							y: predictedY
+							x: ball.x,
+							y: ball.y,
+							dx: ball.dx || gameState.value.ball.dx,
+							dy: ball.dy || gameState.value.ball.dy,
+							radius: ball.radius || gameState.value.ball.radius
 						};
-						gameState.value.score = data.score;
-						playerScore.value = data.score.player;
-						opponentScore.value = data.score.opponent;
 					}
+
+					if (score) {
+						gameState.value.score = score;
+						playerScore.value = isLocalHost.value ? score.player1 : score.player2;
+						opponentScore.value = isLocalHost.value ? score.player2 : score.player1;
+					}
+
+					// Debug logging
+					console.log('Ball update processed:', {
+						position: { x: gameState.value.ball.x, y: gameState.value.ball.y },
+						score: gameState.value.score,
+						isHost: isLocalHost.value
+					});
 					break;
 				case 'game_over':
 					handleGameOver(data);
