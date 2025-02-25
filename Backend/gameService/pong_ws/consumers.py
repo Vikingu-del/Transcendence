@@ -95,6 +95,9 @@ def create_rematch_session(game_id, player1, player2):
 
 
 class PongConsumer(AsyncWebsocketConsumer):
+
+    
+
     async def connect(self):
         self.game_id = self.scope['url_route']['kwargs']['game_id']
         self.room_group_name = f"pong_{self.game_id}"
@@ -132,22 +135,24 @@ class PongConsumer(AsyncWebsocketConsumer):
             logger.info(f"Received game message type: {data.get('type')} from user {self.user.username}")
             
             if data.get('type') == 'start_game':
-                # Broadcast game start to all players in the room
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        'type': 'game_state_update',
-                        'message': {
-                            'type': 'game_state',
-                            'game_status': 'started',
-                            'game_id': self.game_id,
-                            'player1_username': await self.get_username(self.scope['user']),
-                            'player2_username': await self.get_username(self.scope['user']),
-                        }
-                    }
-                )
+                await self.handle_game_start(data)
+            # if data.get('type') == 'start_game':
+            #     # Broadcast game start to all players in the room
+                # await self.channel_layer.group_send(
+                #     self.room_group_name,
+                #     {
+                #         'type': 'game_state_update',
+                #         'message': {
+                #             'type': 'game_state',
+                #             'game_status': 'started',
+                #             'game_id': self.game_id,
+                #             'player1_username': await self.get_username(self.scope['user']),
+                #             'player2_username': await self.get_username(self.scope['user']),
+                #         }
+                #     }
+                # )
             # Handle only game-specific messages
-            if data.get('type') == 'paddle_move':
+            elif data.get('type') == 'paddle_move':
                 await self.handle_paddle_move(data)
             elif data.get('type') == 'ball_update':
                 await self.handle_ball_update(data)
@@ -162,6 +167,210 @@ class PongConsumer(AsyncWebsocketConsumer):
         # Leave both groups
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
         await self.channel_layer.group_discard(self.user_group_name, self.channel_name)
+
+    async def handle_game_start(self, data):
+        """Handle game start message"""
+        try:
+            game_session = await self.get_game_session()
+            if not game_session:
+                return
+
+            # Broadcast game start to all players
+            await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'game_state_update',
+                        'message': {
+                            'type': 'game_state',
+                            'game_status': 'started',
+                            'game_id': self.game_id,
+                            'player1_username': await self.get_username(self.scope['user']),
+                            'player2_username': await self.get_username(self.scope['user']),
+                        }
+                    }
+                )
+        except Exception as e:
+            logger.error(f"Error handling game start: {str(e)}")
+
+    async def handle_paddle_move(self, data):
+        """Handle paddle movement updates from clients"""
+        try:
+            game_session = await self.get_game_session()
+            if not game_session:
+                logger.error("No game session found for paddle move")
+                return
+
+            # Determine which paddle to update based on player role
+            player_role = await self.get_player_role(game_session)
+            is_valid_player = player_role in ['player1', 'player2']
+
+            if not is_valid_player:
+                logger.warning(f"Invalid player trying to move paddle: {self.user.username}")
+                return
+
+            # Validate paddle position
+            paddle_y = data.get('y', 0)
+            if not isinstance(paddle_y, (int, float)):
+                logger.warning(f"Invalid paddle position received: {paddle_y}")
+                return
+
+            # Update the paddle position in the game session
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'update_paddle_position',
+                    'message': {
+                        'type': 'paddle_move',
+                        'player': player_role,
+                        'y': paddle_y,
+                        'player_id': self.user.id
+                    }
+                }
+            )
+
+            logger.info(f"Paddle move processed for {player_role} at y={paddle_y}")
+
+        except Exception as e:
+            logger.error(f"Error handling paddle move: {str(e)}")
+            await self.send_error("Failed to process paddle movement")
+
+    async def update_paddle_position(self, event):
+        """Send paddle position update to clients"""
+        try:
+            await self.send(text_data=json.dumps(event['message']))
+        except Exception as e:
+            logger.error(f"Error sending paddle position update: {str(e)}")
+
+    async def handle_ball_update(self, data):
+        """Handle ball position and score updates"""
+        try:
+            game_session = await self.get_game_session()
+            if not game_session:
+                logger.error("No game session found for ball update")
+                return
+
+            # Only host (player1) should send ball updates
+            player_role = await self.get_player_role(game_session)
+            if player_role != 'player1':
+                logger.warning(f"Non-host player trying to update ball: {self.user.username}")
+                return
+
+            # Validate ball data
+            ball_data = data.get('ball', {})
+            if not isinstance(ball_data, dict) or 'x' not in ball_data or 'y' not in ball_data:
+                logger.warning(f"Invalid ball data received: {ball_data}")
+                return
+
+            score_data = data.get('score', {})
+            if not isinstance(score_data, dict):
+                logger.warning(f"Invalid score data received: {score_data}")
+                return
+
+            # Broadcast ball update to all players
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'update_game_state',
+                    'message': {
+                        'type': 'ball_update',
+                        'ball': ball_data,
+                        'score': score_data
+                    }
+                }
+            )
+
+            # Update game session score if provided
+            if 'player1' in score_data and 'player2' in score_data:
+                game_session.player1_score = score_data['player1']
+                game_session.player2_score = score_data['player2']
+                await save_game_session(game_session)
+
+            logger.info(f"Ball update processed: pos=({ball_data.get('x')}, {ball_data.get('y')}), "
+                    f"score={score_data.get('player1', 0)}-{score_data.get('player2', 0)}")
+
+        except Exception as e:
+            logger.error(f"Error handling ball update: {str(e)}")
+            await self.send_error("Failed to process ball update")
+
+    async def update_game_state(self, event):
+        """Send game state update to clients"""
+        try:
+            await self.send(text_data=json.dumps(event['message']))
+        except Exception as e:
+            logger.error(f"Error sending game state update: {str(e)}")
+
+    async def handle_score_update(self, data):
+        """Handle score updates and check for game completion"""
+        try:
+            game_session = await self.get_game_session()
+            if not game_session:
+                logger.error("No game session found for score update")
+                return
+
+            # Only host (player1) should send score updates
+            player_role = await self.get_player_role(game_session)
+            if player_role != 'player1':
+                logger.warning(f"Non-host player trying to update score: {self.user.username}")
+                return
+
+            # Validate score data
+            score_data = data.get('score', {})
+            if not isinstance(score_data, dict) or 'player1' not in score_data or 'player2' not in score_data:
+                logger.warning(f"Invalid score data received: {score_data}")
+                return
+
+            # Update game session scores
+            game_session.player1_score = score_data['player1']
+            game_session.player2_score = score_data['player2']
+            await save_game_session(game_session)
+
+            # Check for game completion (e.g., if someone reached 11 points)
+            winning_score = 11
+            if score_data['player1'] >= winning_score or score_data['player2'] >= winning_score:
+                # Determine winner
+                winner_username = await self.get_username(game_session.player1 if score_data['player1'] > score_data['player2'] else game_session.player2)
+                
+                # Save final game state
+                await save_final_score(
+                    game_id=self.game_id,
+                    winner_username=winner_username,
+                    player1_score=score_data['player1'],
+                    player2_score=score_data['player2']
+                )
+
+                # Broadcast game end to all players
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'update_game_state',
+                        'message': {
+                            'type': 'game_end',
+                            'winner': winner_username,
+                            'final_score': {
+                                'player1': score_data['player1'],
+                                'player2': score_data['player2']
+                            }
+                        }
+                    }
+                )
+            else:
+                # Broadcast regular score update
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'update_game_state',
+                        'message': {
+                            'type': 'score_update',
+                            'score': score_data
+                        }
+                    }
+                )
+
+            logger.info(f"Score update processed: {score_data['player1']}-{score_data['player2']}")
+
+        except Exception as e:
+            logger.error(f"Error handling score update: {str(e)}")
+            await self.send_error("Failed to process score update")
 
     async def send_game_state(self, game_session):
         """Send current game state to client"""

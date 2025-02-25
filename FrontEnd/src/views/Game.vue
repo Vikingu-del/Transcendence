@@ -28,7 +28,7 @@
 			</div>
 		
 		<!-- Game canvas -->
-		<template v-else-if="gameStarted">
+		<!-- <template v-else-if="gameStarted">
 		  <canvas ref="gameCanvas" width="800" height="400"></canvas>
 		  <div class="game-info">
 			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
@@ -41,7 +41,21 @@
 			  Start New Game
 			</button>
 		  </div>
-		</template>
+		</template> -->
+		<canvas 
+			ref="gameCanvas"
+			:width=800
+			:height=400
+			:style="{
+				display: gameStarted ? 'block' : 'none',
+				background: '#000000'
+			}"
+		></canvas>
+
+		<div v-if="gameStarted" class="game-info">
+			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
+		</div>
+		
 	  </div>
 	</div>
 </template>
@@ -124,8 +138,14 @@ export default defineComponent({
 				radius: 8
 			},
 			paddles: {
-				player: { x: 50, y: CANVAS_HEIGHT / 2 - 40 },
-				opponent: { x: CANVAS_WIDTH - 60, y: CANVAS_HEIGHT / 2 - 40 },
+				player: {  
+					x: isLocalHost.value ? 50 : CANVAS_WIDTH - 60, 
+					y: CANVAS_HEIGHT / 2 - 40 
+				},
+				opponent: {
+					x: isLocalHost.value ? CANVAS_WIDTH - 60 : 50, 
+            		y: CANVAS_HEIGHT / 2 - 40
+				},
 				width: 10,
 				height: 80
 			},
@@ -141,54 +161,170 @@ export default defineComponent({
 
 		const scaleFactor = ref(1);
 
-		const initGame = () => {
-			if (!gameCanvas.value) return;
+		// const initGame = () => {
+		// 	if (!gameCanvas.value) return;
 			
-			const container = gameCanvas.value.parentElement;
-			if (!container) return;
+		// 	const container = gameCanvas.value.parentElement;
+		// 	if (!container) return;
 
-			// Calculate new scale factor
-			const containerWidth = Math.max(MIN_WIDTH, container.clientWidth);
-			const containerHeight = container.clientHeight;
-			scaleFactor.value = Math.min(
-				containerWidth / CANVAS_WIDTH,
-				containerHeight / CANVAS_HEIGHT
-			);
+		// 	// Calculate new scale factor
+		// 	const containerWidth = Math.max(MIN_WIDTH, container.clientWidth);
+		// 	const containerHeight = container.clientHeight;
+		// 	scaleFactor.value = Math.min(
+		// 		containerWidth / CANVAS_WIDTH,
+		// 		containerHeight / CANVAS_HEIGHT
+		// 	);
 
-			// Set the canvas display size
-			const scaledWidth = CANVAS_WIDTH * scaleFactor.value;
-			const scaledHeight = CANVAS_HEIGHT * scaleFactor.value;
+		// 	// Set the canvas display size
+		// 	const scaledWidth = CANVAS_WIDTH * scaleFactor.value;
+		// 	const scaledHeight = CANVAS_HEIGHT * scaleFactor.value;
 
-			// Update canvas style dimensions
-			gameCanvas.value.style.width = `${scaledWidth}px`;
-			gameCanvas.value.style.height = `${scaledHeight}px`;
+		// 	// Update canvas style dimensions
+		// 	gameCanvas.value.style.width = `${scaledWidth}px`;
+		// 	gameCanvas.value.style.height = `${scaledHeight}px`;
 
-			// Keep the internal resolution constant
+		// 	// Keep the internal resolution constant
+		// 	gameCanvas.value.width = CANVAS_WIDTH;
+		// 	gameCanvas.value.height = CANVAS_HEIGHT;
+
+		// 	// Reset context
+		// 	ctx.value = gameCanvas.value.getContext('2d');
+		// 	if (!ctx.value) return;
+
+		// 	ctx.value.fillStyle = 'white';
+		// 	ctx.value.strokeStyle = 'white';
+		// };
+		const initGame = () => {
+			// Wait for canvas to be available
+			if (!gameCanvas.value) {
+				console.error('Canvas element not found during initialization');
+				return false;
+			}
+
+			// Log canvas properties
+			console.log('Initializing canvas:', {
+				width: gameCanvas.value.width,
+				height: gameCanvas.value.height,
+				offsetWidth: gameCanvas.value.offsetWidth,
+				offsetHeight: gameCanvas.value.offsetHeight
+			});
+
+			// Get the 2D context with explicit null check
+			const context = gameCanvas.value.getContext('2d');
+			if (!context) {
+				console.error('Failed to get 2D context');
+				return false;
+			}
+			ctx.value = context;
+
+			// Set fixed dimensions
 			gameCanvas.value.width = CANVAS_WIDTH;
 			gameCanvas.value.height = CANVAS_HEIGHT;
 
-			// Reset context
-			ctx.value = gameCanvas.value.getContext('2d');
-			if (!ctx.value) return;
+			// Initialize game state
+			gameState.value = {
+				...gameState.value,
+				paddles: {
+					player: {
+						x: isLocalHost.value ? 50 : CANVAS_WIDTH - 60,
+						y: CANVAS_HEIGHT / 2 - 40
+					},
+					opponent: {
+						x: isLocalHost.value ? CANVAS_WIDTH - 60 : 50,
+						y: CANVAS_HEIGHT / 2 - 40
+					},
+					width: 10,
+					height: 80
+				}
+			};
 
-			ctx.value.fillStyle = 'white';
-			ctx.value.strokeStyle = 'white';
+			console.log('Game initialized successfully:', {
+				canvas: !!gameCanvas.value,
+				context: !!ctx.value,
+				width: gameCanvas.value.width,
+				height: gameCanvas.value.height,
+				gameState: gameState.value
+			});
+
+			return true;
 		};
+		// const gameLoop = () => {
+		// 	if (!ctx.value || !gameCanvas.value) return;
+
+		// 	// Clear canvas
+		// 	ctx.value.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+		// 	// Update game state
+		// 	updateGame();
+
+		// 	// Draw game objects
+		// 	drawGame();
+
+		// 	// Continue loop
+		// 	animationFrame.value = requestAnimationFrame(gameLoop);
+		// };
 
 		const gameLoop = () => {
-			if (!ctx.value || !gameCanvas.value) return;
+			if (!gameCanvas.value) {
+				console.error('Game loop failed: Canvas element not found');
+				return;
+			}
 
-			// Clear canvas
-			ctx.value.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+			if (!ctx.value) {
+				console.error('Game loop failed: Canvas context not found');
+				return;
+			}
 
-			// Update game state
-			updateGame();
+			// Clear previous animation frame if it exists
+			if (animationFrame.value) {
+				cancelAnimationFrame(animationFrame.value);
+			}
 
-			// Draw game objects
+			console.log('Game loop running:', {
+				canvas: !!gameCanvas.value,
+				context: !!ctx.value,
+				gameState: {
+					ball: gameState.value.ball,
+					paddles: gameState.value.paddles
+				}
+			});
+
+			// Update game state if host
+			if (isLocalHost.value) {
+				updateGame();
+				sendBallUpdate();
+			}
+
+			// Draw game objects for both players
 			drawGame();
 
 			// Continue loop
 			animationFrame.value = requestAnimationFrame(gameLoop);
+		};
+
+
+		// const sendBallUpdate = () => {
+		// 	if (gameSocket.value?.readyState === WebSocket.OPEN) {
+		// 		gameSocket.value.send(JSON.stringify({
+		// 			type: 'ball_update',
+		// 			ball: gameState.value.ball,
+		// 			score: gameState.value.score
+		// 		}));
+		// 	}
+		// };
+		const sendBallUpdate = () => {
+			if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
+				console.log('Sending ball update:', {
+					ball: gameState.value.ball,
+					score: gameState.value.score
+				});
+				
+				gameSocket.value.send(JSON.stringify({
+					type: 'ball_update',
+					ball: gameState.value.ball,
+					score: gameState.value.score
+				}));
+			}
 		};
 
 		const lastUpdate = ref(Date.now());
@@ -234,39 +370,88 @@ export default defineComponent({
 				checkGameOver();
 			}
 
-			// AI movement
-			const aiSpeed = 4;
-			if (paddles.opponent.y + paddles.height / 2 < ball.y) {
-				paddles.opponent.y = Math.min(paddles.opponent.y + aiSpeed, CANVAS_HEIGHT - paddles.height);
-			} else {
-				paddles.opponent.y = Math.max(paddles.opponent.y - aiSpeed, 0);
-			}
+			// Remove AI movement code that was here
 		};
 
+		// const drawGame = () => {
+		// 	if (!ctx.value) return;
+		// 	const { ball, paddles } = gameState.value;
+
+		// 	// Clear the canvas
+		// 	ctx.value.clearRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+
+		// 	// Set styles
+		// 	ctx.value.fillStyle = 'white';
+		// 	ctx.value.strokeStyle = 'white';
+
+		// 	// Draw paddles
+		// 	ctx.value.fillRect(
+		// 		paddles.player.x,
+		// 		paddles.player.y,
+		// 		paddles.width,
+		// 		paddles.height
+		// 	);
+		// 	ctx.value.fillRect(
+		// 		paddles.opponent.x,
+		// 		paddles.opponent.y,
+		// 		paddles.width,
+		// 		paddles.height
+		// 	);
+
+		// 	// Draw ball
+		// 	ctx.value.beginPath();
+		// 	ctx.value.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+		// 	ctx.value.fill();
+		// };
 		const drawGame = () => {
 			if (!ctx.value) return;
+			
+			// Store game state locally
 			const { ball, paddles } = gameState.value;
 
-			// Draw paddles
-			ctx.value.fillRect(
-				paddles.player.x,
-				paddles.player.y,
-				paddles.width,
-				paddles.height
-			);
-			ctx.value.fillRect(
-				paddles.opponent.x,
-				paddles.opponent.y,
-				paddles.width,
-				paddles.height
-			);
+			// Clear the canvas with a dark background
+			ctx.value.fillStyle = '#000000';
+			ctx.value.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
-			// Draw ball
+			// Draw center line
+			ctx.value.strokeStyle = '#ffffff';
+			ctx.value.setLineDash([5, 15]);
+			ctx.value.beginPath();
+			ctx.value.moveTo(CANVAS_WIDTH / 2, 0);
+			ctx.value.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+			ctx.value.stroke();
+			ctx.value.setLineDash([]);
+
+			// Log positions for debugging
+			console.log('Drawing game objects:', {
+				ball: { x: ball.x, y: ball.y },
+				player: { x: paddles.player.x, y: paddles.player.y },
+				opponent: { x: paddles.opponent.x, y: paddles.opponent.y }
+			});
+
+			// Draw paddles with rounded corners
+			ctx.value.fillStyle = '#03a670';
+			[paddles.player, paddles.opponent].forEach(paddle => {
+				ctx.value!.beginPath();
+				ctx.value!.roundRect(
+					paddle.x, 
+					paddle.y, 
+					paddles.width, 
+					paddles.height, 
+					[5]
+				);
+				ctx.value!.fill();
+			});
+
+			// Draw ball with glow effect
+			ctx.value.fillStyle = '#ffffff';
+			ctx.value.shadowBlur = 15;
+			ctx.value.shadowColor = '#03a670';
 			ctx.value.beginPath();
 			ctx.value.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
 			ctx.value.fill();
+			ctx.value.shadowBlur = 0;
 		};
-
 		const checkPaddleCollision = (): boolean => {
 			const { ball, paddles } = gameState.value;
 			
@@ -339,14 +524,22 @@ export default defineComponent({
 		};
 
 		const handleKeyDown = (e: KeyboardEvent) => {
+			if (!gameStarted.value) return;
+			
 			const { paddles } = gameState.value;
+			let moved = false;
 			
 			if (e.key === 'ArrowUp' && paddles.player.y > 0) {
 				paddles.player.y = Math.max(0, paddles.player.y - PADDLE_SPEED);
-				sendPaddleUpdate();
+				moved = true;
 			}
 			if (e.key === 'ArrowDown' && paddles.player.y < CANVAS_HEIGHT - paddles.height) {
 				paddles.player.y = Math.min(CANVAS_HEIGHT - paddles.height, paddles.player.y + PADDLE_SPEED);
+				moved = true;
+			}
+
+			// Only send update if paddle actually moved
+			if (moved && gameSocket.value?.readyState === WebSocket.OPEN) {
 				sendPaddleUpdate();
 			}
 		};
@@ -367,21 +560,30 @@ export default defineComponent({
 				
 				gameSocket.value = new WebSocket(wsUrl);
 				
+				// Add connection retry logic
+				let retryCount = 0;
+        		const maxRetries = 3;
+
 				gameSocket.value.onopen = () => {
-					console.log('Game WebSocket connection established');
-					if (!props.isHost) {
+					console.log('Game WebSocket connected');
+					retryCount = 0; // Reset retry count on successful connection
+					
+					// Send initial join message
+					if (!isLocalHost.value) {
 						gameSocket.value?.send(JSON.stringify({
 							type: 'join_game',
 							gameId: props.gameId
 						}));
 					}
 				};
+        
 				
 				gameSocket.value.onmessage = (event) => {
 					try {
 						const data = JSON.parse(event.data);
 						console.log('Received game message:', data);
-						// Use Vue.nextTick to ensure DOM updates are synchronized
+						
+						// Handle the message in the next tick to ensure state updates are synchronized
 						nextTick(() => {
 							handleGameMessage(data);
 						});
@@ -396,9 +598,15 @@ export default defineComponent({
 				
 				gameSocket.value.onclose = (event) => {
 					console.log('Game WebSocket closed:', event);
-					if (!event.wasClean && gameStarted.value) {
-						console.log('Game connection lost, attempting to reconnect...');
-						setTimeout(initializeGameSocket, 3000);
+					
+					// Only attempt to reconnect if the game is still active
+					if (gameStarted.value && retryCount < maxRetries) {
+						console.log(`Attempting to reconnect (${retryCount + 1}/${maxRetries})...`);
+						retryCount++;
+						setTimeout(initializeGameSocket, 1000 * retryCount);
+					} else if (retryCount >= maxRetries) {
+						console.log('Max reconnection attempts reached');
+						emit('connectionLost');
 					}
 				};
 			} catch (error) {
@@ -478,28 +686,43 @@ export default defineComponent({
         //         opponentScore.value = data.score.opponent;
         //     }
         //     break;	
+				// case 'paddle_move':
+				// 	if (data.player !== props.isHost) {
+				// 		gameState.value.paddles.opponent.y = data.y;
+				// 		// Send paddle position to opponent if we're the host
+				// 		if (props.isHost && gameSocket.value?.readyState === WebSocket.OPEN) {
+				// 			gameSocket.value.send(JSON.stringify({
+				// 				type: 'paddle_update',
+				// 				y: gameState.value.paddles.player.y
+				// 			}));
+				// 		}
+				// 	}
+				// 	break;
 				case 'paddle_move':
-					if (data.player !== props.isHost) {
+					if (data.player !== (isLocalHost.value ? 'player1' : 'player2')) {
 						gameState.value.paddles.opponent.y = data.y;
-						// Send paddle position to opponent if we're the host
-						if (props.isHost && gameSocket.value?.readyState === WebSocket.OPEN) {
-							gameSocket.value.send(JSON.stringify({
-								type: 'paddle_update',
-								y: gameState.value.paddles.player.y
-							}));
-						}
 					}
 					break;
 
+
+				// case 'ball_update':
+				// 	if (!props.isHost) {
+				// 		gameState.value.ball = data.ball;
+				// 		gameState.value.score = data.score;
+				// 		playerScore.value = data.score.player;
+				// 		opponentScore.value = data.score.opponent;
+				// 	}
+				// 	break;
+
 				case 'ball_update':
-					if (!props.isHost) {
+					if (!isLocalHost.value) {
+						console.log('Received ball update:', data.ball);
 						gameState.value.ball = data.ball;
 						gameState.value.score = data.score;
 						playerScore.value = data.score.player;
 						opponentScore.value = data.score.opponent;
 					}
 					break;
-
 				case 'game_over':
 					handleGameOver(data);
 					break;
@@ -510,35 +733,85 @@ export default defineComponent({
 		};
 
 
+		// const startGame = () => {
+		// 	if (!gameSocket.value || gameSocket.value.readyState !== WebSocket.OPEN) {
+		// 		console.error('WebSocket not connected');
+		// 		return;
+		// 	}
+
+		// 	if (isLocalHost.value) {
+		// 		console.log('Host starting game...');
+				
+		// 		// Initialize game before starting loop
+		// 		initGame();
+				
+		// 		if (!ctx.value || !gameCanvas.value) {
+		// 			console.error('Failed to initialize game');
+		// 			return;
+		// 		}
+
+		// 		gameSocket.value.send(JSON.stringify({
+		// 			type: 'start_game',
+		// 			game_id: props.gameId
+		// 		}));
+
+		// 		gameStarted.value = true;
+		// 		resetBall();
+		// 		gameLoop();
+		// 	}
+		// };
 		const startGame = () => {
 			if (!gameSocket.value || gameSocket.value.readyState !== WebSocket.OPEN) {
 				console.error('WebSocket not connected');
 				return;
 			}
 
-			// Use isLocalHost instead of props.isHost
 			if (isLocalHost.value) {
 				console.log('Host starting game...');
-				gameSocket.value.send(JSON.stringify({
-					type: 'start_game',
-					game_id: props.gameId
-				}));
-				gameStarted.value = true;
-				resetBall();
-				gameLoop();
+				
+				gameStarted.value = true; // Set this first so canvas is rendered
+
+				// Wait for next tick to ensure canvas is mounted
+				nextTick(() => {
+					// Initialize game after canvas is rendered
+					if (!initGame()) {
+						console.error('Failed to initialize game');
+						gameStarted.value = false;
+						return;
+					}
+
+					gameSocket.value?.send(JSON.stringify({
+						type: 'start_game',
+						game_id: props.gameId
+					}));
+
+					resetBall();
+					gameLoop();
+				});
 			}
 		};
 
 		const sendPaddleUpdate = () => {
 			if (gameSocket.value?.readyState === WebSocket.OPEN) {
-				gameSocket.value.send(JSON.stringify({
-				type: 'paddle_move',
-				y: gameState.value.paddles.player.y
-				}));
+				try {
+					gameSocket.value.send(JSON.stringify({
+						type: 'paddle_move',
+						y: gameState.value.paddles.player.y,
+						player: isLocalHost.value ? 'player1' : 'player2'
+					}));
+				} catch (error) {
+					console.error('Error sending paddle update:', error);
+				}
 			}
 		};
 
-		
+		const isConnected = ref(false);
+		const checkConnection = () => {
+			if (gameSocket.value) {
+				isConnected.value = gameSocket.value.readyState === WebSocket.OPEN;
+			}
+		};
+
 
 		const handleGameOver = (data: any) => {
 			cancelAnimationFrame(animationFrame.value);
@@ -551,8 +824,13 @@ export default defineComponent({
 		};
 
 
+		onUnmounted(() => {
+			cleanup();
+		});
+
 		const cleanup = () => {
 			if (gameSocket.value) {
+				gameSocket.value.onclose = null; // Prevent reconnection attempts during cleanup
 				gameSocket.value.close();
 			}
 			cancelAnimationFrame(animationFrame.value);
@@ -588,27 +866,58 @@ export default defineComponent({
 
 		let resizeObserver: ResizeObserver | null = null;
 
-		onMounted(() => {
-			initGame();
-			initializeGameSocket();
-			window.addEventListener('keydown', handleKeyDown);
+		// onMounted(() => {
+		// 	initGame();
+		// 	initializeGameSocket();
+		// 	window.addEventListener('keydown', handleKeyDown);
 			
-			// Update resize observer to preserve game state
-			if (gameCanvas.value) {
-				resizeObserver = new ResizeObserver(() => {
-					// Store current game state
-					const currentState = { ...gameState.value };
+		// 	// Update resize observer to preserve game state
+		// 	if (gameCanvas.value) {
+		// 		resizeObserver = new ResizeObserver(() => {
+		// 			// Store current game state
+		// 			const currentState = { ...gameState.value };
 					
-					// Reinitialize canvas
-					initGame();
+		// 			// Reinitialize canvas
+		// 			initGame();
 					
-					// Restore game state
-					gameState.value = currentState;
-				});
-				resizeObserver.observe(gameCanvas.value.parentElement as Element);
-			}
-		});		
+		// 			// Restore game state
+		// 			gameState.value = currentState;
+		// 		});
+		// 		resizeObserver.observe(gameCanvas.value.parentElement as Element);
+		// 	}
+		// });
+		onMounted(() => {
+			// Wait for the next tick when the template is rendered
+			nextTick(async () => {
+				// Wait a small amount of time to ensure canvas is mounted
+				await new Promise(resolve => setTimeout(resolve, 100));
+				
+				if (!gameCanvas.value) {
+					console.error('Canvas ref not found after mount');
+					return;
+				}
 
+				console.log('Canvas element found:', {
+					element: gameCanvas.value,
+					width: gameCanvas.value.width,
+					height: gameCanvas.value.height
+				});
+
+				// Initialize game components
+				initGame();
+				
+				if (ctx.value && gameCanvas.value) {
+					console.log('Game components initialized successfully');
+					initializeGameSocket();
+					window.addEventListener('keydown', handleKeyDown);
+				} else {
+					console.error('Failed to initialize game components:', {
+						context: !!ctx.value,
+						canvas: !!gameCanvas.value
+					});
+				}
+			});
+		});
 		onUnmounted(() => {
 			cancelAnimationFrame(animationFrame.value);
 			window.removeEventListener('keydown', handleKeyDown);
@@ -680,15 +989,26 @@ export default defineComponent({
   min-height: 0;
 }
 
-canvas {
+/* canvas {
   background: black;
   border-radius: 4px;
   max-width: 100%;
-  max-height: calc(100% - 80px); /* Account for score and buttons */
+  max-height: calc(100% - 80px); 
   width: auto;
   height: auto;
   object-fit: contain;
   margin: auto;
+} */
+
+canvas {
+    background: #000000;
+    border-radius: 4px;
+    width: 800px !important;
+    height: 400px !important;
+    object-fit: contain;
+    margin: auto;
+    image-rendering: pixelated;
+    box-shadow: 0 0 20px rgba(3, 166, 112, 0.2);
 }
 
 .game-info {
