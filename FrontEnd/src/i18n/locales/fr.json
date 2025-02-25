@@ -1,0 +1,119 @@
+{
+    "hello": {
+      "welcome": "Bienvenue dans notre",
+      "project": "projet notre jeu Pong recréé par",
+      "and": "et"
+    },
+    "welcome": {
+      "subject": {
+        "heading": "Sujet",
+        "content": "Le sujet officiel de Transcendence vous fournit tous les détails."
+      },
+      "technologies": {
+        "heading": "Technologies et Fonctionnalités",
+        "content": "Ce projet utilise des technologies majeures comme Django et Vue."
+      }
+    },
+      "nav": {
+        "home": "Accueil",
+        "login": "Connexion",
+        "register": "S'inscrire",
+        "profile": "Profil",
+        "friends": "Amis"
+      },
+      "login": {
+        "title": "Connexion",
+        "username": "Nom d'utilisateur",
+        "password": "Mot de passe",
+        "submit": "Se connecter",
+        "loading": "Connexion en cours...",
+        "enterUsername": "Entrez votre nom d'utilisateur",
+        "enterPassword": "Entrez votre mot de passe",
+        "errors": {
+      "Login failed": "Échec de la connexion",
+      "Network error occurred": "Erreur de réseau survenue"
+    }
+      },
+      "register": {
+        "title": "S'inscrire",
+        "username": "Nom d'utilisateur",
+        "password": "Mot de passe",
+        "confirmPassword": "Confirmer le mot de passe",
+        "usernamePlaceholder": "Entrez votre nom d'utilisateur",
+        "passwordPlaceholder": "Entrez votre mot de passe",
+        "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
+        "submit": "S'inscrire",
+        "registering": "Inscription en cours...",
+        "successTitle": "Inscription réussie !",
+        "redirecting": "Redirection vers la page de connexion...",
+        "loading": "Inscription en cours...",
+        "success": "Inscription réussie ! Redirection vers la connexion...",
+        "messages": {
+        "Registration failed": "L'inscription a échoué",
+        "Registration successful! Redirecting to login...": "Inscription réussie ! Redirection vers la connexion..."
+        }
+      },
+      "friends": {
+        "title": "Amis",
+        "noFriends": "Pas encore d'amis",
+        "info": "Info",
+        "remove": "Supprimer",
+        "chat": "Démarrer le chat",
+        "close": "Fermer",
+        "profileInfo": "Informations du profil",
+        "displayName": "Nom d'affichage",
+        "sendMessage": "Envoyer",
+        "typeMessage": "Tapez votre message...",
+        "chatWith": "Chat avec {name}"
+      },
+      "home": {
+    "title": "Bienvenue sur Transcendence",
+    "description": "Découvrez le jeu Pong classique réinventé pour le web moderne"
+  },
+    "profile": {
+      "title": "Profil",
+      "avatar": {
+        "altText": "Photo de profil",
+        "change": "Changer l'avatar",
+        "delete": "Supprimer l'avatar",
+        "upload": "Télécharger l'avatar"
+      },
+      "update": {
+        "profile": "Mettre à jour le profil",
+        "placeholder": "Entrez le nom d'affichage"
+      },
+      "search": {
+        "placeholder": "Rechercher des profils...",
+        "searching": "Recherche en cours...",
+        "noResults": "Aucun utilisateur trouvé",
+        "error": "Échec de la recherche"
+      },
+      "friends": {
+        "requests": "Demandes d'amis reçues",
+        "add": "Ajouter un ami",
+        "remove": "Supprimer l'ami",
+        "block": "Bloquer",
+        "unblock": "Débloquer l'utilisateur",
+        "accept": "Accepter",
+        "decline": "Refuser",
+        "pending": "Demande en attente"
+      },
+      "status": {
+        "online": "En ligne",
+        "offline": "Hors ligne"
+      },
+      "actions": {
+        "logout": "Déconnexion",
+        "close": "Fermer"
+      },
+      "errors": {
+      "displayName": "Nom d'affichage invalide"
+    }
+    },
+    "errors": {
+      "Passwords do not match": "Les mots de passe ne correspondent pas",
+      "Username already exists": "Le nom d'utilisateur existe déjà",
+      "Invalid username format": "Format de nom d'utilisateur invalide",
+      "Password too weak": "Mot de passe trop faible"
+    }
+}

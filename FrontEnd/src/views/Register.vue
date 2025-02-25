@@ -1,56 +1,56 @@
 <template>
   <div class="form-container">
     <div v-if="!isRegistrationSuccessful">
-      <h2>Register</h2>
+      <h2>{{ t('register.title') }}</h2>
       <form @submit.prevent="register">
         <div class="form-group">
-          <label for="username">Username</label>
+          <label for="username">{{ t('register.username') }}</label>
           <input 
             id="username" 
             v-model="username" 
             type="text" 
-            placeholder="Enter username" 
+            :placeholder="t('register.usernamePlaceholder')" 
             required 
             :disabled="loading"
           />
         </div>
         <div class="form-group">
-          <label for="password">Password</label>
+          <label for="password">{{ t('register.password') }}</label>
           <input 
             id="password" 
             v-model="password" 
             type="password" 
-            placeholder="Enter password" 
+            :placeholder="t('register.passwordPlaceholder')" 
             required 
             :disabled="loading"
           />
         </div>
         <div class="form-group">
-          <label for="passwordConfirm">Confirm Password</label>
+          <label for="passwordConfirm">{{ t('register.confirmPassword') }}</label>
           <input 
             id="passwordConfirm" 
             v-model="passwordConfirm" 
             type="password" 
-            placeholder="Confirm password" 
+            :placeholder="t('register.confirmPasswordPlaceholder')" 
             required 
             :disabled="loading"
           />
         </div>
         <button type="submit" class="submit-btn" :disabled="loading">
-          {{ loading ? 'Registering...' : 'Register' }}
+          {{ loading ? t('register.registering') : t('register.submit') }}
         </button>
       </form>
     </div>
 
     <div v-else class="success-container">
-      <h2>Registration Successful!</h2>
-      <p>Redirecting to login page...</p>
+      <h2>{{ t('register.successTitle') }}</h2>
+      <p>{{ t('register.redirecting') }}</p>
       <div class="loader"></div>
     </div>
     
-    <p v-if="message" :class="['message', messageType]">{{ message }}</p>
+    <p v-if="message" :class="['message', messageType]">{{ t(`register.messages.${message}`) }}</p>
     <ul v-if="errors.length" class="errors-list">
-      <li v-for="error in errors" :key="error">{{ error }}</li>
+      <li v-for="error in errors" :key="error">{{ t(`register.errors.${error}`) }}</li>
     </ul>
   </div>
 </template>
@@ -58,8 +58,13 @@
 <script>
 
 import { SERVICE_URLS } from '@/config/services';
+import { useI18n } from 'vue-i18n';
 
 export default {
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
   data() {
     return {
       username: '',

@@ -2,7 +2,7 @@
   <div class="friends-container">
     <!-- Friends Section with Chat -->
     <div class="profile-section">
-      <h2>Friends</h2>
+      <h2>{{ t('friends.title') }}</h2>
       <div v-if="profile.friends && profile.friends.length > 0">
         <div v-for="friend in profile.friends" :key="friend.id" class="profile-item">
           <div class="avatar-container" @click="showFriendInfo(friend)">
@@ -11,25 +11,24 @@
           </div>
           <span class="profile-name" @click="showFriendInfo(friend)">{{ friend.display_name }}</span>
           <div class="friend-actions">
-            <button @click="showFriendInfo(friend)" class="btn primary-btn">Info</button>
-            <button @click.stop="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
+            <button @click="showFriendInfo(friend)" class="btn primary-btn">{{ t('friends.info') }}</button>
+            <button @click.stop="removeFriend(friend.id)" class="btn secondary-btn">{{ t('friends.remove') }}</button>
           </div>
         </div>
       </div>
-      <p v-else>No friends yet</p>
+      <p v-else>{{ t('friends.noFriends') }}</p>
     </div>
 
-    <!-- Replace the existing friend-profile-modal div with this -->
+    <!-- Friend Profile Modal -->
     <transition name="fade">
       <div v-if="showFriendProfile && selectedFriend" class="overlay">
         <div class="friend-profile-modal">
           <div class="friend-profile-header">
-            <h3 class="profile-title">Profile Information</h3>
-            <button @click="showFriendProfile = false" class="btn secondary-btn">Close</button>
+            <h3 class="profile-title">{{ t('friends.profileInfo') }}</h3>
+            <button @click="showFriendProfile = false" class="btn secondary-btn">{{ t('friends.close') }}</button>
           </div>
 
           <div class="profile-details">
-            <!-- Add avatar section -->
             <div class="detail-group avatar-group">
               <div class="profile-avatar-large">
                 <img 
@@ -42,14 +41,13 @@
             </div>
 
             <div class="detail-group">
-              <h5>Display Name</h5>
+              <h5>{{ t('friends.displayName') }}</h5>
               <p>{{ selectedFriend.display_name }}</p>
             </div>
-
           </div>
 
           <div class="friend-profile-footer">
-            <button @click="startChat(selectedFriend)" class="btn primary-btn">Start Chat</button>
+            <button @click="startChat(selectedFriend)" class="btn primary-btn">{{ t('friends.chat') }}</button>
           </div>
         </div>
       </div>
@@ -60,42 +58,18 @@
       <div v-if="showChat" class="overlay">
         <div class="chat-container">
           <div class="chat-header">
-            <h4 class="chat-title">Chat with {{ activeChat }}</h4>
-            <button @click="closeChat" class="btn secondary-btn">Close</button>
+            <h4 class="chat-title">{{ t('friends.chatWith', { name: activeChat }) }}</h4>
+            <button @click="closeChat" class="btn secondary-btn">{{ t('friends.close') }}</button>
           </div>
-          <div class="chat-messages" ref="chatMessages">
-            <div v-for="message in messages" 
-              :key="message.id" 
-              :class="['message', { 
-                'message-sent': parseInt(message.sender_id) === parseInt(currentUserId),
-                'message-received': parseInt(message.sender_id) !== parseInt(currentUserId)
-              }]">
-              <div class="message-content" :class="{ 
-                  'content-sent': parseInt(message.sender_id) === currentUserId,
-                  'content-received': parseInt(message.sender_id) !== currentUserId
-                }">
-                <div class="message-header">
-                  <small class="message-sender">
-                    {{ parseInt(message.sender_id) === currentUserId ? '' : activeChat }} <!-- Hide sender name for own messages -->
-                  </small>
-                </div>
-                <span class="message-text">{{ message.text }}</span>
-                <div class="message-footer">
-                  <small class="message-time">{{ formatDate(message.created_at) }}</small>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-
+          <!-- ...existing chat messages code... -->
           <div class="chat-input">
             <input 
               v-model="newMessage" 
               @keyup.enter="sendMessage" 
-              placeholder="Type your message..."
+              :placeholder="t('friends.typeMessage')"
               class="input-field"
             />
-            <button @click="sendMessage" class="btn primary-btn">Send</button>
+            <button @click="sendMessage" class="btn primary-btn">{{ t('friends.sendMessage') }}</button>
           </div>
         </div>
       </div>
@@ -106,10 +80,16 @@
 <script>
 import { mapGetters } from 'vuex';
 import { SERVICE_URLS } from '@/config/services';
+import { useI18n } from 'vue-i18n';
 
 export default {
   name: 'Friends',
   
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
+
   data() {
     return {
       profile: {

@@ -1,0 +1,119 @@
+{
+    "hello": {
+      "welcome": "Willkommen zu unserem",
+      "project": "Projekt, unser nachgebildetes Pong-Spiel von",
+      "and": "und"
+    },
+    "welcome": {
+      "subject": {
+        "heading": "Thema",
+        "content": "Das offizielle Thema von Transcendence bietet Ihnen alle Details."
+      },
+      "technologies": {
+        "heading": "Technologien & Funktionen",
+        "content": "Dieses Projekt nutzt wichtige Technologien wie Django und Vue."
+      }
+    },
+      "nav": {
+        "home": "Startseite",
+        "login": "Anmelden",
+        "register": "Registrieren",
+        "profile": "Profil",
+        "friends": "Freunde"
+      },
+      "login": {
+        "title": "Anmelden",
+        "username": "Benutzername",
+        "password": "Passwort",
+        "submit": "Anmelden",
+        "loading": "Anmeldung läuft...",
+        "enterUsername": "Benutzername eingeben",
+        "enterPassword": "Passwort eingeben",
+        "errors": {
+      "Login failed": "Anmeldung fehlgeschlagen",
+      "Network error occurred": "Netzwerkfehler aufgetreten"
+    }
+      },
+      "register": {
+        "title": "Registrieren",
+        "username": "Benutzername",
+        "password": "Passwort",
+        "confirmPassword": "Passwort bestätigen",
+        "usernamePlaceholder": "Benutzername eingeben",
+        "passwordPlaceholder": "Passwort eingeben",
+        "confirmPasswordPlaceholder": "Passwort bestätigen",
+        "submit": "Registrieren",
+        "registering": "Registrierung läuft...",
+        "successTitle": "Registrierung erfolgreich!",
+        "redirecting": "Weiterleitung zur Anmeldeseite...",
+        "loading": "Registrierung läuft...",
+        "success": "Registrierung erfolgreich! Weiterleitung zur Anmeldung...",
+        "messages": {
+      "Registration failed": "Registrierung fehlgeschlagen",
+      "Registration successful! Redirecting to login...": "Registrierung erfolgreich! Weiterleitung zur Anmeldung..."
+        }
+      },
+      "friends": {
+        "title": "Freunde",
+        "noFriends": "Noch keine Freunde",
+        "info": "Info",
+        "remove": "Entfernen",
+        "chat": "Chat starten",
+        "close": "Schließen",
+        "profileInfo": "Profilinformationen",
+        "displayName": "Anzeigename",
+        "sendMessage": "Senden",
+        "typeMessage": "Nachricht eingeben...",
+        "chatWith": "Chat mit {name}"
+      },
+      "home": {
+    "title": "Willkommen bei Transcendence",
+    "description": "Erleben Sie das klassische Pong-Spiel, neu erfunden für das moderne Web"
+  },
+    "profile": {
+      "title": "Profil",
+      "avatar": {
+        "altText": "Profilbild",
+        "change": "Avatar ändern",
+        "delete": "Avatar löschen",
+        "upload": "Avatar hochladen"
+      },
+      "update": {
+        "profile": "Profil aktualisieren",
+        "placeholder": "Anzeigenamen eingeben"
+      },
+      "search": {
+        "placeholder": "Profile suchen...",
+        "searching": "Suche läuft...",
+        "noResults": "Keine Benutzer gefunden",
+        "error": "Suche fehlgeschlagen"
+      },
+      "friends": {
+        "requests": "Eingehende Freundschaftsanfragen",
+        "add": "Freund hinzufügen",
+        "remove": "Freund entfernen",
+        "block": "Blockieren",
+        "unblock": "Benutzer entsperren",
+        "accept": "Akzeptieren",
+        "decline": "Ablehnen",
+        "pending": "Anfrage ausstehend"
+      },
+      "status": {
+        "online": "Online",
+        "offline": "Offline"
+      },
+      "actions": {
+        "logout": "Abmelden",
+        "close": "Schließen"
+      },
+      "errors": {
+      "displayName": "Ungültiger Anzeigename"
+    }
+    },
+    "errors": {
+      "Passwords do not match": "Passwörter stimmen nicht überein",
+      "Username already exists": "Benutzername existiert bereits",
+      "Invalid username format": "Ungültiges Benutzernamenformat",
+      "Password too weak": "Passwort zu schwach"
+    }
+  }

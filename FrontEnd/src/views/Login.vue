@@ -1,27 +1,44 @@
 <template>
   <div class="form-container">
-    <h2>Login</h2>
+    <h2>{{ t('login.title') }}</h2>
     <form @submit.prevent="login">
       <div class="form-group">
-        <label for="username">Username</label>
-        <input id="username" v-model="username" type="text" placeholder="Enter username" required />
+        <label for="username">{{ t('login.username') }}</label>
+        <input 
+          id="username" 
+          v-model="username" 
+          type="text" 
+          :placeholder="t('login.enterUsername')" 
+          required 
+        />
       </div>
       <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" v-model="password" type="password" placeholder="Enter password" required />
+        <label for="password">{{ t('login.password') }}</label>
+        <input 
+          id="password" 
+          v-model="password" 
+          type="password" 
+          :placeholder="t('login.enterPassword')" 
+          required 
+        />
       </div>
       <button type="submit" class="submit-btn" :disabled="loading">
-        {{ loading ? 'Logging in...' : 'Login' }}
+        {{ loading ? t('login.loading') : t('login.submit') }}
       </button>
     </form>
-    <p v-if="error" class="message error">{{ error }}</p>
+    <p v-if="error" class="message error">{{ t(`login.errors.${error}`) }}</p>
   </div>
 </template>
 
 <script>
 import { auth } from '@/utils/auth';
+import { useI18n } from 'vue-i18n';
 
 export default {
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
   data() {
     return {
       username: '',

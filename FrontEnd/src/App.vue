@@ -3,10 +3,18 @@ import { RouterLink, RouterView, useRouter } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
 import { computed, onMounted } from 'vue'
 import { useStore } from 'vuex'
+import { useI18n } from 'vue-i18n'
 
+const { t } = useI18n()
 const store = useStore()
 const router = useRouter()
 const isAuthenticated = computed(() => store.state.isAuthenticated)
+
+const languages = [
+  { code: 'en', name: 'English' },
+  { code: 'fr', name: 'Français' },
+  { code: 'de', name: 'Deutsch' }
+]
 
 async function logout() {
   try {
@@ -19,7 +27,7 @@ async function logout() {
 
 // Check authentication state on app load
 onMounted(async () => {
-  let token = localStorage.getItem('token') // Changed from authToken to token
+  let token = localStorage.getItem('token')
   console.log('Token status:', token ? 'Present' : 'Not found')
 
   // Clear invalid tokens
@@ -35,7 +43,6 @@ onMounted(async () => {
   // Validate token and set authentication state
   try {
     store.commit('setToken', token)
-    
   } catch (error) {
     console.error('Token validation error:', error)
     store.commit('setToken', null)
@@ -54,11 +61,11 @@ onMounted(async () => {
     <div class="wrapper">
       <HelloWorld msg="Transcendence" />
       <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink v-if="!isAuthenticated" to="/login">Login</RouterLink>
-        <RouterLink v-if="!isAuthenticated" to="/register">Register</RouterLink>
-        <RouterLink v-if="isAuthenticated" to="/profile">Profile</RouterLink>
-        <RouterLink v-if="isAuthenticated" to="/friends">Friends</RouterLink>
+        <RouterLink to="/">{{ t('nav.home') }}</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/login">{{ t('nav.login') }}</RouterLink>
+        <RouterLink v-if="!isAuthenticated" to="/register">{{ t('nav.register') }}</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/profile">{{ t('nav.profile') }}</RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/friends">{{ t('nav.friends') }}</RouterLink>
       </nav>
     </div>
   </header>
