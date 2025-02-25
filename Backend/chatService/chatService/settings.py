@@ -133,26 +133,16 @@ LOGGING = {
     },
 }
 
+
+base_urls = ["localhost", "gateway", "127.0.0.1", "10.12.12.4"]
+protocols = ["http", "https", "ws", "wss"]
 # Add CORS settings
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOWED_ORIGINS = [
-    "https://localhost",
-    "http://localhost",
-    "http://localhost:5173",
-    "http://gateway",
-    "https://gateway",
-    "ws://localhost",
-    "wss://localhost",
-    "ws://gateway",
-    "wss://gateway",
-    "http://127.0.0.1",
-    "https://127.0.0.1",
-    "ws://127.0.0.1",
-    "wss://127.0.0.1"
-]
+CORS_ALLOWED_ORIGINS = [f"{protocol}://{url}" for url in base_urls for protocol in protocols] + ["http://localhost:5173"]
 
 CORS_ALLOWED_ORIGIN_REGEXES = [
     r"^http://\w+\.localhost$",
+    r"^http://\w+\.10\.12\.12\.4(:[0-9]+)?$",
 ]
 
 CORS_ALLOW_HEADERS = [
@@ -218,4 +208,4 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-ALLOWED_HOSTS = ["localhost", "127.0.0.1", "chat", "0.0.0.0", "0.0.0.0:8001", "gateway", "10.12.12.6"]
+ALLOWED_HOSTS = ['*']
