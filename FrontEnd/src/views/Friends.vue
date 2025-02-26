@@ -9,7 +9,7 @@
       </button>
       <button 
         @click="activeTab = 'requests'"
-        :class="['tab-btn', { active: activeTab === 'requests' }]"
+        :class="['tab-btn', { active: activeTab === 'requests', 'highlight': incomingFriendRequests.length > 0 }]"
       >
         Friend Requests ({{ incomingFriendRequests.length }})
       </button>
@@ -471,6 +471,7 @@ export default {
       } catch (error) {
         console.error('Error fetching friend requests:', error);
         this.showStatus('Failed to load friend requests', {}, 'error');
+        throw error;
       }
     },
 
@@ -498,6 +499,21 @@ export default {
         this.updateSearchResultStatus(friendId, 'pending');
         this.showStatus('Friend request sent to {name}', { name: friend.display_name }, 'success');
         await this.fetchProfile();
+
+        // Send friend request notification through WebSocket Erik
+        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+          const notificationData = {
+            type: 'friend_request',
+            recipient_id: friendId,
+            sender_name: this.profile.display_name || this.username,
+            sender_id: this.currentUserId 
+          };
+
+          console.log('Sending friend request notification:', notificationData);
+          this.notificationSocket.send(JSON.stringify(notificationData));
+        } else {
+          console.error('Notification socket not connected');
+        }
       } catch (error) {
         console.error('Error sending friend request:', error);
         this.showStatus(error.message || 'Failed to send friend request', {}, 'error');
@@ -523,7 +539,27 @@ export default {
           { name: request.from_user.display_name }, 
           'success'
         );
+
+        // Remove from incoming request
+        this.incomingFriendRequests = this.incomingFriendRequests.filter(req => req.id !== request.id);
+        localStorage.setItem('incomingRequests', JSON.stringify(this.incomingFriendRequests));
+      
+        // Fetch updated profile to get fresh friends list
         await this.fetchProfile();
+
+        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+          const notificationData = {
+            type: 'friend_accepted',
+            recipient_id: request.from_user.id,
+            sender_name: this.profile.display_name || this.username,
+            sender_id: this.currentUserId
+          };
+
+          console.log('Sending friend request accepted notification:', notificationData);
+          this.notificationSocket.send(JSON.stringify(notificationData));
+        } else {
+          console.error('Notification socket not connected');
+        }
       } catch (error) {
         console.error('Error accepting friend request:', error);
         this.showStatus('Failed to accept friend request', {}, 'error');
@@ -549,6 +585,19 @@ export default {
           { name: request.from_user.display_name }, 
           'success'
         );
+        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+          const notificationData = {
+            type: 'friend_declined',
+            recipient_id: request.from_user.id,  // Send to the person who originally sent the request
+            sender_name: this.profile.display_name || this.username,
+            sender_id: this.currentUserId
+          };
+
+          console.log('Sending friend decline notification:', notificationData);
+          this.notificationSocket.send(JSON.stringify(notificationData));
+        } else {
+          console.error('Notification socket not connected');
+        }
       } catch (error) {
         console.error('Error declining friend request:', error);
         this.showStatus('Failed to decline friend request', {}, 'error');
@@ -575,8 +624,37 @@ export default {
 
         const data = await response.json();
         if (response.ok) {
+
+          // Update search results to clear any pending status - ADD THIS CODE
+          this.searchResults = this.searchResults.map(profile => {
+            if (profile.id === friendId) {
+              return {
+                ...profile,
+                friend_request_status: null,  // Clear the pending status
+                requested_by_current_user: false,
+                is_friend: false // Make sure "is_friend" is set to false
+              };
+            }
+            return profile;
+          });
+
           this.showStatus('Friend {name} removed successfully', { name: friend.display_name }, 'success');
           await this.fetchProfile();
+          
+          // Send friend removal notification through WebSocket
+          if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+            const notificationData = {
+              type: 'friend_removed',
+              recipient_id: friendId,
+              sender_name: this.profile.display_name || this.username,
+              sender_id: this.currentUserId
+            };
+
+            console.log('Sending friend removal notification:', notificationData);
+            this.notificationSocket.send(JSON.stringify(notificationData));
+          } else {
+            console.error('Notification socket not connected');
+          }
         } else {
           this.showStatus(data.message || 'Failed to remove friend', {}, 'error');
         }
@@ -1161,82 +1239,6 @@ export default {
         }
     },
 
-    // handleGameAccepted(data) {
-    // if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
-    //     this.currentGameId = data.game_id;
-    //     this.showGameWindow = true;
-    //     this.showChat = false;
-    //     this.gameInviteSent = true;
-    //     this.player1Name = data.player1_name;
-    //     this.player2Name = data.player2_name;
-    //     this.showStatus('Game invite accepted!', {}, 'success');
-    //     }
-    // },
-
-    // handleGameAccepted(data) {
-    //     console.log('Game acceptance received:', data);
-        
-    //     try {
-    //         // If we're handling a click event (recipient accepting)
-    //         if (!data || data instanceof Event) {
-    //             if (!this.gameInviteNotification) {
-    //                 console.error('No game invite notification found');
-    //                 return;
-    //             }
-
-    //             // Clear any existing timeout
-    //             if (this.gameInviteTimeout) {
-    //                 clearTimeout(this.gameInviteTimeout);
-    //             }
-
-    //             // Set game data for recipient
-    //             this.currentGameId = this.gameInviteNotification.gameId;
-    //             this.opponent = this.gameInviteNotification.sender;
-                
-    //             // Send accept message through notification WebSocket
-    //             if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
-    //                 const acceptData = {
-    //                     type: 'game_accepted',
-    //                     game_id: this.currentGameId,
-    //                     sender_id: this.gameInviteNotification.senderId,
-    //                     recipient_id: this.currentUserId,
-    //                     recipient_name: this.profile.display_name,
-    //                     sender_name: this.gameInviteNotification.sender
-    //                 };
-                    
-    //                 console.log('Sending game acceptance:', acceptData);
-    //                 this.notificationSocket.send(JSON.stringify(acceptData));
-    //             }
-
-    //             // Show success message for recipient
-    //             this.showStatus('Game invite accepted! Starting game...', {}, 'success');
-    //         } 
-    //         // If we're handling a WebSocket message (sender receiving acceptance)
-    //         else {
-    //             // Set game data for sender
-    //             this.currentGameId = data.game_id;
-    //             this.opponent = data.recipient_name;
-    //             this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
-    //         }
-
-    //         // Common actions for both sender and recipient
-    //         this.showGameWindow = true;
-    //         this.showChat = false;
-    //         this.gameInviteSent = data ? false : true;
-
-    //         // Clear the notification if it exists
-    //         if (this.gameInviteNotification) {
-    //             this.gameInviteNotification = null;
-    //         }
-
-    //         // Initialize game connection
-    //         this.initializeGameConnection(this.currentGameId);
-
-    //     } catch (error) {
-    //         console.error('Error handling game acceptance:', error);
-    //         this.showStatus('Failed to process game acceptance', {}, 'error');
-    //     }
-    // },
     handleGameAccepted(data) {
         console.log('Game acceptance received:', data);
         
@@ -1358,11 +1360,8 @@ export default {
 
             const wsUrl = `${wsProtocol}//${wsHost}/ws/notifications/?token=${encodeURIComponent(token)}`;
             console.log('Connecting to notification socket:', wsUrl);
-
             this.notificationSocket = new WebSocket(wsUrl);
-
             this.notificationSocket.onopen = () => {
-                console.log('Notification WebSocket connected');
                 this.wsConnected = true;
             };
 
@@ -1370,7 +1369,7 @@ export default {
             this.notificationSocket.onmessage = (event) => {
                 try {
                     const data = JSON.parse(event.data);
-                    console.log('Received notification:', data);
+                    console.log('Received notification data:', data);
 
                     // Handle different notification types synchronously
                     switch (data.type) {
@@ -1386,11 +1385,23 @@ export default {
                         case 'chat_message':
                             this.handleChatNotification(data);
                             break;
+                        case 'friend_request':
+                            this.handleFriendRequestNotification(data);
+                            break;
+                        case 'friend_accepted':
+                            this.handleFriendAcceptNotification(data);
+                            break;
+                        case 'friend_declined':
+                            this.handleFriendDeclineNotification(data);
+                            break;
+                        case 'friend_removed':
+                          this.handleFriendRemoveNotification(data);
+                          break;
                         default:
                             console.log('Unknown notification type:', data.type);
                     }
                 } catch (error) {
-                    console.error('Error processing notification:', error);
+                  console.error('Error processing notification:', error);
                 }
             };
 
@@ -1499,6 +1510,108 @@ export default {
       this.currentGameId = gameId;
       this.showGameWindow = true;
       this.gameInviteSent = false; // Since we're joining, not hosting
+    },
+
+    handleFriendRequestNotification(data) {
+        try {
+            console.log('Handling friend request notification:', data);
+            
+            // Only update the UI if we're the recipient, not the sender
+            if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+                this.fetchIncomingRequests().then(() => {
+                    this.showStatus('New friend request received from {name}', { name: data.sender_name }, 'info');
+                }).catch(error => {
+                    console.error('Error fetching friend requests after notification:', error);
+                });
+            } else {
+                console.log('Ignoring friend request notification not meant for us');
+            }
+        } catch (error) {
+            console.error('Error processing friend request notification:', error);
+        }
+    },
+
+    handleFriendAcceptNotification(data) {
+      try {
+        console.log('Handling friend acceptance notification:', data);
+        // some check
+        if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+          // Refresh the friends list to show the new friend
+          this.fetchProfile().then(() => {
+            this.showStatus(`${data.sender_name} accepted your friend request`, {}, 'success');
+          }).catch(error => {
+            console.error('Error fetching profile after friend acceptance:', error);
+          });
+        } else {
+          console.log('Ignoring friend acceptance notification not meant for us');
+        }
+      } catch (error) {
+        console.error('Error processing friend acceptance notification:', error);
+      }
+    },
+
+    handleFriendDeclineNotification(data) {
+      try {
+        console.log('Handling friend decline notification:', data);
+        
+        if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+          // Find the declined user in search results and update their status
+          this.searchResults = this.searchResults.map(profile => {
+            if (profile.id === parseInt(data.sender_id)) {
+              return {
+                ...profile,
+                friend_request_status: null,  // Clear the pending status
+                requested_by_current_user: false
+              };
+            }
+            return profile;
+          });
+          
+          // Refresh the profile data
+          this.fetchProfile().then(() => {
+            this.showStatus(`${data.sender_name} declined your friend request`, {}, 'info');
+          }).catch(error => {
+            console.error('Error fetching profile after friend decline:', error);
+          });
+        } else {
+          console.log('Ignoring friend decline notification not meant for us');
+        }
+      } catch (error) {
+        console.error('Error processing friend decline notification:', error);
+      }
+    },
+
+    // Add this method to handle friend removal notifications
+    handleFriendRemoveNotification(data) {
+      try {
+        console.log('Handling friend removal notification:', data);
+        
+        if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+          // Update search results to clear any pending status
+          this.searchResults = this.searchResults.map(profile => {
+            if (profile.id === parseInt(data.sender_id)) {
+              return {
+                ...profile,
+                friend_request_status: null,  // Clear the pending status
+                requested_by_current_user: false,
+                is_friend: false // Make sure "is_friend" is set to false
+              };
+            }
+            return profile;
+          });
+          
+          // Refresh the profile to update the friends list
+          this.fetchProfile().then(() => {
+            this.showStatus(`${data.sender_name} has removed you from their friends list`, {}, 'info');
+          }).catch(error => {
+            console.error('Error fetching profile after friend removal:', error);
+          });
+        } else {
+          console.log('Ignoring friend removal notification not meant for us');
+        }
+      } catch (error) {
+        console.error('Error processing friend removal notification:', error);
+      }
     },
 
     // In Friends.vue
@@ -2264,5 +2377,24 @@ export default {
 .slide-down-leave-from {
   transform: translateY(0);
   opacity: 1;
+}
+
+.tab-btn.highlight {
+  background: #ff9800; /* Highlight color */
+  color: white;
+  box-shadow: 0 0 10px rgba(255, 152, 0, 0.5);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.05);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>

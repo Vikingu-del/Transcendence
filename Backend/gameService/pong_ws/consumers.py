@@ -600,6 +600,14 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 await self.handle_game_decline(data)
             elif message_type == 'chat_message':
                 await self.handle_chat_message(data)
+            elif message_type == 'friend_request':
+                await self.handle_friend_request(data)
+            elif message_type == 'friend_accepted':
+                await self.handle_friend_accept(data)
+            elif message_type == 'friend_declined':
+                await self.handle_friend_decline(data)
+            elif message_type == 'friend_removed':
+                await self.handle_friend_removed(data)
 
         except Exception as e:
             logger.error(f"Error processing notification: {str(e)}")
@@ -754,6 +762,163 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error handling chat notification: {str(e)}")
 
+    async def handle_friend_request(self, data):
+        """Handle friend request notifications"""
+        try:
+            recipient_id = data.get('recipient_id')
+            sender_id = data.get('sender_id')  # Get the sender_id from the data
+        
+
+            # Don't send friend requests to yourself
+            if int(recipient_id) == int(sender_id): 
+                print(f"Preventing self-request from user {sender_id}")
+                return
+            
+            # Check if sender_name is in the top-level data
+            sender_name = data.get('sender_name', self.user.username)
+
+            await self.channel_layer.group_send(
+                f"user_{recipient_id}",
+                {
+                    'type': 'friend.request',
+                    'message': {
+                        'type': 'friend_request',
+                        'sender_id': sender_id,
+                        'sender_name': sender_name,
+                        'recipient_id': recipient_id
+                    }
+                }
+            )
+            print(f"Friend request sent to user_{recipient_id}, sender: {sender_name}")
+        except Exception as e:
+            print(f"Error handling friend request: {str(e)}")
+
+    async def handle_friend_accept(self, data):
+        """Handle friend acceptance notifications"""
+        try:
+            recipient_id = data.get('recipient_id')
+            sender_id = data.get('sender_id')
+
+            # Don't send accept notifications to yourself
+            if int(recipient_id) == int(sender_id): 
+                print(f"Preventing self-notification from user {sender_id}")
+                return
+            
+            # Get sender name
+            sender_name = data.get('sender_name', self.user.username)
+
+            await self.channel_layer.group_send(
+                f"user_{recipient_id}",
+                {
+                    'type': 'friend.accepted',
+                    'message': {
+                        'type': 'friend_accepted',
+                        'sender_id': sender_id,
+                        'sender_name': sender_name,
+                        'recipient_id': recipient_id
+                    }
+                }
+            )
+            print(f"Friend accept sent to user_{recipient_id}, acceptor: {sender_name}")
+        except Exception as e:
+            print(f"Error handling friend accept: {str(e)}")
+
+    async def handle_friend_decline(self, data):
+        """Handle friend decline notifications"""
+        try:
+            recipient_id = data.get('recipient_id')
+            sender_id = data.get('sender_id')
+
+            # Don't send decline notifications to yourself
+            if int(recipient_id) == int(sender_id): 
+                print(f"Preventing self-notification from user {sender_id}")
+                return
+            
+            # Get sender name
+            sender_name = data.get('sender_name', self.user.username)
+
+            await self.channel_layer.group_send(
+                f"user_{recipient_id}",
+                {
+                    'type': 'friend.declined',
+                    'message': {
+                        'type': 'friend_declined',
+                        'sender_id': sender_id,
+                        'sender_name': sender_name,
+                        'recipient_id': recipient_id
+                    }
+                }
+            )
+            print(f"Friend decline sent to user_{recipient_id}, decliner: {sender_name}")
+        except Exception as e:
+            print(f"Error handling friend decline: {str(e)}")
+
+    async def handle_friend_removed(self, data):
+        """Handle friend removal notifications"""
+        try:
+            recipient_id = data.get('recipient_id')
+            sender_id = data.get('sender_id')
+
+            # Don't send removal notifications to yourself
+            if int(recipient_id) == int(sender_id): 
+                print(f"Preventing self-notification from user {sender_id}")
+                return
+            
+            # Get sender name
+            sender_name = data.get('sender_name', self.user.username)
+
+            await self.channel_layer.group_send(
+                f"user_{recipient_id}",
+                {
+                    'type': 'friend.removed',
+                    'message': {
+                        'type': 'friend_removed',
+                        'sender_id': sender_id,
+                        'sender_name': sender_name,
+                        'recipient_id': recipient_id
+                    }
+                }
+            )
+            print(f"Friend removal sent to user_{recipient_id}, remover: {sender_name}")
+        except Exception as e:
+            print(f"Error handling friend removal: {str(e)}")
+
+    async def friend_removed(self, event):
+        """Forward friend removal to client"""
+        try:
+            print(f"Forwarding friend removal: {event}")
+            await self.send(text_data=json.dumps(event['message']))
+            print(f"Friend removal forwarded successfully")
+        except Exception as e:
+            print(f"Error sending friend removal: {str(e)}")
+
+    async def friend_declined(self, event):
+        """Forward friend decline to client"""
+        try:
+            print(f"Forwarding friend decline: {event}")
+            await self.send(text_data=json.dumps(event['message']))
+            print(f"Friend decline forwarded successfully")
+        except Exception as e:
+            print(f"Error sending friend decline: {str(e)}")
+
+    async def friend_accepted(self, event):
+        """Forward friend acceptance to client"""
+        try:
+            print(f"Forwarding friend acceptance: {event}")
+            await self.send(text_data=json.dumps(event['message']))
+            print(f"Friend acceptance forwarded successfully")
+        except Exception as e:
+            print(f"Error sending friend acceptance: {str(e)}")
+
+    async def friend_request(self, event):
+        """Forward friend request to client"""
+        try:
+            print(f"Forwarding friend request: {event}")
+            await self.send(text_data=json.dumps(event['message']))
+            print(f"Friend request forwarded successfully")
+        except Exception as e:
+            print(f"Error sending friend request: {str(e)}")
+
     async def chat_notification(self, event):
         """Send chat notification to client"""
         try:
@@ -761,25 +926,6 @@ class NotificationConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             logger.error(f"Error sending chat notification: {str(e)}")
 
-    # async def game_accept(self, event):
-    #     """Handle game accept from channel layer"""
-    #     try:
-    #         message = event['message']
-    #         # Send the acceptance message to both players
-    #         await self.send(text_data=json.dumps({
-    #             'type': 'game_accepted',
-    #             'game_id': message['game_id'],
-    #             'sender_id': message['sender_id'],
-    #             'recipient_id': message['recipient_id'],
-    #             'sender_name': message['sender_name'],
-    #             'recipient_name': message['recipient_name'],
-    #             'player1_name': message['player1_name'],
-    #             'player2_name': message['player2_name']
-    #         }))
-            
-    #         logger.info(f"Game acceptance processed for game {message['game_id']}")
-    #     except Exception as e:
-    #         logger.error(f"Error sending game accept: {str(e)}")
     async def game_accept(self, event):
         """Handle game accept from channel layer"""
         try:
