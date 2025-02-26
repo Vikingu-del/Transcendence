@@ -1,0 +1,154 @@
+{
+    "hello": {
+      "welcome": "Bienvenue dans notre",
+      "project": "projet notre jeu Pong recréé par",
+      "and": "et"
+    },
+    "welcome": {
+      "subject": {
+        "heading": "Sujet",
+        "content1": "Le ",
+        "link": "sujet officiel",
+        "content2": " de Transcendence vous fournit tous les détails."
+      },
+      "technologies": {
+  "heading": "Technologies & Fonctionnalités",
+  "content1": "Ce projet exploite des technologies majeures telles que ",
+  "django": "Django",
+  "content2": " pour la fonctionnalité backend, assurant un haut niveau de conformité ",
+  "gdpr": "RGPD",
+  "content3": ", ",
+  "jwt": "JWT",
+  "content4": " pour une authentification sécurisée, et ",
+  "postgresql": "PostgreSQL",
+  "content5": " pour une gestion robuste de la base de données. De plus, il inclut la personnalisation du jeu et un tableau de bord multilingue réactif construit avec ",
+  "bootstrap": "Bootstrap",
+  "content6": " et JavaScript.",
+  "content7": "Consultez README.md pour un guide d'installation complet."
+},
+"ecosystem": {
+  "heading": "Écosystème",
+  "content": "Les principaux composants de la configuration de Transcendence incluent :",
+  "bootstrap": "Bootstrap",
+  "content1": " pour le style et la mise en page, intégré à ",
+  "vue": "Vue.js.",
+  "content2": " Pour des opérations backend sécurisées et dynamiques, nous utilisons ",
+  "django": "Django",
+  "content3": ", associé à ",
+  "postgresql": "PostgreSQL",
+  "content4": " comme base de données. Une sécurité renforcée est assurée grâce à la conformité RGPD, 2FA et l’authentification JWT."
+},
+"community": {
+  "heading": "Ressources communautaires",
+  "content": "Besoin d’aide ou d’inspiration ? Connectez-vous avec la communauté de développeurs sur ",
+  "discord": "Serveurs de programmation Discord",
+  "content1": " ou trouvez de l’aide sur ",
+  "tackoverflow": "StackOverflow",
+  "content2": ". Pour obtenir de l’aide spécifique à Django, explorez le ",
+  "django": "Forum Django",
+  "content3": ". Restez informé de Vue et Django en suivant leurs chaînes officielles !"
+}
+    },
+      "nav": {
+        "home": "Accueil",
+        "login": "Connexion",
+        "register": "S'inscrire",
+        "profile": "Profil",
+        "friends": "Amis"
+      },
+      "login": {
+        "title": "Connexion",
+        "username": "Nom d'utilisateur",
+        "password": "Mot de passe",
+        "submit": "Se connecter",
+        "loading": "Connexion en cours...",
+        "enterUsername": "Entrez votre nom d'utilisateur",
+        "enterPassword": "Entrez votre mot de passe",
+        "errors": {
+      "Login failed": "Échec de la connexion",
+      "Network error occurred": "Erreur de réseau survenue"
+    }
+      },
+      "register": {
+        "title": "S'inscrire",
+        "username": "Nom d'utilisateur",
+        "password": "Mot de passe",
+        "confirmPassword": "Confirmer le mot de passe",
+        "usernamePlaceholder": "Entrez votre nom d'utilisateur",
+        "passwordPlaceholder": "Entrez votre mot de passe",
+        "confirmPasswordPlaceholder": "Confirmez votre mot de passe",
+        "submit": "S'inscrire",
+        "registering": "Inscription en cours...",
+        "successTitle": "Inscription réussie !",
+        "redirecting": "Redirection vers la page de connexion...",
+        "loading": "Inscription en cours...",
+        "success": "Inscription réussie ! Redirection vers la connexion...",
+        "messages": {
+        "Registration failed": "L'inscription a échoué",
+        "Registration successful! Redirecting to login...": "Inscription réussie ! Redirection vers la connexion..."
+        }
+      },
+      "friends": {
+        "title": "Amis",
+        "noFriends": "Pas encore d'amis",
+        "info": "Info",
+        "remove": "Supprimer",
+        "chat": "Démarrer le chat",
+        "close": "Fermer",
+        "profileInfo": "Informations du profil",
+        "displayName": "Nom d'affichage",
+        "sendMessage": "Envoyer",
+        "typeMessage": "Tapez votre message...",
+        "chatWith": "Chat avec {name}"
+      },
+      "home": {
+    "title": "Bienvenue sur Transcendence",
+    "description": "Découvrez le jeu Pong classique réinventé pour le web moderne"
+  },
+    "profile": {
+      "title": "Profil",
+      "avatar": {
+        "altText": "Photo de profil",
+        "change": "Changer l'avatar",
+        "delete": "Supprimer l'avatar",
+        "upload": "Télécharger l'avatar"
+      },
+      "update": {
+        "profile": "Mettre à jour le profil",
+        "placeholder": "Entrez le nom d'affichage"
+      },
+      "search": {
+        "placeholder": "Rechercher des profils...",
+        "searching": "Recherche en cours...",
+        "noResults": "Aucun utilisateur trouvé",
+        "error": "Échec de la recherche"
+      },
+      "friends": {
+        "requests": "Demandes d'amis reçues",
+        "add": "Ajouter un ami",
+        "remove": "Supprimer l'ami",
+        "block": "Bloquer",
+        "unblock": "Débloquer l'utilisateur",
+        "accept": "Accepter",
+        "decline": "Refuser",
+        "pending": "Demande en attente"
+      },
+      "status": {
+        "online": "En ligne",
+        "offline": "Hors ligne"
+      },
+      "actions": {
+        "logout": "Déconnexion",
+        "close": "Fermer"
+      },
+      "errors": {
+      "displayName": "Nom d'affichage invalide"
+    }
+    },
+    "errors": {
+      "Passwords do not match": "Les mots de passe ne correspondent pas",
+      "Username already exists": "Le nom d'utilisateur existe déjà",
+      "Invalid username format": "Format de nom d'utilisateur invalide",
+      "Password too weak": "Mot de passe trop faible"
+    }
+}

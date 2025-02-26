@@ -1,22 +1,26 @@
 <script setup>
+import { useI18n } from 'vue-i18n'
+
 defineProps({
   msg: {
     type: String,
     required: true
   }
 })
+
+const { t } = useI18n()
 </script>
 
 <template>
   <div class="greetings">
     <h1 class="green">{{ msg }}</h1>
     <h3>
-      Welcome to our {{ msg }} project our recreated Pong Game by 
+      {{ t('hello.welcome') }} {{ msg }} {{ t('hello.project') }} 
       <a href="" target="_blank" rel="noopener">eseferi</a>,
       <a href="" target="_blank" rel="noopener">ipetruni</a>,
       <a href="" target="_blank" rel="noopener">loandrad</a>,
       <a href="" target="_blank" rel="noopener">amehrotr</a>,
-      and
+      {{ t('hello.and') }}
       <a href="" target="_blank" rel="noopener">wmoughar</a>.
     </h3>
   </div>
