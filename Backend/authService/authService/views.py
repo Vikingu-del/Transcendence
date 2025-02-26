@@ -35,7 +35,10 @@ class RegisterView(generics.CreateAPIView):
 			# Create the user without token
 			user = serializer.save()
 			totp_secret = pyotp.random_base32()
-			UserTOTP.objects.create(user=user, totp_secret=totp_secret)
+
+			user_totp, created = UserTOTP.objects.get_or_create(user=user)
+			user_totp.totp_secret = totp_secret
+			user_totp.save()
 			user.save()
 			qr_code = generateQRCode(user.email, totp_secret)
 			return Response({
@@ -63,6 +66,9 @@ class LoginView(APIView):
 			
 			if user:
 				# print(user)
+				# #check otp
+				# if not pyotp.verify(otp)
+				# 	return Response()
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
 				
@@ -111,13 +117,13 @@ class ValidateOTPView(APIView):
 		try:
 			username = request.data.get("username")
 			otp = request.data.get("otp")
-			user = User.objects.get(username=username)
-			totp_secret = user.totp.totp_secret
+			user = UserTOTP.objects.get(user__username=username)
+			totp_secret = user.totp_secret
 			totp = pyotp.TOTP(totp_secret)
-			if totp.verify(otp):
-				return Response({'detail': 'OTP validated successfully!'}, status=status.HTTP_200_OK)
-			else:
+			print(user)
+			if not totp.verify(otp):
 				return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+			return Response({'detail': 'OTP validated'}, status=status.HTTP_200_OK)
 		except User.DoesNotExist:
 			return Response({'error':'User not found'}, status=status.HTTP_404_NOT_FOUND)
 		except Exception as e:

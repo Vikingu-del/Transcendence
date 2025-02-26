@@ -95,7 +95,7 @@ export default {
       }
     },
 
-	verifyOTP(){
+	async verifyOTP(){
 		const response = fetch('api/auth/validate_otp/', {
 			method: 'POST',
 			headers: { 
@@ -103,9 +103,12 @@ export default {
 				'Accept': 'application/json'
 			},
 			body: JSON.stringify({
+				username: this.username,
 				otp: this.otp
 			}),
 		});
+		const data  = (await response).json();
+		console.log(data);
 	},
 
     resetForm() {
