@@ -1,4 +1,4 @@
-# Exit on Error
+#! /bin/sh
 set -e
 
 OUTPUT_DIR=/secrets/certs
