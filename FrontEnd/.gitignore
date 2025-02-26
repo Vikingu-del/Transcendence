@@ -29,5 +29,5 @@ coverage
 
 *.tsbuildinfo
 
-/secrets/*.env
-!secrets/*.sample.env
+# /secrets/*.env
+# !secrets/*.sample.env

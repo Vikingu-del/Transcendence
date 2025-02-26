@@ -1,10 +1,10 @@
-.# Certificate files
+# .# Certificate files
 .cert/
 *.key
 *.crt
 
-# Other common ignores
-.env
+# # Other common ignores
+# .env
 node_modules/
 __pycache__/
 *.pyc
