@@ -170,3 +170,25 @@ class LogoutView(APIView):
 		except Exception as e:
 			return Response({"error": str(e)}, 
 						  status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class GenerateQRCodeView(APIView):
+	def post(self, request):
+		try:
+			username = request.data.get("username")
+			user = User.objects.get(username=username)
+			user_totp = UserTOTP.objects.get(user=user)
+			qr_code = generateQRCode(user.email, user_totp.totp_secret)
+			return Response({
+				'qr_code': f"Data:image/png;base64,{qr_code}"},
+				status=status.HTTP_200_OK,
+			)
+		except User.DoesNotExist:
+			return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+		except UserTOTP.DoesNotExist:
+			return Response({'error': 'User not found'}, status=status.HTTP_404_NOT_FOUND)
+		except Exception as e:
+			logger.error(f"QR code generation failed: {str(e)}")
+			return Response({
+				'error': 'QR code generation failed'
+			}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -17,13 +17,14 @@
       <button type="submit" class="submit-btn" :disabled="loading">
         {{ loading ? 'Logging in...' : 'Login' }}
       </button>
+	  <a href="#" @click.prevent="generateQRCode" class="forgot-password-link">Get new authenticator QR Code</a>
     </form>
     <p v-if="error" class="message error">{{ error }}</p> 
-	<!-- <form v-if="tfa" @submit.prevent="verifyOTP">
-		<label for="OTP">OTP</label>
-		<input id="otp" type="number"  v-model="otp" placeholder="Please Enter your OTP" required>
-		<button type="submit" class="submit-btn">Verify</button>
-	</form> -->
+	<div v-if="showQRCode">
+		<h3>Enter Username to get new QR code</h3>
+		<img :src="qrCode">
+	</div>
+
   </div>
 </template>
 
@@ -41,7 +42,9 @@ export default {
       loading: false,
       redirect: null,
 	  tfa: true,
-	  otp: ''
+	  otp: '',
+	  showQRCode: false,
+	  qrCode: ''
       // tfa: true, for walid
     };
   },
@@ -99,6 +102,32 @@ export default {
           this.loading = false;
       }
     },
+
+	async generateQRCode(){
+		try{
+			const response = await fetch('/api/auth/generate_qrcode/', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify({
+					username: this.username
+				})
+			});
+
+			const data = await response.json();
+			if (response.ok){
+				this.showQRCode = true;
+				this.qrCode = data.qr_code;
+			} else {
+				this.error = data.error || 'QR code generation failed';
+			}
+		} catch (error) {
+			console.error('QR code generation error: ', error);
+			this.error = 'Network error occured';
+		}
+	},
 
 	// async verifyOTP(){
 	// 	try{
