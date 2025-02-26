@@ -10,16 +10,20 @@
         <label for="password">Password</label>
         <input id="password" v-model="password" type="password" placeholder="Enter password" required />
       </div>
+	  <div class="form-group">
+		<label for="otp">OTP</label>
+		<input id="otp" v-model="otp" placeholder="Please enter your OTP" required>
+	  </div>
       <button type="submit" class="submit-btn" :disabled="loading">
         {{ loading ? 'Logging in...' : 'Login' }}
       </button>
     </form>
     <p v-if="error" class="message error">{{ error }}</p> 
-	<form v-if="tfa" @submit.prevent="verifyOTP">
+	<!-- <form v-if="tfa" @submit.prevent="verifyOTP">
 		<label for="OTP">OTP</label>
 		<input id="otp" type="number"  v-model="otp" placeholder="Please Enter your OTP" required>
 		<button type="submit" class="submit-btn">Verify</button>
-	</form>
+	</form> -->
   </div>
 </template>
 
@@ -36,7 +40,7 @@ export default {
       error: '',
       loading: false,
       redirect: null,
-	  tfa: false,
+	  tfa: true,
 	  otp: ''
       // tfa: true, for walid
     };
@@ -63,6 +67,7 @@ export default {
               body: JSON.stringify({
                   username: this.username,
                   password: this.password,
+				  otp: this.otp
               })
           });
 
@@ -78,9 +83,9 @@ export default {
               await this.$nextTick();
 			  this.tfa = true;
               
-            //   const redirectPath = this.redirect || '/profile';
-            //   console.log('Redirecting to:', redirectPath);
-            //   await this.$router.push(redirectPath);
+              const redirectPath = this.redirect || '/profile';
+              console.log('Redirecting to:', redirectPath);
+              await this.$router.push(redirectPath);
             //   tfa = true;
           } else {
               this.error = data.error || 'Login failed';
@@ -95,21 +100,34 @@ export default {
       }
     },
 
-	async verifyOTP(){
-		const response = fetch('api/auth/validate_otp/', {
-			method: 'POST',
-			headers: { 
-				'Content-Type': 'application/json',
-				'Accept': 'application/json'
-			},
-			body: JSON.stringify({
-				username: this.username,
-				otp: this.otp
-			}),
-		});
-		const data  = (await response).json();
-		console.log(data);
-	},
+	// async verifyOTP(){
+	// 	try{
+	// 		const response = fetch('api/auth/validate_otp/', {
+	// 			method: 'POST',
+	// 			headers: { 
+	// 				'Content-Type': 'application/json',
+	// 				'Accept': 'application/json'
+	// 			},
+	// 			body: JSON.stringify({
+	// 				username: this.username,
+	// 				otp: this.otp
+	// 			}),
+	// 		});
+	// 		const data  = (await response).json();
+
+	// 		if ((await response).ok){
+	// 			const redirectPath = this.redirect || '/profile';
+	// 			console.log('Redirecting to: ', redirectPath)
+	// 			this.$router.push(redirectPath);
+	// 		}
+	// 		else {
+	// 			this.error = data.error || 'OTP validation failed';
+	// 		}
+	// 	} catch (error){
+	// 		console.error('Login error: ', error);
+	// 		this.error = 'Network Error occured';
+	// 	}
+	// },
 
     resetForm() {
       this.username = '';

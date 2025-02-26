@@ -62,13 +62,18 @@ class LoginView(APIView):
 		try:
 			username = request.data.get("username")
 			password = request.data.get("password")
+			otp = request.data.get("otp")
 			user = authenticate(username=username, password=password)
 			
 			if user:
-				# print(user)
-				# #check otp
-				# if not pyotp.verify(otp)
-				# 	return Response()
+				try:
+					user_totp = UserTOTP.objects.get(user__username=username)
+					totp_secret = user_totp.totp_secret
+					totp = pyotp.TOTP(totp_secret)
+					if not totp.verify(otp):
+						return Response({'error': 'Invalid OTP'}, status=status.HTTP_401_UNAUTHORIZED)
+				except UserTOTP.DoesNotExist:
+					return Response({'error': 'User Not found'}, status=status.HTTP_404_NOT_FOUND)
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
 				
@@ -111,26 +116,26 @@ class LoginView(APIView):
 				'error': 'Authentication failed'
 			}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-class ValidateOTPView(APIView):
+# class ValidateOTPView(APIView):
 	
-	def post(self, request):
-		try:
-			username = request.data.get("username")
-			otp = request.data.get("otp")
-			user = UserTOTP.objects.get(user__username=username)
-			totp_secret = user.totp_secret
-			totp = pyotp.TOTP(totp_secret)
-			print(user)
-			if not totp.verify(otp):
-				return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
-			return Response({'detail': 'OTP validated'}, status=status.HTTP_200_OK)
-		except User.DoesNotExist:
-			return Response({'error':'User not found'}, status=status.HTTP_404_NOT_FOUND)
-		except Exception as e:
-			logger.error(f"OTP validation failed: {str(e)}")
-			return Response({
-				'error': 'OTP Validation Failed',
-			}, status=status.HTTP_401_UNAUTHORIZED)
+# 	def post(self, request):
+# 		try:
+# 			username = request.data.get("username")
+# 			otp = request.data.get("otp")
+# 			user = UserTOTP.objects.get(user__username=username)
+# 			totp_secret = user.totp_secret
+# 			totp = pyotp.TOTP(totp_secret)
+# 			print(user)
+# 			if not totp.verify(otp):
+# 				return Response({'error': 'Invalid OTP'}, status=status.HTTP_400_BAD_REQUEST)
+# 			return Response({'detail': 'OTP validated'}, status=status.HTTP_200_OK)
+# 		except User.DoesNotExist:
+# 			return Response({'error':'User not found'}, status=status.HTTP_404_NOT_FOUND)
+# 		except Exception as e:
+# 			logger.error(f"OTP validation failed: {str(e)}")
+# 			return Response({
+# 				'error': 'OTP Validation Failed',
+# 			}, status=status.HTTP_401_UNAUTHORIZED)
 
 class LogoutView(APIView):
 	authentication_classes = [JWTAuthentication]
