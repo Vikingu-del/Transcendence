@@ -1,0 +1,137 @@
+auth.js inside utils: which how it was
+
+export const auth = {
+    setToken(token) {
+        localStorage.setItem('token', token);
+    },
+    
+    getToken() {
+        return localStorage.getItem('token');
+    },
+    
+    removeToken() {
+        localStorage.removeItem('token');
+    },
+    
+    isAuthenticated() {
+        return !!this.getToken();
+    }
+};
+
+export default auth;
+
+
+ but we can use the store object from store.js
+
+ import store from '@/store'
+
+export const auth = {
+    // Check if user is authenticated
+    isAuthenticated() {
+        return store.getters.isAuthenticated
+    },
+
+    // Get authentication token
+    getToken() {
+        return store.getters.getToken
+    },
+
+    // Check token expiration
+    isTokenValid() {
+        const token = this.getToken()
+        if (!token) return false
+        
+        // Add your token validation logic here
+        return true
+    },
+
+    // Handle logout
+    logout() {
+        store.commit('setToken', null)
+        store.commit('setUser', null)
+    }
+}
+
+1. Storage Strategy
+
+a- Local Storage Implementation:
+export const auth = {
+    setToken(token) {
+        localStorage.setItem('token', token);
+    },
+    // ...
+}
+
+Directly manages token in browser's localStorage
+Persists across browser sessions
+Accessible without Vuex state management
+
+
+b- Vuex Store Implementation:
+import store from '@/store'
+
+export const auth = {
+    getToken() {
+        return store.getters.getToken
+    },
+    // ...
+}
+
+Uses centralized Vuex store
+State is managed through mutations
+State is lost on page refresh unless persisted
+
+2. State Management
+
+a- Local Storage:
+
+Decentralized state management
+No reactive updates
+Direct access to token
+
+b- Vuex Store:
+
+Centralized state management
+Reactive updates across components
+State changes trigger component re-renders
+
+3. Usage Example
+
+a- Local Storage Version:
+
+// Component usage
+methods: {
+    login(token) {
+        auth.setToken(token);
+        // No automatic UI updates
+    }
+}
+
+b- Vuex Store Version:
+
+// Component usage
+methods: {
+    login(token) {
+        store.commit('setToken', token);
+        // UI automatically updates
+    }
+}
+
+4. Best Practices
+Modern Vue applications often combine both approaches:
+
+export default createStore({
+    state: {
+        token: localStorage.getItem('token') || null
+    },
+    mutations: {
+        setToken(state, token) {
+            state.token = token;
+            if (token) {
+                localStorage.setItem('token', token);
+            } else {
+                localStorage.removeItem('token');
+            }
+        }
+    }
+});
