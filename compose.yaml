@@ -337,7 +337,7 @@ services:
         ELASTIC_INIT_MASTER_NODE: ${ELASTIC_INIT_MASTER_NODE}
         ELASTIC_DISCOVERY_SEEDS: ${ELASTIC_DISCOVERY_SEEDS}
         ES_JAVA_OPTS: "-Xmx${ELASTICSEARCH_HEAP} -Xms${ELASTICSEARCH_HEAP} -Des.enforce.bootstrap.checks=true"
-        # bootstrap.memory_lock: "true"
+        bootstrap.memory_lock: "true"
       volumes:
         - elasticsearch-data:/usr/share/elasticsearch/data
         - ./elk/elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
@@ -359,15 +359,19 @@ services:
       depends_on:
         keystore_n_certs:
           condition: service_completed_successfully
-      # ulimits:
-      #   memlock:
-      #     soft: -1
-      #     hard: -1
-      #   nofile:
-      #     soft: 200000
-      #     hard: 200000
+      ulimits:
+        memlock:
+          soft: -1
+          hard: -1
+        nofile:
+          soft: 200000
+          hard: 200000
       healthcheck:
-        test: ["CMD", "sh", "-c", "curl -sf --insecure https://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:9200/_cat/health | grep -ioE 'green|yellow' || echo 'not green/yellow cluster status'"]
+        test: ["CMD", "sh", "-c", "curl -sf --insecure https://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:9200/_cat/indices/.security* && curl -sf --insecure https://$ELASTIC_USERNAME:$ELASTIC_PASSWORD@localhost:9200/_cat/health | grep -ioE 'green|yellow'"]
+        interval: 10s
+        timeout: 5s
+        retries: 10
+        start_period: 30s
 
   logstash:
     build:
@@ -413,7 +417,8 @@ services:
     ports:
       - "5601:5601"
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
     env_file:
       - ./elk/secrets/.env.kibana.token
     secrets:

@@ -17,6 +17,8 @@ xpack.security.encryptionKey: C1tHnfrlfxSPxPlQ8BlgPB5qMNRtg5V5
 xpack.encryptedSavedObjects.encryptionKey: D12GTfrlfxSPxPlGRBlgPB5qM5GOPDV5
 xpack.reporting.encryptionKey: RSCueeHKzrqzOVTJhkjt17EMnzM96LlN
 
+xpack.reporting.kibanaServer.hostname: localhost
+
 ## X-Pack security credentials
 elasticsearch.serviceAccountToken: "${KIBANA_SERVICE_ACCOUNT_TOKEN}"
 elasticsearch.ssl.certificateAuthorities: [ "/certs/ca.crt" ]
