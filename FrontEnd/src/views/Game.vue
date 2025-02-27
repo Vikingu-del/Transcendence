@@ -108,6 +108,7 @@ export default defineComponent({
 		// At the start of your setup function
 		// Add new reactive refs
 		const isLocalHost = ref<boolean>(props.isHost);
+		console.log('isLocalHost value IN REF:', isLocalHost.value);
 		const isWaiting = ref<boolean>(props.isHost);
 		const gameStarted = ref<boolean>(false);
 		const gameAccepted = ref<boolean>(false);
@@ -208,9 +209,9 @@ export default defineComponent({
 					BALL_RADIUS       // radius [4]
 				]),
 				paddles: new Float32Array([
-					isLocalHost.value ? 50 : CANVAS_WIDTH - 60, // player x [0]
+					50,
 					CANVAS_HEIGHT / 2 - 40, // player y [1]
-					isLocalHost.value ? CANVAS_WIDTH - 60 : 50, // opponent x [2]
+					CANVAS_WIDTH - 60,
 					CANVAS_HEIGHT / 2 - 40, // opponent y [3]
 					10,  // width [4]
 					80   // height [5]
@@ -587,21 +588,20 @@ export default defineComponent({
 					}
 					break;
 				
-				case 'paddle_move':
-					const { paddles } = gameState.value;
-					const isHostMessage = String(data.host_id) === String(props.userId);
-					
-					// Update the opposite paddle from the sender
-					// If host sent the message, update index 1 (left paddle)
-					// If guest sent the message, update index 3 (right paddle)
-					if (isHostMessage) {
-						// Message is from host, update left paddle (index 1)
-						paddles[1] = data.y;
-					} else {
-						// Message is from guest, update right paddle (index 3)
-						paddles[3] = data.y;
-					}
-					break;
+					case 'paddle_move':
+						const { paddles } = gameState.value;
+						
+						// Don't update your own paddle from messages (you already updated it locally)
+						const isMyOwnMessage = props.userId === data.host_id;
+						
+						if (!isMyOwnMessage) {
+							if (props.isHost) {
+								paddles[3] = data.y;
+							} else {
+								paddles[1] = data.y;  // <-- THIS WAS THE BUG: paddles[3] should be paddles[1]
+							}
+						}
+						break;
 
 
 				case 'ball_update':
@@ -670,7 +670,6 @@ export default defineComponent({
 					y: yPosition,
 					host_id: props.userId,
 					timestamp: now,
-					is_host: isLocalHost.value // Add this to identify the sender's role
 				}));
 				lastPaddleUpdate.value = now;
 			}
