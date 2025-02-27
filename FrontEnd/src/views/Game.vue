@@ -11,33 +11,69 @@
                 <h2>Waiting for player to join...</h2>
             </div>
             
-            <!-- Show game accepted screen -->
             <div v-else-if="gameAccepted && !gameStarted" class="acceptance-screen">
-				<h2>Game Accepted!</h2>
-				<p>Starting game with {{ opponent }}...</p>
-				<button 
-					v-if="isLocalHost"
-					@click="startGame" 
-					class="btn primary-btn"
-				>
-					Start Game
-				</button>
-				<p v-else class="waiting-message">
-					Waiting for host to start the game...
-				</p>
+				<div class="acceptance-content">
+					<h2 class="acceptance-title">Game Accepted!</h2>
+					<div class="opponent-info">
+						<span class="opponent-label">Playing against:</span>
+						<span class="opponent-name">{{ opponent }}</span>
+					</div>
+					<button 
+						v-if="isLocalHost"
+						@click="startGame" 
+						class="btn primary-btn start-game-btn"
+					>
+						<span class="btn-text">Start Game</span>
+						<span class="btn-icon">▶</span>
+					</button>
+					<div v-else class="waiting-message">
+						<div class="loading-dots">
+							<span></span>
+							<span></span>
+							<span></span>
+						</div>
+						Waiting for host to start the game...
+					</div>
+				</div>
 			</div>
-		<canvas 
-			ref="gameCanvas"
-			:width=800
-			:height=400
-			:style="{
-				display: gameStarted ? 'block' : 'none',
-				background: '#000000'
-			}"
-		></canvas>
+
+			<!-- Canvas -->
+			<canvas 
+				ref="gameCanvas"
+				:width=800
+				:height=400
+				:style="{
+					display: gameStarted ? 'block' : 'none',
+					background: '#000000'
+				}"
+			></canvas>
 
 		<div v-if="gameStarted" class="game-info">
 			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
+		</div>
+
+		<div v-if="showEndGame" class="game-end-screen">
+			<h2>Game Over!</h2>
+			<template v-if="disconnectMessage">
+				<p class="disconnect-message">{{ disconnectMessage }}</p>
+				<p class="score-message">
+					Final Score: {{ playerScore }} - {{ opponentScore }}
+				</p>
+				<button 
+					@click="$emit('close')" 
+					class="btn primary-btn"
+				>
+					Return to Menu
+				</button>
+			</template>
+			<template v-else>
+				<p :class="isWinner ? 'win-message' : 'lose-message'">
+					{{ isWinner ? 'Congratulations! You won!' : 'Game Over! You lost!' }}
+				</p>
+				<p class="score-message">
+					Final Score: {{ playerScore }} - {{ opponentScore }}
+				</p>
+			</template>
 		</div>
 		
 	  </div>
@@ -52,6 +88,15 @@ interface GameState {
 	ball: Float32Array; // [x, y, dx, dy, radius]
 	paddles: Float32Array; // [playerX, playerY, opponentX, opponentY, width, height]
 	score: Uint8Array; // [player, opponent]
+}
+
+interface GameEndResponse {
+    type: 'game_state';
+    game_status: 'ended';
+    winner_id: string;
+    winner_name: string;
+    score: [number, number];
+    message: string;
 }
 
 export default defineComponent({
@@ -121,6 +166,7 @@ export default defineComponent({
 		const opponentScore = ref<number>(0);
 		const gameKey = ref(initLocalStorage(props.gameId));
 
+
 		const CANVAS_WIDTH = 800;
 		const CANVAS_HEIGHT = 400;
 		const INITIAL_BALL_SPEED = 3;
@@ -141,6 +187,10 @@ export default defineComponent({
 		const pressedKeys = ref<Set<string>>(new Set());
 		const playerId = ref<string>('');
 		const isHost = ref<boolean>(false);
+		const showEndGame = ref(false);
+		const disconnectMessage = ref<string>('');
+		const isWinner = ref(false);
+		const winner = ref<string>('');
 
 		const PLAYER_POSITIONS = {
 			HOST: {
@@ -436,14 +486,29 @@ export default defineComponent({
 
 		const checkGameOver = () => {
 			const { score } = gameState.value;
-			if (score[0] >= 5 || score[1] >= 5) {
+			console.log('Checking game over - Current scores:', score[0], score[1]);
+			
+			if (score[0] >= 2 || score[1] >= 2) {  // Changed to 2 points
+				console.log('Game over condition met');
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
-				emit('gameOver', {
-					winner: score[0] > score[1] ? 'player' : 'opponent',
-					playerScore: score[0],
-					opponentScore: score[1]
-				});
+				
+				const gameEndData = {
+					type: 'game_end',
+					reason: 'score',
+					final_score: {
+						player1: score[0],
+						player2: score[1]
+					},
+					winner_id: score[0] > score[1] ? props.userId : props.opponent
+				};
+				
+				console.log('Sending game end data:', gameEndData);
+				
+				// Send to WebSocket
+				if (gameSocket.value?.readyState === WebSocket.OPEN) {
+					gameSocket.value.send(JSON.stringify(gameEndData));
+				}
 			}
 		};
 
@@ -596,24 +661,56 @@ export default defineComponent({
 						resetBall();
 						gameLoop();
 					} else if (data.game_status === 'ended') {
+						// Stop the game animation
+						cancelAnimationFrame(animationFrame.value);
+						gameStarted.value = false;
+						showEndGame.value = true;
+
+						// Log the received data for debugging
+						console.log('Received game end data:', data);
+
+						if (data.reason === 'disconnect') {
+							// Handle disconnect case
+							disconnectMessage.value = data.message || 'Opponent has left the game';
+                    
+							// Update scores from the disconnect message
+							const [score1, score2] = data.score || [0, 0];
+							playerScore.value = isLocalHost.value ? score1 : score2;
+							opponentScore.value = isLocalHost.value ? score2 : score1;
+
+							// Don't show winner/loser message for disconnection
+							isWinner.value = false;
+						} else {
+							// Handle normal game end (score)
+							// Safely access scores with fallback
+							const scores = data.score || [0, 0];
+							playerScore.value = isLocalHost.value ? scores[0] : scores[1];
+							opponentScore.value = isLocalHost.value ? scores[1] : scores[0];
+							
+							// Determine winner based on player role and winner field
+							isWinner.value = (isLocalHost.value && data.winner === 'player1') || 
+										(!isLocalHost.value && data.winner === 'player2');
+						}
+
+						// Clean up game state
 						handleGameOver(data);
 					}
 					break;
 				
-					case 'paddle_move':
-						const { paddles } = gameState.value;
-						
-						// Don't update your own paddle from messages (you already updated it locally)
-						const isMyOwnMessage = props.userId === data.host_id;
-						
-						if (!isMyOwnMessage) {
-							if (props.isHost) {
-								paddles[3] = data.y;
-							} else {
-								paddles[1] = data.y;  // <-- THIS WAS THE BUG: paddles[3] should be paddles[1]
-							}
+				case 'paddle_move':
+					const { paddles } = gameState.value;
+					
+					// Don't update your own paddle from messages (you already updated it locally)
+					const isMyOwnMessage = props.userId === data.host_id;
+					
+					if (!isMyOwnMessage) {
+						if (props.isHost) {
+							paddles[3] = data.y;
+						} else {
+							paddles[1] = data.y;  // <-- THIS WAS THE BUG: paddles[3] should be paddles[1]
 						}
-						break;
+					}
+					break;
 
 
 				case 'ball_update':
@@ -708,35 +805,83 @@ export default defineComponent({
 			}
 		};
 
-
-		// Modify handleGameOver to save final score
 		const handleGameOver = async (data: any) => {
-			cancelAnimationFrame(animationFrame.value);
-			showNewGameButton.value = true;
+			try {
+				// Common cleanup
+				cancelAnimationFrame(animationFrame.value);
+				showNewGameButton.value = true;
+				gameAccepted.value = false;
+				gameStarted.value = false;
+				showEndGame.value = true;
 
-			// Get final scores from localStorage
-			const finalScores = getLocalScore(gameKey.value);
+				if (data.reason === 'disconnect') {
+					// Handle disconnect case
+					disconnectMessage.value = data.message || 'Opponent has left the game';
+					const [score1, score2] = data.score || [0, 0];
+					playerScore.value = isLocalHost.value ? score1 : score2;
+					opponentScore.value = isLocalHost.value ? score2 : score1;
+					isWinner.value = false; // No winner in case of disconnect
+				} else {
+					// Handle normal game end
+					disconnectMessage.value = ''; // Clear any disconnect message
+					const finalScores = getLocalScore(gameKey.value);
+					const player1Score = finalScores.playerScore;
+					const player2Score = finalScores.opponentScore;
 
-			// Save to database only at game end
-			if (gameSocket.value?.readyState === WebSocket.OPEN) {
-			gameSocket.value.send(JSON.stringify({
-				type: 'game_end',
-				winner_id: data.winner === 'player' ? props.userId : data.opponent_id,
-				final_score: {
-				player1: finalScores.playerScore,
-				player2: finalScores.opponentScore
+					// Determine winner based on scores
+					const isPlayer1Winner = player1Score > player2Score;
+					
+					// Update local display values
+					playerScore.value = isLocalHost.value ? player1Score : player2Score;
+					opponentScore.value = isLocalHost.value ? player2Score : player1Score;
+					isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
+
+					// Send game end data if socket is still open
+					if (gameSocket.value?.readyState === WebSocket.OPEN) {
+						const gameEndData = {
+							type: 'game_end',
+							reason: data.reason || 'score',
+							winner_id: isPlayer1Winner ? props.userId : props.opponent,
+							final_score: {
+								player1: player1Score,
+								player2: player2Score
+							}
+						};
+						
+						gameSocket.value.send(JSON.stringify(gameEndData));
+					}
 				}
-			}));
+
+				// Clear local storage
+				localStorage.removeItem(gameKey.value);
+
+				// Update socket message handler for both cases
+				if (gameSocket.value) {
+					if (data.reason === 'disconnect') {
+						// Close socket for disconnect case
+						gameSocket.value.close();
+					} else {
+						// Keep socket open for normal game end to handle final messages
+						gameSocket.value.onmessage = (event) => {
+							try {
+								const response = JSON.parse(event.data);
+								if (response.type === 'game_state' && response.game_status === 'ended') {
+									emit('gameOver', {
+										winner: isWinner.value ? 'You' : 'Opponent',
+										playerScore: playerScore.value,
+										opponentScore: opponentScore.value,
+										message: isWinner.value ? 'Congratulations! You won!' : 'Game Over! You lost!'
+									});
+								}
+							} catch (error) {
+								console.error('Error handling game end message:', error);
+							}
+						};
+					}
+				}
+			} catch (error) {
+				console.error('Error in handleGameOver:', error);
 			}
-
-			// Clear local storage for this game
-			localStorage.removeItem(gameKey.value);
-
-			emit('gameOver', {
-			winner: data.winner,
-			playerScore: finalScores.playerScore,
-			opponentScore: finalScores.opponentScore
-			});
 		};
 
 
@@ -781,8 +926,26 @@ export default defineComponent({
 				console.error('Error starting new game:', error);
 			}
 		};
+
 		let resizeObserver: ResizeObserver | null = null;
 
+		const handlePageUnload = (event) => {
+			if (gameSocket.value?.readyState === WebSocket.OPEN) {
+				// Send disconnect message
+				gameSocket.value.send(JSON.stringify({
+					type: 'game_end',
+					reason: 'disconnect',
+					disconnected_player: props.userId,
+					final_score: {
+						player1: playerScore.value,
+						player2: opponentScore.value
+					}
+				}));
+				
+				// Close socket gracefully
+				gameSocket.value.close();
+			}
+		};
 
 		onMounted(() => {
 			// Wait for the next tick when the template is rendered
@@ -807,6 +970,9 @@ export default defineComponent({
 				window.addEventListener('keydown', handleKeyDown);
 				window.addEventListener('keyup', handleKeyUp);
 				
+				window.addEventListener('beforeunload', handlePageUnload);
+   				window.addEventListener('unload', handlePageUnload);
+
 				if (ctx.value && gameCanvas.value) {
 					console.log('Game components initialized successfully');
 					initializeGameSocket();
@@ -828,6 +994,7 @@ export default defineComponent({
 				gameStarted: started
 			});
 		});
+
 		onUnmounted(() => {
 			cancelAnimationFrame(animationFrame.value);
 			window.removeEventListener('keydown', handleKeyDown);
@@ -837,8 +1004,10 @@ export default defineComponent({
 			if (resizeObserver) {
 				resizeObserver.disconnect();
 			}
-		});
 
+			window.removeEventListener('beforeunload', handlePageUnload);
+			window.removeEventListener('unload', handlePageUnload);
+		});
 
 		return {
 			gameCanvas,
@@ -851,6 +1020,10 @@ export default defineComponent({
 			startGame,
 			gameAccepted,
 			isLocalHost,
+			showEndGame,
+			isWinner,
+			winner,
+			disconnectMessage,
 		};
 	}
 	
@@ -900,17 +1073,6 @@ export default defineComponent({
   background: #1a1a1a;
   min-height: 0;
 }
-
-/* canvas {
-  background: black;
-  border-radius: 4px;
-  max-width: 100%;
-  max-height: calc(100% - 80px); 
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  margin: auto;
-} */
 
 canvas {
     background: #000000;
@@ -1016,6 +1178,82 @@ canvas {
   font-family: monospace;
 }
 
+.game-end-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.95);
+  padding: 2.5rem;
+  border-radius: 12px;
+  border: 2px solid #03a670;
+  color: white;
+  text-align: center;
+  z-index: 100;
+  min-width: 300px;
+  box-shadow: 0 0 30px rgba(3, 166, 112, 0.3);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.game-end-screen h2 {
+  color: #03a670;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.game-end-screen p {
+  font-size: 1.2rem;
+  margin: 0.8rem 0;
+  line-height: 1.5;
+}
+
+.game-end-screen p:first-of-type {
+  color: #03a670;
+  font-weight: bold;
+  font-size: 1.4rem;
+}
+
+.game-end-screen p:last-child {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(3, 166, 112, 0.3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.win-message {
+    color: #03a670;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(3, 166, 112, 0.3);
+}
+
+.lose-message {
+    color: #a60303;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(166, 3, 3, 0.3);
+}
+
+.score-message {
+    font-size: 1.2rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(3, 166, 112, 0.3);
+    color: white;
+}
+
 @media (max-width: 768px) {
   .game-container {
     width: 95%;
@@ -1034,4 +1272,172 @@ canvas {
     max-height: calc(100% - 60px); /* Adjust for smaller screens */
   }
 }
+
+/* Add these styles to the existing <style scoped> section */
+
+.acceptance-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  background: rgba(26, 26, 26, 0.95);
+}
+
+.acceptance-content {
+  background: #2d2d2d;
+  padding: 2.5rem;
+  border-radius: 12px;
+  border: 2px solid #03a670;
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 0 30px rgba(3, 166, 112, 0.2);
+  animation: slideIn 0.5s ease-out;
+}
+
+.acceptance-title {
+  color: #03a670;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(3, 166, 112, 0.3);
+}
+
+.opponent-info {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: rgba(3, 166, 112, 0.1);
+  border-radius: 8px;
+}
+
+.opponent-label {
+  display: block;
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.opponent-name {
+  display: block;
+  color: white;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.start-game-btn {
+  margin-top: 1.5rem;
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: linear-gradient(45deg, #03a670, #04d38e);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.start-game-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(3, 166, 112, 0.4);
+}
+
+.btn-text {
+  font-weight: bold;
+}
+
+.btn-icon {
+  font-size: 1.2rem;
+}
+
+.waiting-message {
+  margin-top: 1.5rem;
+  color: #888;
+  font-size: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  background-color: #03a670;
+  border-radius: 50%;
+  animation: bounce 1s infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+    background-color: #04d38e;
+  }
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .acceptance-content {
+    padding: 2rem;
+    width: 95%;
+  }
+
+  .acceptance-title {
+    font-size: 1.75rem;
+  }
+
+  .opponent-name {
+    font-size: 1.1rem;
+  }
+
+  .start-game-btn {
+    padding: 10px 20px;
+    font-size: 1rem;
+  }
+}
+
+.disconnect-message {
+    color: #ff4444;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+    margin-bottom: 1rem;
+}
+
+.game-end-screen button {
+    margin-top: 1.5rem;
+    padding: 10px 20px;
+}
+
 </style>

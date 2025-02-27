@@ -116,7 +116,36 @@ class PongConsumer(AsyncWebsocketConsumer):
         }))
 
     async def disconnect(self, close_code):
-        await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
+        """Handle client disconnection"""
+        try:
+            # Send disconnect notification to other players
+            if hasattr(self, 'room_group_name'):
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'game_state_update',
+                        'message': {
+                            'type': 'game_state',
+                            'game_status': 'ended',
+                            'reason': 'disconnect',
+                            'disconnected_player': str(self.user.id),
+                            'message': f"{self.user.username} has left the game",
+                            'score': [
+                                # Send current scores from gameState
+                                getattr(self, 'player_score', 0),
+                                getattr(self, 'opponent_score', 0)
+                            ]
+                        }
+                    }
+                )
+                
+            # Remove from room group
+            await self.channel_layer.group_discard(
+                self.room_group_name,
+                self.channel_name
+            )
+        except Exception as e:
+            logger.error(f"Error in disconnect handler: {str(e)}")
 
     async def receive(self, text_data):
         try:
@@ -247,23 +276,67 @@ class PongConsumer(AsyncWebsocketConsumer):
     async def handle_game_end(self, data):
         """Handle game end"""
         try:
-            await self.channel_layer.group_send(
-                self.room_group_name,
-                {
-                    'type': 'game_state_update',
-                    'message': {
-                        'type': 'game_state',
-                        'game_status': 'ended',
-                        'winner': data.get('winner'),
-                        'score': [
-                            data.get('playerScore', 0),
-                            data.get('opponentScore', 0)
-                        ]
+            # Add a flag to check if game end has already been handled
+            if hasattr(self, 'game_ended'):
+                return
+            self.game_ended = True  # Set the flag
+            
+            end_reason = data.get('reason', 'score')  # 'score' or 'disconnect'
+            winner_id = data.get('winner_id')
+            final_score = data.get('final_score', {})
+            
+            message = {
+                'type': 'game_state',
+                'game_status': 'ended',
+            }
+
+            if end_reason == 'disconnect':
+                message.update({
+                    'reason': 'disconnect',
+                    'message': f"Game ended due to player disconnection",
+                    'disconnected_player': data.get('disconnected_player'),
+                    'winner': data.get('winner'),
+                    'score': [
+                        final_score.get('player1', 0),
+                        final_score.get('player2', 0)
+                    ]
+                })
+            else:  # Normal game end (score limit reached)
+                player1_score = final_score.get('player1', 0)
+                player2_score = final_score.get('player2', 0)
+                winner = 'player1' if player1_score > player2_score else 'player2'
+                
+                logger.info(f"Final calculated scores - P1: {player1_score}, P2: {player2_score}")
+                logger.info(f"Determined winner: {winner}")
+                
+                message.update({
+                    'reason': 'score',
+                    'message': f"Game Over! {winner.title()} wins!",
+                    'winner': winner,
+                    'score': [player1_score, player2_score]
+                })
+
+                logger.info(f"Sending final message to group: {message}")
+                
+                # Send the game end message to all players
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'game_state_update',
+                        'message': message
                     }
-                }
-            )
+                )
+
+            # # Save the game result to the database
+            # await save_game_result(
+            #     self.game_id,
+            #     winner_id,
+            #     final_score.get('player1', 0),
+            #     final_score.get('player2', 0)
+            # )
+
         except Exception as e:
-            logger.error(f"Error handling game end: {str(e)}")
+            logger.error(f"Error handling game end: {str(e)}", exc_info=True)
 
 @database_sync_to_async
 def save_game_result(game_id, winner_id, player1_score, player2_score):
