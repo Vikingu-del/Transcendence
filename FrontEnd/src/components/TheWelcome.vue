@@ -18,13 +18,7 @@ const languages = [
 </script>
 
 <template>
-  <div class="language-selector">
-    <select v-model="locale">
-      <option v-for="lang in languages" :key="lang.code" :value="lang.code">
-        {{ lang.name }}
-      </option>
-    </select>
-  </div>
+  
   <WelcomeItem>
     <template #icon>
       <SubjectIcon />

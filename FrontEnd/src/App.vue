@@ -6,7 +6,7 @@ import { useStore } from 'vuex'
 import { useI18n } from 'vue-i18n'
 
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const store = useStore()
 const router = useRouter()
 const isAbleToPlay = computed(() => store.state.isAbleToPlay)
@@ -62,9 +62,21 @@ onMounted(async () => {
     clearTokenAndRedirect()
   }
 })
+
+onMounted(() => {
+  locale.value = 'en'
+})
+
 </script>
 
 <template>
+  <div class="language-selector">
+    <select v-model="locale">
+      <option v-for="lang in languages" :key="lang.code" :value="lang.code">
+        {{ lang.name }}
+      </option>
+    </select>
+  </div>
   <header>
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
 
@@ -84,6 +96,17 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+
+.language-selector {
+  margin-bottom: 20px;
+  text-align: right;
+}
+.language-selector select {
+  padding: 5px 10px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+}
 header {
   line-height: 1.5;
   max-height: 100vh;

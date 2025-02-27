@@ -1,17 +1,17 @@
 <template>
   <div class="form-container">
-    <h2>Login</h2>
+    <h2>{{ t('login.title') }}</h2>
     <form @submit.prevent="login">
       <div class="form-group">
-        <label for="username">Username</label>
-        <input id="username" v-model="username" type="text" placeholder="Enter username" required />
+        <label for="username">{{ t('login.username') }}</label>
+        <input id="username" v-model="username" type="text" :placeholder="t('login.enterUsername')" required />
       </div>
       <div class="form-group">
-        <label for="password">Password</label>
-        <input id="password" v-model="password" type="password" placeholder="Enter password" required />
+        <label for="password">{{ t('login.password') }}</label>
+        <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
       </div>
       <button type="submit" class="submit-btn" :disabled="loading">
-        {{ loading ? 'Logging in...' : 'Login' }}
+        {{ loading ? this.t('login.loading') : this.t('login.title') }}
       </button>
     </form>
     <p v-if="error" class="message error">{{ error }}</p>
@@ -25,8 +25,13 @@
 <script>
 import router from '@/router';
 import { auth } from '@/utils/auth';
+import { useI18n } from 'vue-i18n';
 
 export default {
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
   data() {
     return {
       username: '',
@@ -100,12 +105,12 @@ export default {
               await this.$router.push(redirectPath);
               // tfa = true;
           } else {
-              this.error = data.error || 'Login failed';
+              this.error = this.ct('login.error.Login failed');
               this.password = '';
           }
       } catch (error) {
           console.error('Login error:', error);
-          this.error = 'Network error occurred';
+          this.error = this.t('login.errors.Network error occurred');
           this.password = '';
       } finally {
           this.loading = false;
