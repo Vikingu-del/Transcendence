@@ -281,6 +281,7 @@
                 :opponent="opponent || ''"
                 :gameId="currentGameId || ''"
                 :isHost="gameInviteSent"
+                :userId="currentUserId"
                 @close="closeGameWindow"
             />
         </div>
