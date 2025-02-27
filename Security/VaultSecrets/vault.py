@@ -123,6 +123,14 @@ secrets_to_store_game = {
     "GAME_DB_NAME": env_vars.get("GAME_DB_NAME"),
 }
 
+secrets_to_store_notification = {
+    "NOTIFICATION_DB_USER": env_vars.get("NOTIFICATION_DB_USER"),
+    "NOTIFICATION_DB_PASSWORD": env_vars.get("NOTIFICATION_DB_PASSWORD"),
+    "NOTIFICATION_DB_HOST": env_vars.get("NOTIFICATION_DB_HOST"),
+    "NOTIFICATION_DB_PORT": env_vars.get("NOTIFICATION_DB_PORT"),
+    "NOTIFICATION_DB_NAME": env_vars.get("NOTIFICATION_DB_NAME"),
+}
+
 secrets_to_store_gateway = {
     "MODSEC_RULE_ENGINE": env_vars.get("MODSEC_RULE_ENGINE"),
     "MODSEC_REQUEST_BODY_ACCESS": env_vars.get("MODSEC_REQUEST_BODY_ACCESS"),
@@ -167,10 +175,12 @@ write_secret_to_vault("auth_db", secrets_to_store_auth)
 write_secret_to_vault("auth", secrets_to_store_auth)
 write_secret_to_vault("game", secrets_to_store_game)
 write_secret_to_vault("game_db", secrets_to_store_game)
+write_secret_to_vault("notification", secrets_to_store_notification)
+write_secret_to_vault("notification_db", secrets_to_store_notification)
 
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db', 'notification', 'notification_db']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

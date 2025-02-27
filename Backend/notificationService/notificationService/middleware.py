@@ -39,7 +39,7 @@ class JWTAuthMiddleware:
             return None
 
     def __call__(self, request):
-        if not request.path.startswith('/api/pong/'):
+        if not request.path.startswith('/api/notification/'):
             return self.get_response(request)
 
         auth_header = request.headers.get('Authorization')
@@ -80,62 +80,14 @@ class JWTAuthMiddleware:
             return JsonResponse({'detail': 'Authentication failed'}, status=401)
         
 class TokenAuthMiddleware(BaseMiddleware):
-    @database_sync_to_async
-    def get_or_create_user(self, user_id, token):
-        try:
-            # First try to get existing user
-            try:
-                return User.objects.get(id=user_id)
-            except User.DoesNotExist:
-                pass
-
-            # Verify with auth service
-            headers = {
-                'Authorization': f'Bearer {token}',
-                'Content-Type': 'application/json'
-            }
-            response = requests.get(
-                f"{settings.USER_SERVICE_URL}/api/user/verify/",
-                headers=headers,
-                timeout=5
-            )
-            
-            if response.status_code == 200:
-                user_data = response.json()
-                try:
-                    # Use get_or_create to handle race conditions
-                    user, created = User.objects.get_or_create(
-                        id=user_id,
-                        defaults={
-                            'username': user_data.get('username', f'user_{user_id}'),
-                            'email': user_data.get('email', ''),
-                            'is_active': True
-                        }
-                    )
-                    if created:
-                        user.set_unusable_password()
-                        user.save()
-                        logger.info(f"Created new user {user_id}")
-                    return user
-                except Exception as e:
-                    logger.error(f"Error creating user: {str(e)}")
-                    return None
-            
-            logger.error(f"Auth service returned {response.status_code}: {response.text}")
-            return None
-
-        except Exception as e:
-            logger.error(f"Error in get_or_create_user: {str(e)}")
-            return None
-
-    async def close_connection(self, send, code, message):
-        """Helper method to close WebSocket connection with specific code and message"""
+    async def close_connection(self, send, code=4000, reason="Connection closed"):
+        """Helper method to close WebSocket connection"""
+        logger.debug(f"Closing WebSocket connection: {reason}")
         await send({
             "type": "websocket.close",
             "code": code,
-            "text": message,
         })
-        
+
     async def __call__(self, scope, receive, send):
         try:
             # Initialize url_route if not present
@@ -151,6 +103,7 @@ class TokenAuthMiddleware(BaseMiddleware):
                 logger.error('No token provided in WebSocket connection')
                 return await self.close_connection(send, 4001, "No token provided")
 
+            # Verify token
             try:
                 access_token = AccessToken(token)
                 user_id = access_token['user_id']
@@ -162,15 +115,10 @@ class TokenAuthMiddleware(BaseMiddleware):
                     logger.error(f'User not found or could not be created for ID: {user_id}')
                     return await self.close_connection(send, 4004, "User not found")
 
-                # Update scope with authenticated user info
+                # Update scope with authenticated user
                 scope['user'] = user
                 scope['user_id'] = user_id
                 scope['url_route']['kwargs']['user_id'] = user_id
-                scope['auth'] = {
-                    'user': user,
-                    'user_id': user_id,
-                    'token': token
-                }
                 
                 logger.debug(f"Successfully authenticated user {user_id}")
                 return await super().__call__(scope, receive, send)
@@ -182,3 +130,39 @@ class TokenAuthMiddleware(BaseMiddleware):
         except Exception as e:
             logger.error(f'WebSocket middleware error: {str(e)}')
             return await self.close_connection(send, 4000, str(e))
+
+    @database_sync_to_async
+    def get_or_create_user(self, user_id, token):
+        try:
+            # First try to get existing user
+            try:
+                return User.objects.get(id=user_id)
+            except User.DoesNotExist:
+                pass
+
+            # Verify with auth service
+            headers = {'Authorization': f'Bearer {token}'}
+            response = requests.get(
+                f"{settings.USER_SERVICE_URL}/api/user/verify/",
+                headers=headers,
+                timeout=5
+            )
+            
+            if response.status_code == 200:
+                user_data = response.json()
+                user, created = User.objects.get_or_create(
+                    id=user_id,
+                    defaults={
+                        'username': user_data.get('username', f'user_{user_id}'),
+                        'email': user_data.get('email', '')
+                    }
+                )
+                logger.info(f"{'Created' if created else 'Retrieved'} user {user_id}")
+                return user
+            
+            logger.error(f"Auth service returned {response.status_code}: {response.text}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error in get_or_create_user: {str(e)}")
+            return None
