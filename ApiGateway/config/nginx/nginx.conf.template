@@ -251,7 +251,7 @@ http {
         
 
         # Game WebSocket proxy
-        location /ws/ {
+        location /ws/game/ {
             proxy_pass http://game:8005;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;

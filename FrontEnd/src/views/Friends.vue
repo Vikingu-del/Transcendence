@@ -1359,7 +1359,7 @@ export default {
                 return;
             }
 
-            const wsUrl = `${wsProtocol}//${wsHost}/ws/notifications/?token=${encodeURIComponent(token)}`;
+            const wsUrl = `${wsProtocol}//${wsHost}/ws/notification/?token=${encodeURIComponent(token)}`;
             console.log('Connecting to notification socket:', wsUrl);
             this.notificationSocket = new WebSocket(wsUrl);
             this.notificationSocket.onopen = () => {

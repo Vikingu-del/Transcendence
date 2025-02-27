@@ -23,6 +23,8 @@ SECRET_KEY = 'django-insecure-3dt2p!*1)!*v9q)n_a$srl4zkor7+az3$zbf89r(jr*a@6*870
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+
 INSTALLED_APPS = [
     'daphne',
     'django.contrib.admin',

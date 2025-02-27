@@ -5,7 +5,6 @@ from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
 from django.utils import timezone
 import uuid
-from pong.models import GameSession
 from asgiref.sync import async_to_sync
 
 class NotificationConsumer(AsyncWebsocketConsumer):

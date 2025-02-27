@@ -39,7 +39,7 @@ class JWTAuthMiddleware:
             return None
 
     def __call__(self, request):
-        if not request.path.startswith('/api/pong/'):
+        if not request.path.startswith('/api/chat/'):
             return self.get_response(request)
 
         auth_header = request.headers.get('Authorization')
