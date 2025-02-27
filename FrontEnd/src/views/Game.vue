@@ -11,49 +11,69 @@
                 <h2>Waiting for player to join...</h2>
             </div>
             
-            <!-- Show game accepted screen -->
             <div v-else-if="gameAccepted && !gameStarted" class="acceptance-screen">
-				<h2>Game Accepted!</h2>
-				<p>Starting game with {{ opponent }}...</p>
-				<button 
-					v-if="isLocalHost"
-					@click="startGame" 
-					class="btn primary-btn"
-				>
-					Start Game
-				</button>
-				<p v-else class="waiting-message">
-					Waiting for host to start the game...
-				</p>
+				<div class="acceptance-content">
+					<h2 class="acceptance-title">Game Accepted!</h2>
+					<div class="opponent-info">
+						<span class="opponent-label">Playing against:</span>
+						<span class="opponent-name">{{ opponent }}</span>
+					</div>
+					<button 
+						v-if="isLocalHost"
+						@click="startGame" 
+						class="btn primary-btn start-game-btn"
+					>
+						<span class="btn-text">Start Game</span>
+						<span class="btn-icon">▶</span>
+					</button>
+					<div v-else class="waiting-message">
+						<div class="loading-dots">
+							<span></span>
+							<span></span>
+							<span></span>
+						</div>
+						Waiting for host to start the game...
+					</div>
+				</div>
 			</div>
-		
-		<!-- Game canvas -->
-		<!-- <template v-else-if="gameStarted">
-		  <canvas ref="gameCanvas" width="800" height="400"></canvas>
-		  <div class="game-info">
-			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
-		  </div>
-		  <div class="game-controls" v-if="showNewGameButton">
-			<button 
-			  @click="restartGame" 
-			  class="btn primary-btn"
-			>
-			  Start New Game
-			</button>
-		  </div>
-		</template> -->
-		<canvas 
-			ref="gameCanvas"
-			:width=800
-			:height=400
-			:style="{
-				display: gameStarted ? 'block' : 'none',
-				background: '#000000'
-			}"
-		></canvas>
+
+			<!-- Canvas -->
+			<canvas 
+				ref="gameCanvas"
+				:width=800
+				:height=400
+				:style="{
+					display: gameStarted ? 'block' : 'none',
+					background: '#000000'
+				}"
+			></canvas>
 
 		<div v-if="gameStarted" class="game-info">
 			<p class="score">{{ playerScore }} - {{ opponentScore }}</p>
+		</div>
+
+		<div v-if="showEndGame" class="game-end-screen">
+			<h2>Game Over!</h2>
+			<template v-if="disconnectMessage">
+				<p class="disconnect-message">{{ disconnectMessage }}</p>
+				<p class="score-message">
+					Final Score: {{ playerScore }} - {{ opponentScore }}
+				</p>
+				<button 
+					@click="$emit('close')" 
+					class="btn primary-btn"
+				>
+					Return to Menu
+				</button>
+			</template>
+			<template v-else>
+				<p :class="isWinner ? 'win-message' : 'lose-message'">
+					{{ isWinner ? 'Congratulations! You won!' : 'Game Over! You lost!' }}
+				</p>
+				<p class="score-message">
+					Final Score: {{ playerScore }} - {{ opponentScore }}
+				</p>
+			</template>
 		</div>
 		
 	  </div>
@@ -62,30 +82,21 @@
   
 <script lang="ts">
 import { defineComponent, ref, nextTick } from 'vue';
-import { onMounted, onUnmounted } from 'vue';
+import { onMounted, onUnmounted, watch } from 'vue';
 
 interface GameState {
-    ball: {
-        x: number;
-        y: number;
-        dx: number;
-        dy: number;
-        radius: number;
-    };
-    paddles: {
-        player: { x: number; y: number; };
-        opponent: { x: number; y: number; };
-        width: number;
-        height: number;
-    };
-    score: {
-        player: number;
-        opponent: number;
-    };
-    players: {
-        player1: string;
-        player2: string;
-    };
+	ball: Float32Array; // [x, y, dx, dy, radius]
+	paddles: Float32Array; // [playerX, playerY, opponentX, opponentY, width, height]
+	score: Uint8Array; // [player, opponent]
+}
+
+interface GameEndResponse {
+    type: 'game_state';
+    game_status: 'ended';
+    winner_id: string;
+    winner_name: string;
+    score: [number, number];
+    message: string;
 }
 
 export default defineComponent({
@@ -102,15 +113,50 @@ export default defineComponent({
 		isHost: {
 			type: Boolean,
 			default: false
+		},
+		userId: {
+			type: Number,
+			required: true
 		}
 	},
 
 	setup(props, { emit }) {
+		const initLocalStorage = (gameId: string) => {
+			const gameKey = `pong_game_${gameId}`;
+			const storedGame = localStorage.getItem(gameKey);
+			if (!storedGame) {
+				localStorage.setItem(gameKey, JSON.stringify({
+				playerScore: 0,
+				opponentScore: 0,
+				timestamp: Date.now()
+				}));
+			}
+			return gameKey;
+		};
+
+		const updateLocalScore = (gameKey: string, playerScore: number, opponentScore: number) => {
+			localStorage.setItem(gameKey, JSON.stringify({
+				playerScore,
+				opponentScore,
+				timestamp: Date.now()
+			}));
+		};
+
+		const getLocalScore = (gameKey: string) => {
+			const stored = localStorage.getItem(gameKey);
+			if (stored) {
+				return JSON.parse(stored);
+			}
+			return { playerScore: 0, opponentScore: 0 };
+		};
+
+		// At the start of your setup function
 		// Add new reactive refs
-		const isLocalHost = ref(false);
-		const isWaiting = ref(props.isHost);
-		const gameStarted = ref(false);
-		const gameAccepted = ref(false);
+		const isLocalHost = ref<boolean>(props.isHost);
+		console.log('isLocalHost value IN REF:', isLocalHost.value);
+		const isWaiting = ref<boolean>(props.isHost);
+		const gameStarted = ref<boolean>(false);
+		const gameAccepted = ref<boolean>(false);
 		const gameSocket = ref<WebSocket | null>(null);
 		const gameCanvas = ref<HTMLCanvasElement | null>(null);
 		const ctx = ref<CanvasRenderingContext2D | null>(null);
@@ -118,114 +164,110 @@ export default defineComponent({
 		const showNewGameButton = ref<boolean>(false);
 		const playerScore = ref<number>(0);
 		const opponentScore = ref<number>(0);
+		const gameKey = ref(initLocalStorage(props.gameId));
+
 
 		const CANVAS_WIDTH = 800;
 		const CANVAS_HEIGHT = 400;
-		
-		// Add these new constants for game physics
 		const INITIAL_BALL_SPEED = 3;
-		const PADDLE_SPEED = 30;
-		const BALL_RADIUS = 6; 
+		const PADDLE_SPEED = 40;
+		const BALL_RADIUS = 8; 
 		const SPEED_REDUCTION = 0.9; // New constant for speed reduction on collisions
-		const ANGLE_FACTOR = 0.25; // New constant for angle factor on collisions
+		const ANGLE_FACTOR = 0.50; // New constant for angle factor on collisions
 		const MAX_BALL_SPEED = INITIAL_BALL_SPEED * 1.5;
 		const SPEED_INCREASE = 1.05;
 
 		const FRAME_TIME = 1000 / 60;
 		const MAX_DELTA_TIME = 1000 / 30; // Cap at 30 FPS minimum
-		const SYNC_INTERVAL = 100; 
-
-		// Add new refs for timing control
+		const SYNC_INTERVAL = 16; 
 		const lastFrameTime = ref(0);
 		const lastSyncTime = ref(0);
-		const lastPaddleUpdateTime = ref(0);
-
+		const PADDLE_UPDATE_INTERVAL = 50; // Send paddle updates every 50ms
+		const lastPaddleUpdate = ref(0);
 		const pressedKeys = ref<Set<string>>(new Set());
+		const playerId = ref<string>('');
+		const isHost = ref<boolean>(false);
+		const showEndGame = ref(false);
+		const disconnectMessage = ref<string>('');
+		const isWinner = ref(false);
+		const winner = ref<string>('');
+
+		const PLAYER_POSITIONS = {
+			HOST: {
+				PADDLE_X: 50,
+				PADDLE_INDEX: 0 // Index 0 and 1 for left paddle position/height
+			},
+			GUEST: {
+				PADDLE_X: CANVAS_WIDTH - 60,
+				PADDLE_INDEX: 2 // Index 2 and 3 for right paddle position/height
+			}
+		};
+		
+		// Update userPaddleIndex initialization
+		const userPaddleIndex = ref(isLocalHost.value ? 
+			PLAYER_POSITIONS.HOST.PADDLE_INDEX : 
+			PLAYER_POSITIONS.GUEST.PADDLE_INDEX
+		);
+		
 
 		const gameState = ref<GameState>({
-			ball: {
-				x: CANVAS_WIDTH / 2,
-				y: CANVAS_HEIGHT / 2,
-				dx: INITIAL_BALL_SPEED,
-				dy: INITIAL_BALL_SPEED * 0.5,
-				radius: BALL_RADIUS
-			},
-			paddles: {
-				player: {  
-					x: isLocalHost.value ? 50 : CANVAS_WIDTH - 60, 
-					y: CANVAS_HEIGHT / 2 - 40 
-				},
-				opponent: {
-					x: isLocalHost.value ? CANVAS_WIDTH - 60 : 50, 
-            		y: CANVAS_HEIGHT / 2 - 40
-				},
-				width: 10,
-				height: 80
-			},
-			score: {
-				player: 0,
-				opponent: 0
-			},
-			players: {
-				player1: '',
-				player2: ''
-			}
+			ball: new Float32Array([
+				CANVAS_WIDTH / 2,  // x [0]
+				CANVAS_HEIGHT / 2, // y [1]
+				INITIAL_BALL_SPEED,// dx [2]
+				INITIAL_BALL_SPEED * 0.5, // dy [3]
+				BALL_RADIUS       // radius [4]
+			]),
+			paddles: new Float32Array([
+				PLAYER_POSITIONS.HOST.PADDLE_X,    // Host paddle x [0]
+				CANVAS_HEIGHT / 2 - 40,           // Host paddle y [1]
+				PLAYER_POSITIONS.GUEST.PADDLE_X,   // Guest paddle x [2]
+				CANVAS_HEIGHT / 2 - 40,           // Guest paddle y [3]
+				10,                               // width [4]
+				80                                // height [5]
+			]),
+			score: new Uint8Array([0, 0]) // [player, opponent]
 		});
 
 		const scaleFactor = ref(1);
 
 
 		const initGame = () => {
-			// Wait for canvas to be available
 			if (!gameCanvas.value) {
-				// console.error('Canvas element not found during initialization');
 				return false;
 			}
 
-			// Log canvas properties
-			// console.log('Initializing canvas:', {
-			// 	width: gameCanvas.value.width,
-			// 	height: gameCanvas.value.height,
-			// 	offsetWidth: gameCanvas.value.offsetWidth,
-			// 	offsetHeight: gameCanvas.value.offsetHeight
-			// });
-
-			// Get the 2D context with explicit null check
 			const context = gameCanvas.value.getContext('2d');
 			if (!context) {
-				// console.error('Failed to get 2D context');
 				return false;
 			}
 			ctx.value = context;
 
-			// Set fixed dimensions
 			gameCanvas.value.width = CANVAS_WIDTH;
 			gameCanvas.value.height = CANVAS_HEIGHT;
 
-			// Initialize game state
-			gameState.value = {
-				...gameState.value,
-				paddles: {
-					player: {
-						x: isLocalHost.value ? 50 : CANVAS_WIDTH - 60,
-						y: CANVAS_HEIGHT / 2 - 40
-					},
-					opponent: {
-						x: isLocalHost.value ? CANVAS_WIDTH - 60 : 50,
-						y: CANVAS_HEIGHT / 2 - 40
-					},
-					width: 10,
-					height: 80
-				}
-			};
+			playerId.value = props.userId.toString();
+   			isHost.value = props.isHost;
 
-			// console.log('Game initialized successfully:', {
-			// 	canvas: !!gameCanvas.value,
-			// 	context: !!ctx.value,
-			// 	width: gameCanvas.value.width,
-			// 	height: gameCanvas.value.height,
-			// 	gameState: gameState.value
-			// });
+			// Initialize game state with typed arrays
+			gameState.value = {
+				ball: new Float32Array([
+					CANVAS_WIDTH / 2,  // x [0]
+					CANVAS_HEIGHT / 2, // y [1]
+					INITIAL_BALL_SPEED,// dx [2]
+					INITIAL_BALL_SPEED * 0.5, // dy [3]
+					BALL_RADIUS       // radius [4]
+				]),
+				paddles: new Float32Array([
+					50,
+					CANVAS_HEIGHT / 2 - 40, // player y [1]
+					CANVAS_WIDTH - 60,
+					CANVAS_HEIGHT / 2 - 40, // opponent y [3]
+					10,  // width [4]
+					80   // height [5]
+				]),
+				score: new Uint8Array([0, 0]) // [player, opponent]
+			};
 
 			return true;
 		};
@@ -238,24 +280,23 @@ export default defineComponent({
 			const normalizedDelta = deltaTime / FRAME_TIME;
 
 			if (deltaTime >= FRAME_TIME) {
-				// Update paddle position
+				// Update paddle position for both players
 				updatePaddlePosition(normalizedDelta);
 
-				// Update game state with deltaTime
+				// Update game state with deltaTime (only for host)
 				if (isLocalHost.value) {
 					updateGame(normalizedDelta);
+					
+					// Send ball updates at regular intervals
+					const timeSinceLastSync = now - lastSyncTime.value;
+					if (timeSinceLastSync >= SYNC_INTERVAL) {
+						sendBallUpdate();
+						lastSyncTime.value = now;
+					}
 				}
 
-				// Draw game state
+				// Draw game state for both players
 				drawGame();
-				
-				// Update sync timing with 100ms interval
-				const timeSinceLastSync = now - lastSyncTime.value;
-				if (isLocalHost.value && timeSinceLastSync >= SYNC_INTERVAL) {
-					sendBallUpdate();
-					lastSyncTime.value = now;
-				}
-
 				lastFrameTime.value = now;
 			}
 
@@ -267,18 +308,21 @@ export default defineComponent({
 				const { ball, score } = gameState.value;
 				gameSocket.value.send(JSON.stringify({
 					type: 'ball_update',
-					ball: {
-						x: Math.round(ball.x),
-						y: Math.round(ball.y),
-						dx: Math.round(ball.dx * 10) / 2,
-						dy: Math.round(ball.dy * 10) / 2
-					},
-					score,
-					timestamp: Date.now()
+					x: Math.round(ball[0]),     
+					y: Math.round(ball[1]),
 				}));
 			}
 		};
 
+		const sendScoreUpdate = () => {
+			if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
+				const { score } = gameState.value;
+				gameSocket.value.send(JSON.stringify({
+					type: 'score_update',
+					score: [score[0], score[1]]
+				}));
+			}
+		};
 
 		const lastUpdate = ref(Date.now());
 
@@ -290,78 +334,72 @@ export default defineComponent({
 			const { ball, paddles, score } = gameState.value;
 
 			// Update ball position
-			ball.x += ball.dx * delta;
-			ball.y += ball.dy * delta;
+			ball[0] += ball[2] * delta; // x += dx
+			ball[1] += ball[3] * delta; // y += dy
 
 			// Ball collision with top and bottom walls
-			if (ball.y + ball.radius > CANVAS_HEIGHT) {
-				ball.y = CANVAS_HEIGHT - ball.radius; // Keep ball within bounds
-				ball.dy = -ball.dy * SPEED_REDUCTION; // Reduce speed on collision
-			} else if (ball.y - ball.radius < 0) {
-				ball.y = ball.radius; // Keep ball within bounds
-				ball.dy = -ball.dy * SPEED_REDUCTION; // Reduce speed on collision
+			if (ball[1] + ball[4] > CANVAS_HEIGHT) { // y + radius > height
+				ball[1] = CANVAS_HEIGHT - ball[4]; // Keep ball within bounds
+				ball[3] = -ball[3] * SPEED_REDUCTION; // Reverse and reduce vertical speed
+			} else if (ball[1] - ball[4] < 0) { // y - radius < 0
+				ball[1] = ball[4]; // Keep ball within bounds
+				ball[3] = -ball[3] * SPEED_REDUCTION; // Reverse and reduce vertical speed
 			}
 
 			// Ball collision with player paddle
-			if (ball.x - ball.radius <= paddles.player.x + paddles.width && 
-				ball.y >= paddles.player.y && 
-				ball.y <= paddles.player.y + paddles.height &&
-				ball.dx < 0) { // Only check when ball is moving left
+			if (ball[0] - ball[4] <= paddles[0] + paddles[4] && // x - radius <= playerX + width
+				ball[1] >= paddles[1] && // y >= playerY
+				ball[1] <= paddles[1] + paddles[5] && // y <= playerY + height
+				ball[2] < 0) { // left
 				
-				ball.x = paddles.player.x + paddles.width + ball.radius; // Prevent sticking
-				ball.dx = -ball.dx * SPEED_REDUCTION; // Reverse and reduce speed
-				let deltaY = ball.y - (paddles.player.y + paddles.height / 2);
-				ball.dy = deltaY * ANGLE_FACTOR; // Add angle based on hit position
+				ball[0] = paddles[0] + paddles[4] + ball[4]; // Prevent sticking
+				ball[2] = -ball[2] * SPEED_REDUCTION; // Reverse and reduce horizontal speed
+				
+				// Add angle based on hit position
+				const deltaY = ball[1] - (paddles[1] + paddles[5] / 2);
+				ball[3] = deltaY * ANGLE_FACTOR;
 			}
+			
 			// Ball collision with opponent paddle
-			else if (ball.x + ball.radius >= paddles.opponent.x && 
-					ball.y >= paddles.opponent.y && 
-					ball.y <= paddles.opponent.y + paddles.height &&
-					ball.dx > 0) { // Only check when ball is moving right
+			else if (ball[0] + ball[4] >= paddles[2] && // x + radius >= opponentX
+				ball[1] >= paddles[3] && // y >= opponentY
+				ball[1] <= paddles[3] + paddles[5] && // y <= opponentY + height
+				ball[2] > 0) { // Moving right
 				
-				ball.x = paddles.opponent.x - ball.radius; // Prevent sticking
-				ball.dx = -ball.dx * SPEED_REDUCTION; // Reverse and reduce speed
-				let deltaY = ball.y - (paddles.opponent.y + paddles.height / 2);
-				ball.dy = deltaY * ANGLE_FACTOR; // Add angle based on hit position
+				ball[0] = paddles[2] - ball[4]; // Prevent sticking
+				ball[2] = -ball[2] * SPEED_REDUCTION; // Reverse and reduce horizontal speed
+				
+				// Add angle based on hit position
+				const deltaY = ball[1] - (paddles[3] + paddles[5] / 2);
+				ball[3] = deltaY * ANGLE_FACTOR;
 			}
-			// Ball out of bounds scoring
-			else if (ball.x - ball.radius < 0) {
-				// Point for opponent
-				score.opponent++;
-				opponentScore.value = score.opponent;
+
+			// Scoring
+			if (ball[0] - ball[4] < 0) { // Left boundary
+				score[1]++; // Opponent scores
+				opponentScore.value = score[1];
+				updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+				sendScoreUpdate();
 				resetBall();
 				checkGameOver();
 			}
-			else if (ball.x + ball.radius > CANVAS_WIDTH) {
-				// Point for player
-				score.player++;
-				playerScore.value = score.player;
+			else if (ball[0] + ball[4] > CANVAS_WIDTH) { // Right boundary
+				score[0]++; // Player scores
+				playerScore.value = score[0];
+				updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+				sendScoreUpdate();
 				resetBall();
 				checkGameOver();
-			}
-
-			// Cap ball speed
-			const currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
-			if (currentSpeed > MAX_BALL_SPEED) {
-				const scale = MAX_BALL_SPEED / currentSpeed;
-				ball.dx *= scale;
-				ball.dy *= scale;
-			}
-
-			// Send ball updates at throttled interval
-			const now = Date.now();
-			if (isLocalHost.value && now - lastSyncTime.value >= SYNC_INTERVAL) {
-				sendBallUpdate();
-				lastSyncTime.value = now;
 			}
 		};
+
 
 		const drawGame = () => {
 			if (!ctx.value || !gameCanvas.value) return;
 			
-			const { ball, paddles } = gameState.value;
+			const { ball, paddles, score } = gameState.value;
 
-			// Clear canvas with background
+			// Clear canvas
 			ctx.value.fillStyle = '#000000';
 			ctx.value.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
 
@@ -377,96 +415,103 @@ export default defineComponent({
 			// Draw paddles
 			ctx.value.fillStyle = '#03a670';
 			
-			// Draw player paddle (left for host, right for non-host)
-			const playerPaddleX = isLocalHost.value ? 50 : CANVAS_WIDTH - 60;
+			// Player paddle
 			ctx.value.beginPath();
 			ctx.value.roundRect(
-				playerPaddleX,
-				paddles.player.y,
-				paddles.width,
-				paddles.height,
+				paddles[0],  // x
+				paddles[1],  // y
+				paddles[4],  // width
+				paddles[5],  // height
 				[5]
 			);
 			ctx.value.fill();
 
-			// Draw opponent paddle (right for host, left for non-host)
-			const opponentPaddleX = isLocalHost.value ? CANVAS_WIDTH - 60 : 50;
+			// Opponent paddle
 			ctx.value.beginPath();
 			ctx.value.roundRect(
-				opponentPaddleX,
-				paddles.opponent.y,
-				paddles.width,
-				paddles.height,
+				paddles[2],  // x
+				paddles[3],  // y
+				paddles[4],  // width
+				paddles[5],  // height
 				[5]
 			);
 			ctx.value.fill();
 
 			// Draw ball with glow effect
-			if (ball) {
-				ctx.value.fillStyle = '#ffffff';
-				ctx.value.shadowBlur = 15;
-				ctx.value.shadowColor = '#03a670';
-				ctx.value.beginPath();
-				ctx.value.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
-				ctx.value.fill();
-				ctx.value.shadowBlur = 0;
-			}
-
-			// Debug - log ball position
-			// console.log('Drawing ball at:', { x: ball.x, y: ball.y });
+			ctx.value.fillStyle = '#ffffff';
+			ctx.value.shadowBlur = 15;
+			ctx.value.shadowColor = '#03a670';
+			ctx.value.beginPath();
+			ctx.value.arc(ball[0], ball[1], ball[4], 0, Math.PI * 2);
+			ctx.value.fill();
+			ctx.value.shadowBlur = 0;
 		};
+
+
 		const checkPaddleCollision = (): boolean => {
 			const { ball, paddles } = gameState.value;
 			
-			// Check collision with player paddle (left side)
-			if (ball.x - ball.radius <= paddles.player.x + paddles.width &&
-				ball.x + ball.radius >= paddles.player.x &&
-				ball.y >= paddles.player.y &&
-				ball.y <= paddles.player.y + paddles.height) {
+			// Check collision with player paddle
+			if (ball[0] - ball[4] <= paddles[0] + paddles[4] && // x - radius <= playerX + width
+				ball[1] >= paddles[1] && // y >= playerY
+				ball[1] <= paddles[1] + paddles[5]) { // y <= playerY + height
 				
-				// Calculate new angle based on where the ball hits the paddle
-				const deltaY = ball.y - (paddles.player.y + paddles.height / 2);
-				ball.dy = deltaY * ANGLE_FACTOR; // Adds vertical variation based on hit position
-				ball.dx = Math.abs(ball.dx); // Ensure ball moves right
+				const deltaY = ball[1] - (paddles[1] + paddles[5] / 2);
+				ball[3] = deltaY * ANGLE_FACTOR;
+				ball[2] = Math.abs(ball[2]); // Ensure ball moves right
 				return true;
 			}
 
-			// Check collision with opponent paddle (right side)
-			if (ball.x + ball.radius >= paddles.opponent.x &&
-				ball.x - ball.radius <= paddles.opponent.x + paddles.width &&
-				ball.y >= paddles.opponent.y &&
-				ball.y <= paddles.opponent.y + paddles.height) {
+			// Check collision with opponent paddle
+			if (ball[0] + ball[4] >= paddles[2] && // x + radius >= opponentX
+				ball[1] >= paddles[3] && // y >= opponentY
+				ball[1] <= paddles[3] + paddles[5]) { // y <= opponentY + height
 				
-				// Calculate new angle based on where the ball hits the paddle
-				const deltaY = ball.y - (paddles.opponent.y + paddles.height / 2);
-				ball.dy = deltaY * ANGLE_FACTOR; // Adds vertical variation based on hit position
-				ball.dx = -Math.abs(ball.dx); // Ensure ball moves left
+				const deltaY = ball[1] - (paddles[3] + paddles[5] / 2);
+				ball[3] = deltaY * ANGLE_FACTOR;
+				ball[2] = -Math.abs(ball[2]); // Ensure ball moves left
 				return true;
 			}
 
 			return false;
 		};
-
 		const resetBall = () => {
 			const { ball } = gameState.value;
-			ball.x = CANVAS_WIDTH / 2;
-			ball.y = CANVAS_HEIGHT / 2;
-			ball.dx = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1);
-			ball.dy = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1) * 0.5; // Reduced vertical speed
+			ball[0] = CANVAS_WIDTH / 2;  // x
+			ball[1] = CANVAS_HEIGHT / 2; // y
+			ball[2] = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1); // dx
+			ball[3] = INITIAL_BALL_SPEED * (Math.random() > 0.5 ? 1 : -1) * 0.5; // dy
 		};
+
 
 		const checkGameOver = () => {
 			const { score } = gameState.value;
-			if (score.player >= 5 || score.opponent >= 5) {
+			console.log('Checking game over - Current scores:', score[0], score[1]);
+			
+			if (score[0] >= 2 || score[1] >= 2) {  // Changed to 2 points
+				console.log('Game over condition met');
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
-				emit('gameOver', {
-				winner: score.player > score.opponent ? 'player' : 'opponent',
-				playerScore: score.player,
-				opponentScore: score.opponent
-				});
+				
+				const gameEndData = {
+					type: 'game_end',
+					reason: 'score',
+					final_score: {
+						player1: score[0],
+						player2: score[1]
+					},
+					winner_id: score[0] > score[1] ? props.userId : props.opponent
+				};
+				
+				console.log('Sending game end data:', gameEndData);
+				
+				// Send to WebSocket
+				if (gameSocket.value?.readyState === WebSocket.OPEN) {
+					gameSocket.value.send(JSON.stringify(gameEndData));
+				}
 			}
 		};
+
 
 		const saveGameResult = async (player1Score: number, player2Score: number) => {
 			try {
@@ -488,27 +533,6 @@ export default defineComponent({
 			}
 		};
 
-		// const handleKeyDown = (e: KeyboardEvent) => {
-		// 	if (!gameStarted.value) return;
-			
-		// 	const { paddles } = gameState.value;
-		// 	let moved = false;
-			
-		// 	if (e.key === 'ArrowUp' && paddles.player.y > 0) {
-		// 		paddles.player.y = Math.max(0, paddles.player.y - PADDLE_SPEED);
-		// 		moved = true;
-		// 	}
-		// 	if (e.key === 'ArrowDown' && paddles.player.y < CANVAS_HEIGHT - paddles.height) {
-		// 		paddles.player.y = Math.min(CANVAS_HEIGHT - paddles.height, paddles.player.y + PADDLE_SPEED);
-		// 		moved = true;
-		// 	}
-
-		// 	// Only send update if paddle actually moved
-		// 	if (moved && gameSocket.value?.readyState === WebSocket.OPEN) {
-		// 		sendPaddleUpdate();
-		// 	}
-		// };
-
 		const handleKeyDown = (e: KeyboardEvent) => {
 			if (!gameStarted.value) return;
 			if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
@@ -524,31 +548,29 @@ export default defineComponent({
 
 		const updatePaddlePosition = (delta: number) => {
 			if (!gameStarted.value) return;
-			
-			const { paddles } = gameState.value;
-			let moved = false;
-			const now = Date.now();
-			const adjustedSpeed = PADDLE_SPEED * delta;
 
-			// Batch paddle movements
-			if (pressedKeys.value.has('ArrowUp') || pressedKeys.value.has('ArrowDown')) {
-				if (now - lastPaddleUpdateTime.value >= SYNC_INTERVAL) {
-					if (pressedKeys.value.has('ArrowUp')) {
-						paddles.player.y = Math.max(0, paddles.player.y - adjustedSpeed);
-						moved = true;
-					}
-					if (pressedKeys.value.has('ArrowDown')) {
-						paddles.player.y = Math.min(CANVAS_HEIGHT - paddles.height, paddles.player.y + adjustedSpeed);
-						moved = true;
-					}
-					if (moved) {
-						sendPaddleUpdate();
-						lastPaddleUpdateTime.value = now;
-					}
-				}
+			const { paddles } = gameState.value;
+			const adjustedSpeed = PADDLE_SPEED * delta;
+			let paddleChanged = false;
+			
+			// Get the correct paddle Y index based on whether we're host or guest
+			const myPaddleIndex = isLocalHost.value ? 1 : 3; // Index 1 for host, 3 for guest
+			let newPosition = paddles[myPaddleIndex];
+			
+			if (pressedKeys.value.has('ArrowUp')) {
+				newPosition = Math.max(0, newPosition - adjustedSpeed);
+				paddleChanged = true;
+			}
+			if (pressedKeys.value.has('ArrowDown')) {
+				newPosition = Math.min(CANVAS_HEIGHT - paddles[5], newPosition + adjustedSpeed);
+				paddleChanged = true;
+			}
+
+			if (paddleChanged) {
+				paddles[myPaddleIndex] = newPosition;
+				sendPaddleUpdate(newPosition);
 			}
 		};
-
 
 		// Update the initializeGameSocket function
 		const initializeGameSocket = () => {
@@ -621,102 +643,115 @@ export default defineComponent({
 		};
 
 		const handleGameMessage = (data: any) => {
-			// console.log('Handling game message:', data);
-			
 			switch (data.type) {
 				case 'game_state':
 					if (data.game_status === 'accepted') {
 						gameAccepted.value = true;
 						isWaiting.value = false;
-						
-						// Update player names
-						if (data.player1_username && data.player2_username) {
-							gameState.value.players.player1 = data.player1_username;
-							gameState.value.players.player2 = data.player2_username;
-						}
-
-						// Set host status based on player role
-						isLocalHost.value = data.is_host;
-						
-						// console.log('Game accepted, updated state:', {
-						// 	gameAccepted: gameAccepted.value,
-						// 	isWaiting: isWaiting.value,
-						// 	players: gameState.value.players,
-						// 	isHost: isLocalHost.value,
-						// 	playerRole: data.player_role
-						// });
+						isLocalHost.value = props.isHost;
 					} else if (data.game_status === 'waiting') {
 						isWaiting.value = true;
 						gameAccepted.value = false;
-						isLocalHost.value = data.is_host;
+						isLocalHost.value = props.isHost;
 					} else if (data.game_status === 'started') {
-						// Start the game for both players
+						if (!initGame()) { return; }
 						gameStarted.value = true;
 						gameAccepted.value = true;
 						isWaiting.value = false;
 						resetBall();
 						gameLoop();
-						
-						// console.log('Game started:', {
-						// 	gameStarted: gameStarted.value,
-						// 	gameAccepted: gameAccepted.value,
-						// 	isHost: isLocalHost.value
-						// });
-					}
-					break;
+					} else if (data.game_status === 'ended') {
+						// Stop the game animation
+						cancelAnimationFrame(animationFrame.value);
+						gameStarted.value = false;
+						showEndGame.value = true;
 
-				case 'player_joined':
-					if (props.isHost) {
-						console.log('Player joined, updating game state');
-						isWaiting.value = false;
-					}
-					break;
+						// Log the received data for debugging
+						console.log('Received game end data:', data);
 
-				case 'game_start':
-					console.log('Game starting');
-					gameStarted.value = true;
-					startGame();
+						if (data.reason === 'disconnect') {
+							// Handle disconnect case
+							disconnectMessage.value = data.message || 'Opponent has left the game';
+                    
+							// Update scores from the disconnect message
+							const [score1, score2] = data.score || [0, 0];
+							playerScore.value = isLocalHost.value ? score1 : score2;
+							opponentScore.value = isLocalHost.value ? score2 : score1;
+
+							// Don't show winner/loser message for disconnection
+							isWinner.value = false;
+						} else {
+							// Handle normal game end (score)
+							// Safely access scores with fallback
+							const scores = data.score || [0, 0];
+							playerScore.value = isLocalHost.value ? scores[0] : scores[1];
+							opponentScore.value = isLocalHost.value ? scores[1] : scores[0];
+							
+							// Determine winner based on player role and winner field
+							isWinner.value = (isLocalHost.value && data.winner === 'player1') || 
+										(!isLocalHost.value && data.winner === 'player2');
+						}
+
+						// Clean up game state
+						handleGameOver(data);
+					}
 					break;
 				
 				case 'paddle_move':
-					if (data.player !== (isLocalHost.value ? 'player1' : 'player2')) {
-						gameState.value.paddles.opponent.y = data.y;
+					const { paddles } = gameState.value;
+					
+					// Don't update your own paddle from messages (you already updated it locally)
+					const isMyOwnMessage = props.userId === data.host_id;
+					
+					if (!isMyOwnMessage) {
+						if (props.isHost) {
+							paddles[3] = data.y;
+						} else {
+							paddles[1] = data.y;  // <-- THIS WAS THE BUG: paddles[3] should be paddles[1]
+						}
 					}
 					break;
+
 
 				case 'ball_update':
-					// Update for both host and non-host players
-					const { ball, score } = data;
-					
-					if (ball) {
-						gameState.value.ball = {
-							x: ball.x,
-							y: ball.y,
-							dx: ball.dx || gameState.value.ball.dx,
-							dy: ball.dy || gameState.value.ball.dy,
-							radius: ball.radius || gameState.value.ball.radius
-						};
+					if (!isLocalHost.value) {
+						const { ball, score } = data;
+						
+						if (ball) {
+							gameState.value.ball[0] = ball.x;
+							gameState.value.ball[1] = ball.y;
+							gameState.value.ball[2] = ball.dx;
+							gameState.value.ball[3] = ball.dy;
+							gameState.value.ball[4] = ball.radius;
+						}
+
+						if (Array.isArray(score)) {
+							gameState.value.score[0] = score[0];
+							gameState.value.score[1] = score[1];
+							
+							// Update local storage with new scores
+							const newPlayerScore = isLocalHost.value ? score[0] : score[1];
+							const newOpponentScore = isLocalHost.value ? score[1] : score[0];
+							
+							playerScore.value = newPlayerScore;
+							opponentScore.value = newOpponentScore;
+							updateLocalScore(gameKey.value, newPlayerScore, newOpponentScore);
+						}
 					}
-
-					if (score) {
-						gameState.value.score = score;
-						playerScore.value = isLocalHost.value ? score.player1 : score.player2;
-						opponentScore.value = isLocalHost.value ? score.player2 : score.player1;
-					}
-
-					// Debug logging
-					// console.log('Ball update processed:', {
-					// 	position: { x: gameState.value.ball.x, y: gameState.value.ball.y },
-					// 	score: gameState.value.score,
-					// 	isHost: isLocalHost.value
-					// });
 					break;
-				case 'game_over':
-					handleGameOver(data);
-					break;
-
-				default:
-					console.log('Unknown message type:', data.type);
+					case 'score_update':
+						if (!isLocalHost.value) {  // Only non-host needs to process these
+							const { score } = data;
+							if (Array.isArray(score)) {
+								gameState.value.score[0] = score[0];
+								gameState.value.score[1] = score[1];
+								
+								playerScore.value = score[0];
+								opponentScore.value = score[1];
+								updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+							}
+						}
+						break;
 			}
 		};
 
@@ -729,41 +764,39 @@ export default defineComponent({
 			if (isLocalHost.value) {
 				console.log('Host starting game...');
 				
-				gameStarted.value = true; // Set this first so canvas is rendered
-
-				// Wait for next tick to ensure canvas is mounted
-				nextTick(() => {
-					// Initialize game after canvas is rendered
-					if (!initGame()) {
-						console.error('Failed to initialize game');
-						gameStarted.value = false;
-						return;
-					}
-
-					gameSocket.value?.send(JSON.stringify({
-						type: 'start_game',
-						game_id: props.gameId
-					}));
-
-					resetBall();
-					gameLoop();
-				});
-			}
-		};
-
-		const sendPaddleUpdate = () => {
-			if (gameSocket.value?.readyState === WebSocket.OPEN) {
-				try {
-					gameSocket.value.send(JSON.stringify({
-						type: 'paddle_move',
-						y: gameState.value.paddles.player.y,
-						player: isLocalHost.value ? 'player1' : 'player2'
-					}));
-				} catch (error) {
-					console.error('Error sending paddle update:', error);
+				// Initialize game first
+				if (!initGame()) {
+					console.error('Failed to initialize game');
+					return;
 				}
+
+				// Send start game message
+				gameSocket.value.send(JSON.stringify({
+					type: 'game_start',
+					game_id: props.gameId,
+					host_id: props.userId
+				}));
+
+
 			}
 		};
+
+
+		const sendPaddleUpdate = (yPosition: number) => {
+			const now = performance.now();
+			if (now - lastPaddleUpdate.value >= PADDLE_UPDATE_INTERVAL && 
+				gameSocket.value?.readyState === WebSocket.OPEN) {
+				
+				gameSocket.value.send(JSON.stringify({
+					type: 'paddle_move',
+					y: yPosition,
+					host_id: props.userId,
+					timestamp: now,
+				}));
+				lastPaddleUpdate.value = now;
+			}
+		};
+
 
 		const isConnected = ref(false);
 		const checkConnection = () => {
@@ -772,20 +805,89 @@ export default defineComponent({
 			}
 		};
 
+		const handleGameOver = async (data: any) => {
+			try {
+				// Common cleanup
+				cancelAnimationFrame(animationFrame.value);
+				showNewGameButton.value = true;
+				gameAccepted.value = false;
+				gameStarted.value = false;
+				showEndGame.value = true;
 
-		const handleGameOver = (data: any) => {
-			cancelAnimationFrame(animationFrame.value);
-			showNewGameButton.value = true;
-			emit('gameOver', {
-				winner: data.winner,
-				playerScore: data.score.player,
-				opponentScore: data.score.opponent
-			});
+				if (data.reason === 'disconnect') {
+					// Handle disconnect case
+					disconnectMessage.value = data.message || 'Opponent has left the game';
+					const [score1, score2] = data.score || [0, 0];
+					playerScore.value = isLocalHost.value ? score1 : score2;
+					opponentScore.value = isLocalHost.value ? score2 : score1;
+					isWinner.value = false; // No winner in case of disconnect
+				} else {
+					// Handle normal game end
+					disconnectMessage.value = ''; // Clear any disconnect message
+					const finalScores = getLocalScore(gameKey.value);
+					const player1Score = finalScores.playerScore;
+					const player2Score = finalScores.opponentScore;
+
+					// Determine winner based on scores
+					const isPlayer1Winner = player1Score > player2Score;
+					
+					// Update local display values
+					playerScore.value = isLocalHost.value ? player1Score : player2Score;
+					opponentScore.value = isLocalHost.value ? player2Score : player1Score;
+					isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
+
+					// Send game end data if socket is still open
+					if (gameSocket.value?.readyState === WebSocket.OPEN) {
+						const gameEndData = {
+							type: 'game_end',
+							reason: data.reason || 'score',
+							winner_id: isPlayer1Winner ? props.userId : props.opponent,
+							final_score: {
+								player1: player1Score,
+								player2: player2Score
+							}
+						};
+						
+						gameSocket.value.send(JSON.stringify(gameEndData));
+					}
+				}
+
+				// Clear local storage
+				localStorage.removeItem(gameKey.value);
+
+				// Update socket message handler for both cases
+				if (gameSocket.value) {
+					if (data.reason === 'disconnect') {
+						// Close socket for disconnect case
+						gameSocket.value.close();
+					} else {
+						// Keep socket open for normal game end to handle final messages
+						gameSocket.value.onmessage = (event) => {
+							try {
+								const response = JSON.parse(event.data);
+								if (response.type === 'game_state' && response.game_status === 'ended') {
+									emit('gameOver', {
+										winner: isWinner.value ? 'You' : 'Opponent',
+										playerScore: playerScore.value,
+										opponentScore: opponentScore.value,
+										message: isWinner.value ? 'Congratulations! You won!' : 'Game Over! You lost!'
+									});
+								}
+							} catch (error) {
+								console.error('Error handling game end message:', error);
+							}
+						};
+					}
+				}
+			} catch (error) {
+				console.error('Error in handleGameOver:', error);
+			}
 		};
 
 
 		onUnmounted(() => {
 			cleanup();
+			localStorage.removeItem(gameKey.value);
 		});
 
 		const cleanup = () => {
@@ -802,24 +904,23 @@ export default defineComponent({
 		const restartGame = async () => {
 			try {
 				const response = await fetch(`/pong/start-new-game/${props.gameId}/`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-				}
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					}
 				});
 				const data = await response.json();
 				
 				if (data.new_game_url) {
-				window.location.href = data.new_game_url;
+					window.location.href = data.new_game_url;
 				} else {
-				// Reset local game state if no redirect
-				gameState.value.score.player = 0;
-				gameState.value.score.opponent = 0;
-				playerScore.value = 0;
-				opponentScore.value = 0;
-				showNewGameButton.value = false;
-				resetBall();
-				gameLoop();
+					// Reset local game state
+					gameState.value.score.set([0, 0]);
+					playerScore.value = 0;
+					opponentScore.value = 0;
+					showNewGameButton.value = false;
+					resetBall();
+					gameLoop();
 				}
 			} catch (error) {
 				console.error('Error starting new game:', error);
@@ -828,6 +929,23 @@ export default defineComponent({
 
 		let resizeObserver: ResizeObserver | null = null;
 
+		const handlePageUnload = (event) => {
+			if (gameSocket.value?.readyState === WebSocket.OPEN) {
+				// Send disconnect message
+				gameSocket.value.send(JSON.stringify({
+					type: 'game_end',
+					reason: 'disconnect',
+					disconnected_player: props.userId,
+					final_score: {
+						player1: playerScore.value,
+						player2: opponentScore.value
+					}
+				}));
+				
+				// Close socket gracefully
+				gameSocket.value.close();
+			}
+		};
 
 		onMounted(() => {
 			// Wait for the next tick when the template is rendered
@@ -852,6 +970,9 @@ export default defineComponent({
 				window.addEventListener('keydown', handleKeyDown);
 				window.addEventListener('keyup', handleKeyUp);
 				
+				window.addEventListener('beforeunload', handlePageUnload);
+   				window.addEventListener('unload', handlePageUnload);
+
 				if (ctx.value && gameCanvas.value) {
 					console.log('Game components initialized successfully');
 					initializeGameSocket();
@@ -864,6 +985,16 @@ export default defineComponent({
 				}
 			});
 		});
+
+		watch([isLocalHost, gameAccepted, gameStarted], ([host, accepted, started]) => {
+			console.log('Game state changed:', {
+				isHost: props.isHost,
+				isLocalHost: host,
+				gameAccepted: accepted,
+				gameStarted: started
+			});
+		});
+
 		onUnmounted(() => {
 			cancelAnimationFrame(animationFrame.value);
 			window.removeEventListener('keydown', handleKeyDown);
@@ -873,6 +1004,9 @@ export default defineComponent({
 			if (resizeObserver) {
 				resizeObserver.disconnect();
 			}
+
+			window.removeEventListener('beforeunload', handlePageUnload);
+			window.removeEventListener('unload', handlePageUnload);
 		});
 
 		return {
@@ -886,8 +1020,13 @@ export default defineComponent({
 			startGame,
 			gameAccepted,
 			isLocalHost,
+			showEndGame,
+			isWinner,
+			winner,
+			disconnectMessage,
 		};
 	}
+	
 });
 </script>
   
@@ -934,17 +1073,6 @@ export default defineComponent({
   background: #1a1a1a;
   min-height: 0;
 }
-
-/* canvas {
-  background: black;
-  border-radius: 4px;
-  max-width: 100%;
-  max-height: calc(100% - 80px); 
-  width: auto;
-  height: auto;
-  object-fit: contain;
-  margin: auto;
-} */
 
 canvas {
     background: #000000;
@@ -1050,6 +1178,82 @@ canvas {
   font-family: monospace;
 }
 
+.game-end-screen {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background: rgba(0, 0, 0, 0.95);
+  padding: 2.5rem;
+  border-radius: 12px;
+  border: 2px solid #03a670;
+  color: white;
+  text-align: center;
+  z-index: 100;
+  min-width: 300px;
+  box-shadow: 0 0 30px rgba(3, 166, 112, 0.3);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.game-end-screen h2 {
+  color: #03a670;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.game-end-screen p {
+  font-size: 1.2rem;
+  margin: 0.8rem 0;
+  line-height: 1.5;
+}
+
+.game-end-screen p:first-of-type {
+  color: #03a670;
+  font-weight: bold;
+  font-size: 1.4rem;
+}
+
+.game-end-screen p:last-child {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(3, 166, 112, 0.3);
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -45%);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%);
+  }
+}
+
+.win-message {
+    color: #03a670;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(3, 166, 112, 0.3);
+}
+
+.lose-message {
+    color: #a60303;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(166, 3, 3, 0.3);
+}
+
+.score-message {
+    font-size: 1.2rem;
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(3, 166, 112, 0.3);
+    color: white;
+}
+
 @media (max-width: 768px) {
   .game-container {
     width: 95%;
@@ -1068,4 +1272,172 @@ canvas {
     max-height: calc(100% - 60px); /* Adjust for smaller screens */
   }
 }
+
+/* Add these styles to the existing <style scoped> section */
+
+.acceptance-screen {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100%;
+  width: 100%;
+  background: rgba(26, 26, 26, 0.95);
+}
+
+.acceptance-content {
+  background: #2d2d2d;
+  padding: 2.5rem;
+  border-radius: 12px;
+  border: 2px solid #03a670;
+  text-align: center;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 0 30px rgba(3, 166, 112, 0.2);
+  animation: slideIn 0.5s ease-out;
+}
+
+.acceptance-title {
+  color: #03a670;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-shadow: 0 0 10px rgba(3, 166, 112, 0.3);
+}
+
+.opponent-info {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: rgba(3, 166, 112, 0.1);
+  border-radius: 8px;
+}
+
+.opponent-label {
+  display: block;
+  color: #888;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+}
+
+.opponent-name {
+  display: block;
+  color: white;
+  font-size: 1.2rem;
+  font-weight: bold;
+}
+
+.start-game-btn {
+  margin-top: 1.5rem;
+  padding: 12px 24px;
+  font-size: 1.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  background: linear-gradient(45deg, #03a670, #04d38e);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.start-game-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(3, 166, 112, 0.4);
+}
+
+.btn-text {
+  font-weight: bold;
+}
+
+.btn-icon {
+  font-size: 1.2rem;
+}
+
+.waiting-message {
+  margin-top: 1.5rem;
+  color: #888;
+  font-size: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.loading-dots {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 0.5rem;
+}
+
+.loading-dots span {
+  width: 8px;
+  height: 8px;
+  background-color: #03a670;
+  border-radius: 50%;
+  animation: bounce 1s infinite;
+}
+
+.loading-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.loading-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+    background-color: #04d38e;
+  }
+}
+
+/* Media queries for responsiveness */
+@media (max-width: 768px) {
+  .acceptance-content {
+    padding: 2rem;
+    width: 95%;
+  }
+
+  .acceptance-title {
+    font-size: 1.75rem;
+  }
+
+  .opponent-name {
+    font-size: 1.1rem;
+  }
+
+  .start-game-btn {
+    padding: 10px 20px;
+    font-size: 1rem;
+  }
+}
+
+.disconnect-message {
+    color: #ff4444;
+    font-weight: bold;
+    font-size: 1.4rem;
+    text-shadow: 0 0 10px rgba(255, 68, 68, 0.3);
+    margin-bottom: 1rem;
+}
+
+.game-end-screen button {
+    margin-top: 1.5rem;
+    padding: 10px 20px;
+}
+
 </style>

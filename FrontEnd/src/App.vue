@@ -70,16 +70,9 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="language-selector">
-    <select v-model="locale">
-      <option v-for="lang in languages" :key="lang.code" :value="lang.code">
-        {{ lang.name }}
-      </option>
-    </select>
-  </div>
   <header>
     <img alt="Vue logo" class="logo" src="@/assets/logo.svg" width="125" height="125" />
-
+    
     <div class="wrapper">
       <HelloWorld msg="Transcendence" />
       <nav>
@@ -90,6 +83,13 @@ onMounted(() => {
         <RouterLink v-if="isAuthenticated" to="/friends">{{ t('nav.friends') }}</RouterLink>
       </nav>
     </div>
+    <div class="language-selector">
+      <select v-model="locale">
+        <option v-for="lang in languages" :key="lang.code" :value="lang.code">
+          {{ lang.name }}
+        </option>
+      </select>
+    </div>
   </header>
 
   <RouterView />
@@ -98,15 +98,29 @@ onMounted(() => {
 <style scoped>
 
 .language-selector {
-  margin-bottom: 20px;
-  text-align: right;
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
 }
+
 .language-selector select {
-  padding: 5px 10px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: 2px solid #03a670;
+  background-color: #2d2d2d;
+  color: white;
   font-size: 14px;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.3s ease;
 }
+
+.language-selector select:hover {
+  border-color: #04d38e;
+  box-shadow: 0 0 10px rgba(3, 166, 112, 0.3);
+}
+
 header {
   line-height: 1.5;
   max-height: 100vh;
