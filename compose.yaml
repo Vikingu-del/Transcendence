@@ -447,17 +447,17 @@ services:
 
 
   keystore_n_certs:
-    # build:
-    #     context: elk/setup/
-    #     args:
-    #       ELK_VERSION: ${ELK_VERSION}
-    # user: "0"
-    # volumes:
-    #     - ./elk/secrets:/secrets
-    #     - ./elk/setup/:/setup/
-    # environment:
-    #   ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
-    #   ELK_VERSION: ${ELK_VERSION}
+    build:
+        context: elk/setup/
+        args:
+          ELK_VERSION: ${ELK_VERSION}
+    user: "0"
+    volumes:
+        - ./elk/secrets:/secrets
+        - ./elk/setup/:/setup/
+    environment:
+      ELASTIC_PASSWORD: ${ELASTIC_PASSWORD}
+      ELK_VERSION: ${ELK_VERSION}
 
   prometheus:
     image: prom/prometheus:latest
