@@ -83,14 +83,16 @@
       "successTitle": "Registration Successful!",
       "redirecting": "Redirecting to login page...",
       "messages": {
-      "Registration failed": "Registration failed",
-      "Registration successful! Redirecting to login...": "Registration successful! Redirecting to login..."
+      "Registerfailed": "Registration failed",
+      "Registersuccess": "Registration successful! Redirecting to login..."
     },
       "success": "Registration successful! Redirecting to login..."
     },
     "friends": {
       "title": "Friends",
       "noFriends": "No friends yet",
+      "request": "Friend Requests",
+      "find": "Find Friends",
       "info": "Info",
       "remove": "Remove",
       "chat": "Start Chat",
@@ -99,7 +101,7 @@
       "displayName": "Display Name",
       "sendMessage": "Send",
       "typeMessage": "Type your message...",
-      "chatWith": "Chat with {name}"
+      "chatWith": "Chat with "
     },
     "home": {
     "title": "Welcome to Transcendence",
@@ -143,13 +145,19 @@
       },
       "errors": {
       "displayName": "Invalid display name"
+    },
+    "msgStatus":{
+      "success": "success",
+      "warning": "warning",
+      "error": "error"
     }
     },
     "errors": {
       "Passwords do not match": "Passwords do not match",
       "Username already exists": "Username already exists",
       "Invalid username format": "Invalid username format",
-      "Password too weak": "Password too weak"
+      "Password too weak": "Password too weak",
+      "profileInitError": "Profile initialization error:"
     }
 }
   

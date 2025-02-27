@@ -105,7 +105,7 @@ export default {
               await this.$router.push(redirectPath);
               // tfa = true;
           } else {
-              this.error = this.ct('login.error.Login failed');
+              this.error = this.t('login.errors.Login failed');
               this.password = '';
           }
       } catch (error) {

@@ -15,13 +15,13 @@
 
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
-          <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
+          <label for="avatar-upload" class="btn primary-btn">{{ t('profile.avatar.change') }}</label>
           <button 
             v-if="!isDefaultAvatar" 
             @click="deleteAvatar" 
             class="btn secondary-btn"
           >
-            Delete Avatar
+          {{ t('profile.avatar.delete') }}
           </button>
         </div>
       </div>
@@ -43,7 +43,7 @@
             :disabled="isUpdateDisabled"
             :class="{ 'enabled-btn': !isUpdateDisabled }"
           >
-            Update Profile
+          {{ t('profile.update.profile') }}
           </button>
         </form>
       </div>
@@ -85,7 +85,7 @@
     -------------------
     </span>
     </template>
-    <template v-else>No friends</template>
+    <template v-else>{{ t('friends.noFriends') }}</template>
 
     WebSocket:
     -------------
@@ -110,7 +110,7 @@
 
     <!-- Logout Button -->
     <nav>
-      <button @click="logout" class="btn secondary-btn">Logout</button>
+      <button @click="logout" class="btn secondary-btn">{{ t('profile.actions.logout') }}</button>
     </nav>
   </div>
 </template>
@@ -118,9 +118,14 @@
 <script>
 import axios from '@/plugins/axios';
 import { mapGetters } from 'vuex';
+import { useI18n } from 'vue-i18n';
 
 export default {
   name: 'Profile',
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
   
   data() {
     return {
@@ -196,7 +201,7 @@ export default {
       await this.fetchProfile();
       this.updateOnlineStatus(true);
     } catch (error) {
-      console.error('Profile initialization error:', error);
+      console.error(this.t('errors.profileInitError'), error);
     }
   },
 
@@ -208,9 +213,9 @@ export default {
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
-      const validTypes = ['success', 'warning', 'error'];
+      const validTypes = [this.t('profile.msgStatus.success'), this.t('profile.msgStatus.warning'), this.t('profile.msgStatus.error')];
       if (!validTypes.includes(type)) {
-        type = 'success'; // Default fallback
+        type = this.t('profile.msgStatus.success') // Default fallback
       }
 
       // Interpolate variables into message
