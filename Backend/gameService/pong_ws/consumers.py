@@ -131,9 +131,27 @@ class PongConsumer(AsyncWebsocketConsumer):
                 await self.handle_game_start(data)
             elif message_type == 'game_end':
                 await self.handle_game_end(data)
+            elif message_type == 'score_update':
+                await self.handle_score_update(data)
 
         except Exception as e:
             logger.error(f"Error in receive: {str(e)}")
+
+    async def handle_score_update(self, data):
+        """Handle score updates"""
+        try:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'broadcast_game_update',
+                    'message': {
+                        'type': 'score_update',
+                        'score': data.get('score', [0, 0])
+                    }
+                }
+            )
+        except Exception as e:
+            logger.error(f"Error handling score update: {str(e)}")
 
     async def handle_game_start(self, data):
         """Handle game start"""
@@ -211,6 +229,13 @@ class PongConsumer(AsyncWebsocketConsumer):
             await self.send(text_data=json.dumps(event['message']))
         except Exception as e:
             logger.error(f"Error broadcasting paddle: {str(e)}")
+
+    async def broadcast_game_update(self, event):
+        """Broadcast game updates"""
+        try:
+            await self.send(text_data=json.dumps(event['message']))
+        except Exception as e:
+            logger.error(f"Error broadcasting game update: {str(e)}")
 
     async def broadcast_ball(self, event):
         """Broadcast ball position"""

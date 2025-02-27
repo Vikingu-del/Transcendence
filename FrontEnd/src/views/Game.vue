@@ -264,6 +264,16 @@ export default defineComponent({
 			}
 		};
 
+		const sendScoreUpdate = () => {
+			if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
+				const { score } = gameState.value;
+				gameSocket.value.send(JSON.stringify({
+					type: 'score_update',
+					score: [score[0], score[1]]
+				}));
+			}
+		};
+
 		const lastUpdate = ref(Date.now());
 
 		const updateGameState = (state: GameState) => {
@@ -290,7 +300,7 @@ export default defineComponent({
 			if (ball[0] - ball[4] <= paddles[0] + paddles[4] && // x - radius <= playerX + width
 				ball[1] >= paddles[1] && // y >= playerY
 				ball[1] <= paddles[1] + paddles[5] && // y <= playerY + height
-				ball[2] < 0) { // Moving left
+				ball[2] < 0) { // left
 				
 				ball[0] = paddles[0] + paddles[4] + ball[4]; // Prevent sticking
 				ball[2] = -ball[2] * SPEED_REDUCTION; // Reverse and reduce horizontal speed
@@ -319,6 +329,7 @@ export default defineComponent({
 				score[1]++; // Opponent scores
 				opponentScore.value = score[1];
 				updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+				sendScoreUpdate();
 				resetBall();
 				checkGameOver();
 			}
@@ -326,6 +337,7 @@ export default defineComponent({
 				score[0]++; // Player scores
 				playerScore.value = score[0];
 				updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+				sendScoreUpdate();
 				resetBall();
 				checkGameOver();
 			}
@@ -606,30 +618,43 @@ export default defineComponent({
 
 				case 'ball_update':
 					if (!isLocalHost.value) {
-					const { ball, score } = data;
-					
-					if (ball) {
-						gameState.value.ball[0] = ball.x;
-						gameState.value.ball[1] = ball.y;
-						gameState.value.ball[2] = ball.dx;
-						gameState.value.ball[3] = ball.dy;
-						gameState.value.ball[4] = ball.radius;
-					}
+						const { ball, score } = data;
+						
+						if (ball) {
+							gameState.value.ball[0] = ball.x;
+							gameState.value.ball[1] = ball.y;
+							gameState.value.ball[2] = ball.dx;
+							gameState.value.ball[3] = ball.dy;
+							gameState.value.ball[4] = ball.radius;
+						}
 
-					if (Array.isArray(score)) {
-						gameState.value.score[0] = score[0];
-						gameState.value.score[1] = score[1];
-						
-						// Update local storage with new scores
-						const newPlayerScore = isLocalHost.value ? score[0] : score[1];
-						const newOpponentScore = isLocalHost.value ? score[1] : score[0];
-						
-						playerScore.value = newPlayerScore;
-						opponentScore.value = newOpponentScore;
-						updateLocalScore(gameKey.value, newPlayerScore, newOpponentScore);
-					}
+						if (Array.isArray(score)) {
+							gameState.value.score[0] = score[0];
+							gameState.value.score[1] = score[1];
+							
+							// Update local storage with new scores
+							const newPlayerScore = isLocalHost.value ? score[0] : score[1];
+							const newOpponentScore = isLocalHost.value ? score[1] : score[0];
+							
+							playerScore.value = newPlayerScore;
+							opponentScore.value = newOpponentScore;
+							updateLocalScore(gameKey.value, newPlayerScore, newOpponentScore);
+						}
 					}
 					break;
+					case 'score_update':
+						if (!isLocalHost.value) {  // Only non-host needs to process these
+							const { score } = data;
+							if (Array.isArray(score)) {
+								gameState.value.score[0] = score[0];
+								gameState.value.score[1] = score[1];
+								
+								playerScore.value = score[0];
+								opponentScore.value = score[1];
+								updateLocalScore(gameKey.value, playerScore.value, opponentScore.value);
+							}
+						}
+						break;
 			}
 		};
 
