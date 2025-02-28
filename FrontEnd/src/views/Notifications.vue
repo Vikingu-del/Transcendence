@@ -118,8 +118,11 @@ export default {
           }
         });
         
+        // Get the response text to see the actual error
+        const responseText = await response.text();
+
         if (!response.ok) {
-          throw new Error('Failed to mark notification as read');
+          throw new Error(`Server error: ${response.status} - ${responseText || 'No error details provided'}`);
         }
         
         // Update local state
