@@ -1,12 +1,25 @@
 <template>
-  <div class="tournament-container">
-    <!-- Enrollment prompt -->
+  <!-- <div class="tournament-container">
     <div v-if="!isEnrolled" class="tournament-prompt">
       <p class="question">New Tournament Starting Soon. Wanna Join?</p>
       <div class="button-group">
         <button class="btn btn-yes" @click="handleYes">Yes</button>
         <button class="btn btn-no" @click="handleNo">No</button>
       </div>
+    </div> -->
+    <div class="tournament-container">
+    <!-- Show enrollment prompt only if not enrolled and can enroll -->
+    <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
+      <p class="question">New Tournament Starting Soon. Wanna Join?</p>
+      <div class="button-group">
+        <button class="btn btn-yes" @click="handleYes">Yes</button>
+        <button class="btn btn-no" @click="handleNo">No</button>
+      </div>
+    </div>
+
+    <!-- Show message if there's an active tournament but user can't enroll -->
+    <div v-if="!isEnrolled && !canEnroll" class="tournament-message">
+      <p>{{ enrollmentMessage }}</p>
     </div>
 
     <!-- Tournament status -->
@@ -147,6 +160,8 @@ export default {
       tournamentId: null,
       lastMessage: '',
       currentUserId: null,
+      canEnroll: false,
+      enrollmentMessage: '',
 
       // WebSocket connection
       tournamentSocket: null,
@@ -310,6 +325,14 @@ export default {
 
         const data = await response.json();
         this.isEnrolled = data.enrolled;
+        this.canEnroll = data.can_enroll;
+        this.enrollmentMessage = data.message;
+
+        // If enrolled, fetch tournament status
+        if (this.isEnrolled) {
+          await this.fetchTournamentStatus();
+          this.connectWebSocket();
+        }
         
       } catch (error) {
         console.error('Error checking enrollment:', error);
@@ -954,5 +977,20 @@ color: white;
 
 .player-name {
   font-weight: bold;
+}
+
+.tournament-message {
+  background: #2c2c2c;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 2rem auto;
+  max-width: 600px;
+  text-align: center;
+}
+
+.tournament-message p {
+  color: #fff;
+  font-size: 1.2rem;
+  margin: 0;
 }
 </style>
