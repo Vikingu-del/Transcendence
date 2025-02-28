@@ -5,94 +5,10 @@ from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
 from django.utils import timezone
 import uuid
-
 import logging
 logger = logging.getLogger(__name__)
 from pong.models import GameSession
 from asgiref.sync import async_to_sync
-
-@database_sync_to_async
-def save_game_session(game_session):
-    """ Safely save the game session asynchronously. """
-    game_session.save()
-
-@database_sync_to_async
-def save_final_score(game_id, winner_username, player1_score, player2_score):
-    """ Save final scores when the game ends. """
-    game_session = GameSession.objects.filter(game_id=game_id).order_by('-created_at').first()
-    if not game_session:
-        return
-
-    winner = User.objects.get(username=winner_username)
-    game_session.winner = winner
-    game_session.player1_score = player1_score
-    game_session.player2_score = player2_score
-    game_session.ended_at = timezone.now()
-    game_session.is_active = False
-    game_session.save()
-
-
-@database_sync_to_async
-def reset_game_session(game_id):
-    """ Reset the game session for a new game. """
-    game_session = GameSession.objects.get(game_id=game_id)
-    game_session.player1_score = 0
-    game_session.player2_score = 0
-    game_session.player1_paddle = 0
-    game_session.player2_paddle = 0
-    game_session.ball_position = {}
-    game_session.ball_direction = {}
-    game_session.is_active = True
-    game_session.ended_at = None
-    game_session.save()
-    return game_session.game_id
-
-@database_sync_to_async
-def create_game_session(game_id, player1=None, player2=None):
-    """Create a new game session with improved error handling and validation"""
-    try:
-        # Validate game_id format
-        try:
-            game_uuid = uuid.UUID(game_id)
-        except ValueError:
-            logger.error(f"Invalid game ID format: {game_id}")
-            return None
-
-        # Mark any existing active sessions for this game as inactive
-        GameSession.objects.filter(game_id=game_uuid).update(is_active=False)
-
-        # Create new session
-        game_session = GameSession.objects.create(
-            game_id=game_uuid,
-            player1=player1,
-            player2=player2,
-            is_active=True,
-            ball_position={"x": 400, "y": 200},
-            ball_direction={"dx": 3, "dy": 3}
-        )
-
-        logger.info(f"Created game session: {game_session.game_id} with players: "
-                   f"{player1.username if player1 else 'None'} vs "
-                   f"{player2.username if player2 else 'None'}")
-        return game_session
-
-    except Exception as e:
-        logger.error(f"Error creating game session: {str(e)}")
-        return None
-
-@database_sync_to_async
-def create_rematch_session(game_id, player1, player2):
-    """Create a new game session for a rematch, keeping the same players."""
-    try:
-        # Mark old games with this ID as inactive
-        GameSession.objects.filter(game_id=game_id).update(is_active=False)
-        
-        # Create new session with same game_id
-        return create_game_session(game_id, player1, player2)
-    except Exception as e:
-        print(f"Error creating rematch session: {str(e)}")
-        return None
-
 
 class PongConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -337,4 +253,86 @@ def save_game_result(game_id, winner_id, player1_score, player2_score):
         )
     except Exception as e:
         logger.error(f"Error saving game result: {str(e)}")
+
+@database_sync_to_async
+def save_game_session(game_session):
+    """ Safely save the game session asynchronously. """
+    game_session.save()
+
+@database_sync_to_async
+def save_final_score(game_id, winner_username, player1_score, player2_score):
+    """ Save final scores when the game ends. """
+    game_session = GameSession.objects.filter(game_id=game_id).order_by('-created_at').first()
+    if not game_session:
+        return
+
+    winner = User.objects.get(username=winner_username)
+    game_session.winner = winner
+    game_session.player1_score = player1_score
+    game_session.player2_score = player2_score
+    game_session.ended_at = timezone.now()
+    game_session.is_active = False
+    game_session.save()
+
+
+@database_sync_to_async
+def reset_game_session(game_id):
+    """ Reset the game session for a new game. """
+    game_session = GameSession.objects.get(game_id=game_id)
+    game_session.player1_score = 0
+    game_session.player2_score = 0
+    game_session.player1_paddle = 0
+    game_session.player2_paddle = 0
+    game_session.ball_position = {}
+    game_session.ball_direction = {}
+    game_session.is_active = True
+    game_session.ended_at = None
+    game_session.save()
+    return game_session.game_id
+
+@database_sync_to_async
+def create_game_session(game_id, player1=None, player2=None):
+    """Create a new game session with improved error handling and validation"""
+    try:
+        # Validate game_id format
+        try:
+            game_uuid = uuid.UUID(game_id)
+        except ValueError:
+            logger.error(f"Invalid game ID format: {game_id}")
+            return None
+
+        # Mark any existing active sessions for this game as inactive
+        GameSession.objects.filter(game_id=game_uuid).update(is_active=False)
+
+        # Create new session
+        game_session = GameSession.objects.create(
+            game_id=game_uuid,
+            player1=player1,
+            player2=player2,
+            is_active=True,
+            ball_position={"x": 400, "y": 200},
+            ball_direction={"dx": 3, "dy": 3}
+        )
+
+        logger.info(f"Created game session: {game_session.game_id} with players: "
+                   f"{player1.username if player1 else 'None'} vs "
+                   f"{player2.username if player2 else 'None'}")
+        return game_session
+
+    except Exception as e:
+        logger.error(f"Error creating game session: {str(e)}")
+        return None
+
+@database_sync_to_async
+def create_rematch_session(game_id, player1, player2):
+    """Create a new game session for a rematch, keeping the same players."""
+    try:
+        # Mark old games with this ID as inactive
+        GameSession.objects.filter(game_id=game_id).update(is_active=False)
+        
+        # Create new session with same game_id
+        return create_game_session(game_id, player1, player2)
+    except Exception as e:
+        print(f"Error creating rematch session: {str(e)}")
+        return None
     

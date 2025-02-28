@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'channels_redis',
     'pong.apps.PongConfig',
     'pong_ws.apps.PongWsConfig',
+    'tournament.apps.TournamentConfig',
     'corsheaders',
 ]
 
@@ -198,6 +199,8 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+
+AUTH_USER_MODEL = 'auth.User' 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/

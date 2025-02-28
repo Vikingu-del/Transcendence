@@ -39,8 +39,9 @@ class JWTAuthMiddleware:
             return None
 
     def __call__(self, request):
-        if not request.path.startswith('/api/chat/'):
-            return self.get_response(request)
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return JsonResponse({'detail': 'No token provided'}, status=401)
 
         auth_header = request.headers.get('Authorization')
         if not auth_header or not auth_header.startswith('Bearer '):

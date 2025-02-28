@@ -8,6 +8,7 @@ import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
 import Friends from '../views/Friends.vue';
 import Notifications from '../views/Notifications.vue';
+import Tournament from '@/views/Tournament.vue';
 
 // Create the router instance and configuring the routes through this instance
 const router = createRouter({
@@ -49,6 +50,12 @@ const router = createRouter({
       component: Notifications,
       meta: { requiresAuth: true }
     },
+    {
+      path: '/tournament',
+      name: 'Tournament',
+      component: Tournament,
+      meta: { requiresAuth: true }
+    }
   ]
 });
 
