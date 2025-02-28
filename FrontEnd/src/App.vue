@@ -1,7 +1,7 @@
 <script setup>
 import { RouterLink, RouterView, useRouter } from 'vue-router'
 import HelloWorld from './components/HelloWorld.vue'
-import { computed, onMounted, ref, onUnmounted } from 'vue'
+import { computed, onMounted, ref, onUnmounted, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import { provide } from 'vue'
 import { useI18n } from 'vue-i18n'
@@ -121,17 +121,44 @@ function initNotificationSocket() {
         else if (data.type === 'game_declined') {
           console.log('Game decline received in App.vue:', data);
           
-          // If we're the original sender of the game invite
+          // Get the current user ID 
           const currentUserId = store.state.userId || localStorage.getItem('userId');
+          console.log('Current user ID:', currentUserId, 'Recipient ID:', data.recipient_id);
+          
           if (parseInt(data.recipient_id) === parseInt(currentUserId)) {
             console.log('Our game invitation was declined by:', data.sender_name);
-            // Close the game window for the host
+            
+            // Force close the game window through multiple approaches
             if (globalGame.value) {
-              console.log('Closing game window via globalGame');
+              console.log('GlobalGame ref found, forcing game window to close');
+              
+              // Call the method
               globalGame.value.closeGame();
+              
+              // Also directly force the state to be closed
+              globalGame.value.showGameWindow = false;
+              
+              // Use store dispatch as backup
+              store.dispatch('closeGame');
+              
+              // Verify on next tick if it worked
+              nextTick(() => {
+                console.log('Game window closed status:', !globalGame.value.showGameWindow);
+                
+                // If it's still open, try force closing again
+                if (globalGame.value.showGameWindow) {
+                  console.log('Window still open, forcing closure again');
+                  globalGame.value.showGameWindow = false;
+                  store.dispatch('closeGame');
+                }
+              });
             } else {
               console.error('GlobalGame ref is not available');
+              // Try using store dispatch
+              store.dispatch('closeGame');
             }
+          } else {
+            console.log('This game decline notification is not for us');
           }
         }
         // Update notification count for all notifications
@@ -234,18 +261,37 @@ function acceptGameInvite() {
 }
 
 function declineGameInvite() {
-  if (!gameInviteNotification.value || !notificationSocket.value) return;
+  if (!gameInviteNotification.value || !notificationSocket.value) {
+    console.log('No game invite to decline or socket not available');
+    return;
+  }
+
+  console.log('Declining game invite with data:', {
+    gameId: gameInviteNotification.value.gameId,
+    recipientId: gameInviteNotification.value.senderId,
+    senderId: store.state.userId
+  });
   
-  // Send decline message
-  if (notificationSocket.value.readyState === WebSocket.OPEN) {
-    const declineData = {
-      type: 'game_declined',
-      game_id: gameInviteNotification.value.gameId,
-      recipient_id: gameInviteNotification.value.senderId,
-      sender_id: store.state.userId
-    };
+  try {
+    const token = localStorage.getItem('token');
+    const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsHost = window.location.host;
+    const gameWsUrl = `${wsProtocol}//${wsHost}/ws/game/${gameInviteNotification.value.gameId}/?token=${encodeURIComponent(token)}`;
     
-    notificationSocket.value.send(JSON.stringify(declineData));
+    console.log('Connecting to game WebSocket to send decline:', gameWsUrl);
+    const tempGameSocket = new WebSocket(gameWsUrl);
+    
+    tempGameSocket.onopen = () => {
+      console.log('Connected to game socket to send decline message');
+      tempGameSocket.send(JSON.stringify({
+        type: 'player_declined'
+      }));
+      
+      // Close the socket after sending
+      setTimeout(() => tempGameSocket.close(), 1000);
+    };
+  } catch (error) {
+    console.error('Error sending direct game decline:', error);
   }
   
   // Clear the invitation

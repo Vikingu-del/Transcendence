@@ -53,6 +53,7 @@ const store = createStore({
       state.isAbleToPlay = isAbleToPlay;
     },
     setGameWindow(state, status) {
+      console.log('Store mutation: Setting game window to', status);
       state.showGameWindow = status;
     },
     setGameData(state, data) {
@@ -94,6 +95,7 @@ const store = createStore({
       commit('setGameWindow', true);
     },
     closeGame({ commit }) {
+      console.log('Store action: Closing game window');
       commit('setGameWindow', false);
       commit('setGameData', null);
     },

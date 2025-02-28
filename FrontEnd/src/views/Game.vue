@@ -134,6 +134,11 @@ export default defineComponent({
 			return gameKey;
 		};
 
+		const handlePlayerDecline = () => {
+			console.log('Host detected player decline, closing game');
+			emit('close');
+		};
+
 		const updateLocalScore = (gameKey: string, playerScore: number, opponentScore: number) => {
 			localStorage.setItem(gameKey, JSON.stringify({
 				playerScore,
@@ -609,14 +614,19 @@ export default defineComponent({
 				gameSocket.value.onmessage = (event) => {
 					try {
 						const data = JSON.parse(event.data);
-						// console.log('Received game message:', data);
+						console.log('Game message received:', data);
 						
-						// Handle the message in the next tick to ensure state updates are synchronized
-						nextTick(() => {
-							handleGameMessage(data);
-						});
+						// Add this special handler for decline messages
+						if (data.type === 'player_declined') {
+						console.log('Received player_declined message through game socket');
+						handlePlayerDecline();
+						return;
+						}
+						
+						// Rest of your existing message handling
+						handleGameMessage(data);
 					} catch (error) {
-						console.error('Error parsing game message:', error);
+						console.error('Error processing game message:', error);
 					}
 				};
 				

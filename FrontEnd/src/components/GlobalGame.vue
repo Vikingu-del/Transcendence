@@ -34,17 +34,21 @@
   
       // Method to open game
       const openGame = (gameData) => {
+        console.log('GlobalGame: Opening game with data:', gameData);
         opponent.value = gameData.opponent;
         gameId.value = gameData.gameId;
         isHost.value = gameData.isHost;
         showGameWindow.value = true;
+        console.log('Game window open status:', showGameWindow.value);
       };
       
       // Method to close game
       const closeGame = () => {
+        console.log('GlobalGame: Closing game window');
         showGameWindow.value = false;
         gameId.value = '';
         opponent.value = '';
+        console.log('Game window closed, new status:', showGameWindow.value);
       };
       
       return {
