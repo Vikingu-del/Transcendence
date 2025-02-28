@@ -312,6 +312,7 @@
 
 <script>
 import PongGame from './Game.vue';
+import { inject } from 'vue';
 
 export default {
   name: 'Friends',
@@ -362,7 +363,7 @@ export default {
       // UI State
       statusMessage: null,
       
-      // Chat Functionality
+      // Chat Functionalities
       messages: [],
       newMessage: '',
       showChat: false,
@@ -370,6 +371,7 @@ export default {
       chatId: null,
 
       //Notification
+      notificationService: null,
       notificationSocket: null,
 
       // Game Functionality
@@ -385,6 +387,11 @@ export default {
     }
   },
 
+  setup() {
+    const notificationService = inject('notificationService');
+    return { notificationService };
+  },
+
   computed: {
     getToken() {
       return this.token;
@@ -395,27 +402,95 @@ export default {
   },
 
   async created() {
-    try {
-      const token = localStorage.getItem('token');
-      console.log('Initial token:', token);
-      
-      if (!token) {
-        await this.$router.push('/login');
-        return;
-      }
-      
-      // Fetch both profile and friend requests
-      await Promise.all([
-        this.fetchProfile(),
-        this.fetchIncomingRequests()
-      ]);
-      
-      this.initNotificationSocket();
-    } catch (error) {
-      console.error('Initialization error:', error);
-      this.$router.push('/login');
+  try {
+    const token = localStorage.getItem('token');
+    console.log('Initial token:', token);
+    
+    if (!token) {
+      await this.$router.push('/login');
+      return;
     }
-  },
+    
+    // Fetch both profile and friend requests
+    await Promise.all([
+      this.fetchProfile(),
+      this.fetchIncomingRequests()
+    ]);
+
+     // Check if we're coming from a game invitation
+    if (this.$route.query.action === 'join-game') {
+      const gameId = this.$route.query.gameId;
+      const sender = this.$route.query.sender;
+      const senderId = this.$route.query.senderId;
+      
+      if (gameId && sender && senderId) {
+        console.log('Joining game from invitation:', gameId);
+        this.handleGameJoin(gameId, sender, parseInt(senderId));
+      }
+    }
+
+    // The notificationService is already injected in setup()
+    console.log('Notification service status:', this.notificationService ? 'Available' : 'Not available');
+    
+    // No need to inject again - just log the status
+    if (!this.notificationService) {
+      console.warn('Warning: Notification service was not injected properly');
+    } else {
+      // Add event listener to the socket from notificationService
+      if (this.notificationService && this.notificationService.socket && this.notificationService.socket.value) {
+        console.log('Adding message listener to notification socket');
+        
+        this.notificationService.socket.value.addEventListener('message', async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            console.log('Notification received in Friends component:', data);
+            
+            // Process different notification types
+            switch (data.type) {
+              case 'friend_request':
+                await this.handleFriendRequestNotification(data);
+                // Update incoming requests count
+                await this.fetchIncomingRequests();
+                break;
+              case 'friend_accepted':
+                await this.handleFriendAcceptNotification(data);
+                break;
+              case 'friend_declined':
+                await this.handleFriendDeclineNotification(data);
+                break;
+              case 'friend_removed':
+                await this.handleFriendRemoveNotification(data);
+                break;
+              // Handle other notification types as needed
+              case 'game_invite':
+                this.handleGameInvite(data);
+                break;
+              case 'game_accepted':
+                this.handleGameAccepted(data);
+                break;
+              case 'game_declined':
+                this.handleGameDecline(data);
+                break;
+              case 'chat_message':
+                this.handleChatNotification(data);
+                break;
+            }
+
+            // Update the global friend request count via the service
+            if (this.notificationService.fetchFriendRequests) {
+              this.notificationService.fetchFriendRequests();
+            }
+          } catch (error) {
+            console.error('Error processing notification in Friends component:', error);
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Initialization error:', error);
+    this.$router.push('/login');
+  }
+},
 
   methods: {
 
@@ -502,7 +577,7 @@ export default {
         await this.fetchProfile();
 
         // Send friend request notification through WebSocket Erik
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_request',
             recipient_id: friendId,
@@ -511,7 +586,7 @@ export default {
           };
 
           console.log('Sending friend request notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -548,7 +623,7 @@ export default {
         // Fetch updated profile to get fresh friends list
         await this.fetchProfile();
 
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_accepted',
             recipient_id: request.from_user.id,
@@ -557,7 +632,7 @@ export default {
           };
 
           console.log('Sending friend request accepted notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -586,7 +661,7 @@ export default {
           { name: request.from_user.display_name }, 
           'success'
         );
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_declined',
             recipient_id: request.from_user.id,  // Send to the person who originally sent the request
@@ -595,7 +670,7 @@ export default {
           };
 
           console.log('Sending friend decline notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -643,7 +718,7 @@ export default {
           await this.fetchProfile();
           
           // Send friend removal notification through WebSocket
-          if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+          if (this.notificationService) {
             const notificationData = {
               type: 'friend_removed',
               recipient_id: friendId,
@@ -652,7 +727,7 @@ export default {
             };
 
             console.log('Sending friend removal notification:', notificationData);
-            this.notificationSocket.send(JSON.stringify(notificationData));
+            this.notificationService.sendNotification(notificationData);
           } else {
             console.error('Notification socket not connected');
           }
@@ -1175,7 +1250,11 @@ export default {
         });
 
         this.chatSocket.send(JSON.stringify(messageData));
-        this.notificationSocket.send(JSON.stringify(notificationMessageData));
+        if (this.notificationService) {
+          this.notificationService.sendNotification(notificationMessageData);
+        } else {
+          console.error('Notification service not available');
+        }
         this.scrollToBottom();
         this.newMessage = '';
       } catch (error) {
@@ -1236,7 +1315,7 @@ export default {
             // Auto-hide notification after 10 seconds
             this.gameInviteTimeout = setTimeout(() => {
                 this.declineGameInvite();
-            }, 10000);
+            }, 30000);
         }
     },
 
@@ -1256,7 +1335,7 @@ export default {
                 this.opponent = this.gameInviteNotification.sender;
                 
                 // Send accept message through notification WebSocket
-                if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+                if (this.notificationService) {
                     const acceptData = {
                         type: 'game_accepted',
                         game_id: this.currentGameId,
@@ -1267,7 +1346,7 @@ export default {
                     };
                     
                     console.log('Sending game acceptance:', acceptData);
-                    this.notificationSocket.send(JSON.stringify(acceptData));
+                    this.notificationService.sendNotification(acceptData);
                 }
             } 
             // If we're handling a WebSocket message (sender receiving acceptance)
@@ -1348,87 +1427,6 @@ export default {
       this.gameInviteNotification = null;
     },
     
-    initNotificationSocket() {
-        try {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsHost = window.location.host;
-            const token = this.getToken;
-
-            if (!token) {
-                console.error('No token available for notification socket');
-                return;
-            }
-
-            const wsUrl = `${wsProtocol}//${wsHost}/ws/notification/?token=${encodeURIComponent(token)}`;
-            console.log('Connecting to notification socket:', wsUrl);
-            this.notificationSocket = new WebSocket(wsUrl);
-            this.notificationSocket.onopen = () => {
-                this.wsConnected = true;
-            };
-
-            // Update the message handler to use proper async/await
-            this.notificationSocket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Received notification data:', data);
-
-                    // Handle different notification types synchronously
-                    switch (data.type) {
-                        case 'game_invite':
-                            this.handleGameInvite(data);
-                            break;
-                        case 'game_accepted':
-                            this.handleGameAccepted(data);
-                            break;
-                        case 'game_declined':
-                            this.handleGameDecline(data);
-                            break;
-                        case 'chat_message':
-                            this.handleChatNotification(data);
-                            break;
-                        case 'friend_request':
-                            this.handleFriendRequestNotification(data);
-                            break;
-                        case 'friend_accepted':
-                            this.handleFriendAcceptNotification(data);
-                            break;
-                        case 'friend_declined':
-                            this.handleFriendDeclineNotification(data);
-                            break;
-                        case 'friend_removed':
-                          this.handleFriendRemoveNotification(data);
-                          break;
-                        default:
-                            console.log('Unknown notification type:', data.type);
-                    }
-                } catch (error) {
-                  console.error('Error processing notification:', error);
-                }
-            };
-
-            this.notificationSocket.onerror = (error) => {
-                console.error('Notification WebSocket error:', error);
-                this.wsConnected = false;
-                setTimeout(() => this.initNotificationSocket(), 3000);
-            };
-
-            this.notificationSocket.onclose = () => {
-                console.log('Notification WebSocket closed');
-                this.wsConnected = false;
-                // Only attempt to reconnect if the component is still mounted
-                if (!this._isDestroyed) {
-                    setTimeout(() => this.initNotificationSocket(), 3000);
-                }
-            };
-
-        } catch (error) {
-            console.error('Error initializing notification socket:', error);
-            setTimeout(() => this.initNotificationSocket(), 3000);
-        }
-    },
-
-    
-
     // handleGameDecline(data) {
     //     if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
     //         this.showStatus('Game invite declined', {}, 'warning');
@@ -1482,7 +1480,7 @@ export default {
             this.currentGameId = uuid;
             this.opponent = this.selectedFriend.display_name; // Set the opponent name
             
-            if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+            if (this.notificationService) {
                 const inviteData = {
                     type: 'game_invite',
                     game_id: uuid,
@@ -1493,7 +1491,7 @@ export default {
                 };
                 
                 console.log('Sending game invite:', inviteData);
-                this.notificationSocket.send(JSON.stringify(inviteData));
+                this.notificationService.sendNotification(inviteData);
                 this.gameInviteSent = true;
                 this.showGameWindow = true;
                 this.showChat = false;
@@ -1507,10 +1505,30 @@ export default {
     },
 
     // Add method to handle game join
-    handleGameJoin(gameId) {
-      this.currentGameId = gameId;
-      this.showGameWindow = true;
-      this.gameInviteSent = false; // Since we're joining, not hosting
+    handleGameJoin(gameId, opponentName, opponentId) {
+      try {
+        this.currentGameId = gameId;
+        this.opponent = opponentName || 'Opponent';
+        
+        // Set up the game window
+        this.showGameWindow = true;
+        this.showChat = false;
+        
+        // Initialize game connection
+        this.initializeGameConnection(gameId);
+        
+        // If we have a selected friend already, use that
+        if (!this.selectedFriend && opponentId) {
+          // Find the friend in your friends list
+          const friend = this.profile.friends.find(f => f.id === opponentId);
+          if (friend) {
+            this.selectedFriend = friend;
+          }
+        }
+      } catch (error) {
+        console.error('Error joining game:', error);
+        this.showStatus('Failed to join game', {}, 'error');
+      }
     },
 
     handleFriendRequestNotification(data) {

@@ -13,6 +13,13 @@ class NotificationListView(APIView):
         serializer = NotificationSerializer(notifications, many=True)
         return Response(serializer.data)
 
+class NotificationUnreadCountView(APIView):
+    permission_classes = [IsAuthenticated]
+    def get(self, request):
+        """Get count of unread notifications for the current user"""
+        count = Notification.objects.filter(recipient=request.user, is_read=False).count()
+        return Response({'count': count})
+
 class NotificationMarkReadView(APIView):
     permission_classes = [IsAuthenticated]
     
