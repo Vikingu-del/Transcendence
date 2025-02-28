@@ -329,6 +329,7 @@ provide('notificationService', {
             {{ unreadNotificationCount }}
           </span>
         </RouterLink>
+        <RouterLink v-if="isAuthenticated" to="/tournament">{{ t('nav.tournament') }}</RouterLink>
       </nav>
     </div>
     <div class="language-selector">
@@ -435,7 +436,7 @@ provide('notificationService', {
 
 .language-selector {
   position: fixed;
-  top: 20px;
+  bottom: 20px;
   right: 20px;
   z-index: 1000;
 }

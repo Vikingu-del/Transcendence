@@ -37,10 +37,11 @@ const store = createStore({
 
     setPlayerMode(state, isAbleToPlay) {
       state.isAbleToPlay = isAbleToPlay;
-    }
+    },
   },
 
   actions: {
+
     async initializeAuth({ commit, dispatch }) {
       const token = localStorage.getItem('token');
       if (token) {
@@ -54,10 +55,12 @@ const store = createStore({
       }
       return false;
     },
+
     async loginAction({ commit }, { accessToken, refreshToken }) {
       commit('setToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
     },
+    
     async logoutAction({ commit }) {
       commit('setToken', null)
       commit('setAuthenticated', false)
