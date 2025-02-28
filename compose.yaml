@@ -45,6 +45,8 @@ services:
       - approle_auth_db:/vault/approle/auth_db
       - approle_game:/vault/approle/game
       - approle_game_db:/vault/approle/game_db
+      - approle_notification_db:/vault/approle/notification_db
+      - approle_notification:/vault/approle/notification
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -76,6 +78,8 @@ services:
       - approle_auth_db:/vault/approle/auth_db
       - approle_game:/vault/approle/game
       - approle_game_db:/vault/approle/game_db
+      - approle_notification_db:/vault/approle/notification_db
+      - approle_notification:/vault/approle/notification
 
   user:
     container_name: user
@@ -296,6 +300,56 @@ services:
     networks:
       - backtier
 
+
+  notification:
+    container_name: notification
+    build:
+      context: ./Backend/notificationService
+      dockerfile: Dockerfile
+    ports:
+      - "8006:8006"
+    volumes:
+      - ./Backend/notificationService:/app
+      - approle_notification:/vault/approle/notification:ro
+    environment:
+      - DJANGO_SETTINGS_MODULE=notificationService.settings
+      - USER_SERVICE_URL=http://gateway/user
+      - AUTH_SERVICE_URL=http://gateway/auth
+      - INTERNAL_API_KEY=your-secure-key-here
+    depends_on:
+      vault:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
+      notification_db:
+        condition: service_healthy
+    networks:
+      - backtier
+
+  notification_db:
+    container_name: notification_db
+    build:
+      context: ./Database/notification_db
+      dockerfile: Dockerfile
+    restart: always
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "/usr/local/bin/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5436:5432"
+    volumes:
+      - approle_notification_db:/vault/approle/notification_db:ro
+      - notification_db_data:/var/lib/postgresql/data
+    networks:
+      - backtier
+
   gateway:
     container_name: gateway
     build:
@@ -408,6 +462,9 @@ volumes:
   approle_auth:
   approle_auth_db:
   redis_data:
+  approle_notification:
+  approle_notification_db:
+  notification_db_data:
   grafana-data:
   prometheus-data:
 
