@@ -1,0 +1,11 @@
+groups:
+  - name: DjangoAlerts
+    rules:
+      - alert: HighResponseTime
+        expr: rate(django_http_requests_latency_seconds_by_view_method_sum[5m]) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: High response time on {{ $labels.method }} {{ $labels.view }}
+          description: Response time is above 1 second for {{ $labels.method }} {{ $labels.view }}

@@ -4,8 +4,9 @@ import frLocale from './locales/fr.json'
 import deLocale from './locales/de.json'
 
 
-const i18n = createI18n({
+export default createI18n({
   legacy: false,
+  globalInjection: true, // Makes translation functions available globally
   locale: 'en',
   fallbackLocale: 'en',
   messages: {
@@ -14,5 +15,3 @@ const i18n = createI18n({
     de: deLocale
   }
 })
-
-export default i18n

@@ -294,8 +294,8 @@
                   {{ gameInviteNotification.sender }} invited you to play!
               </span>
               <div class="game-invite-actions">
-                  <button @click="handleGameAccepted" class="btn primary-btn">Accept</button>
-                  <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
+                  <button @click="handleGameAccepted" class="btn primary-btn">{{ t('profile.friends.accept') }}</button>
+                  <button @click="declineGameInvite" class="btn secondary-btn">{{ t('profile.friends.declone') }}</button>
               </div>
           </div>
       </div>

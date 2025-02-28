@@ -43,7 +43,7 @@
       "content": "Need help or inspiration? Connect with the developer community on ",
       "discord": "Discord Programming Servers",
       "content1": " or find support on ",
-      "tackoverflow": "StackOverflow",
+      "stackoverflow": "StackOverflow",
       "content2": ". For Django-specific help, explore the ",
       "django": "Django Forum",
       "content3": ". Stay updated with Vue and Django by following their official channels!"
