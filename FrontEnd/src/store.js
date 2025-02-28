@@ -8,10 +8,14 @@ const axiosInstance = axios.create();
 const store = createStore({
   state: {
     token: localStorage.getItem('token') || null,
+    isAuthenticated: !!localStorage.getItem('token'),
     user: null,
     isAuthenticated: false,
+    userId: localStorage.getItem('userId') || null,
     isAbleToPlay: true,
-    profile: null
+    profile: null,
+    showGameWindow: false,
+    gameData: null,
   },
 
   mutations: {
@@ -31,6 +35,16 @@ const store = createStore({
       state.user = user;
     },
 
+    setUserId(state, userId) {
+      state.userId = userId
+      // Also store in localStorage for persistence
+      if (userId) {
+        localStorage.setItem('userId', userId)
+      } else {
+        localStorage.removeItem('userId')
+      }
+    },
+
     setProfile(state, profile) {
       state.profile = profile;
     },
@@ -38,10 +52,16 @@ const store = createStore({
     setPlayerMode(state, isAbleToPlay) {
       state.isAbleToPlay = isAbleToPlay;
     },
+    setGameWindow(state, status) {
+      state.showGameWindow = status;
+    },
+    setGameData(state, data) {
+      state.gameData = data;
+    }
   },
 
   actions: {
-
+    
     async initializeAuth({ commit, dispatch }) {
       const token = localStorage.getItem('token');
       if (token) {
@@ -55,18 +75,28 @@ const store = createStore({
       }
       return false;
     },
-
+    
     async loginAction({ commit }, { accessToken, refreshToken }) {
       commit('setToken', accessToken);
       localStorage.setItem('refreshToken', refreshToken);
     },
     
-    async logoutAction({ commit }) {
-      commit('setToken', null)
-      commit('setAuthenticated', false)
+    logoutAction({ commit }) {
       localStorage.removeItem('token')
-    }
+      localStorage.removeItem('userId') // Also clear userId
+      commit('setToken', null)
+      commit('setUserId', null)
+      return Promise.resolve()
+    },
     
+    startGame({ commit }, gameData) {
+      commit('setGameData', gameData);
+      commit('setGameWindow', true);
+    },
+    closeGame({ commit }) {
+      commit('setGameWindow', false);
+      commit('setGameData', null);
+    },
   },
 
   getters: {

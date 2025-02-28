@@ -5,6 +5,7 @@ import { computed, onMounted, ref, onUnmounted } from 'vue'
 import { useStore } from 'vuex'
 import { provide } from 'vue'
 import { useI18n } from 'vue-i18n'
+import GlobalGame from './components/GlobalGame.vue'
 
 
 const { t, locale } = useI18n()
@@ -16,6 +17,7 @@ const unreadNotificationCount = ref(0)
 const notificationSocket = ref(null)
 const gameInviteTimeout = ref(null)
 const gameInviteNotification = ref(null) // Add this line
+const globalGame = ref(null)
 
 const languages = [
   { code: 'en', name: 'English' },
@@ -103,7 +105,35 @@ function initNotificationSocket() {
             });
           }
         }
-        
+
+        else if (data.type === 'game_accepted') {
+          console.log('Game acceptance received in App.vue:', data);
+          // If we're the original sender of the game invite
+          const currentUserId = store.state.userId || localStorage.getItem('userId');
+          if (parseInt(data.recipient_id) === parseInt(currentUserId)) {
+            console.log('Our game invitation was accepted by:', data.sender_name);
+            
+            // The game window should already be open for the sender
+            // This notification just confirms the recipient joined
+          }
+        }
+
+        else if (data.type === 'game_declined') {
+          console.log('Game decline received in App.vue:', data);
+          
+          // If we're the original sender of the game invite
+          const currentUserId = store.state.userId || localStorage.getItem('userId');
+          if (parseInt(data.recipient_id) === parseInt(currentUserId)) {
+            console.log('Our game invitation was declined by:', data.sender_name);
+            // Close the game window for the host
+            if (globalGame.value) {
+              console.log('Closing game window via globalGame');
+              globalGame.value.closeGame();
+            } else {
+              console.error('GlobalGame ref is not available');
+            }
+          }
+        }
         // Update notification count for all notifications
         fetchUnreadNotificationCount();
       } catch (error) {
@@ -174,16 +204,27 @@ function sendNotification(notificationData) {
 function acceptGameInvite() {
   if (!gameInviteNotification.value) return;
   
-  // Navigate to Friends.vue with game parameters
-  router.push({
-    path: '/friends',
-    query: { 
-      action: 'join-game',
-      gameId: gameInviteNotification.value.gameId,
-      sender: gameInviteNotification.value.sender,
-      senderId: gameInviteNotification.value.senderId
-    }
+  // Launch the game
+  globalGame.value.openGame({
+    opponent: gameInviteNotification.value.sender,
+    gameId: gameInviteNotification.value.gameId,
+    isHost: false
   });
+  
+  // IMPORTANT: Send acceptance notification back to the host
+  if (notificationSocket.value && notificationSocket.value.readyState === WebSocket.OPEN) {
+    const acceptData = {
+      type: 'game_accepted',
+      game_id: gameInviteNotification.value.gameId,
+      sender_id: store.state.userId,  // Current user is now the sender of acceptance
+      recipient_id: gameInviteNotification.value.senderId,  // Original sender is now recipient
+      sender_name: store.state.profile?.display_name || localStorage.getItem('username') || 'Player',
+      recipient_name: gameInviteNotification.value.sender
+    };
+    
+    console.log('Sending game acceptance notification:', acceptData);
+    notificationSocket.value.send(JSON.stringify(acceptData));
+  }
   
   // Clear the invitation
   if (gameInviteTimeout.value) {
@@ -198,7 +239,7 @@ function declineGameInvite() {
   // Send decline message
   if (notificationSocket.value.readyState === WebSocket.OPEN) {
     const declineData = {
-      type: 'game_decline',
+      type: 'game_declined',
       game_id: gameInviteNotification.value.gameId,
       recipient_id: gameInviteNotification.value.senderId,
       sender_id: store.state.userId
@@ -308,6 +349,8 @@ provide('notificationService', {
   acceptGameInvite,
   declineGameInvite
 });
+// provide the globalGame reference
+provide('globalGame', globalGame);
 
 </script>
 
@@ -342,6 +385,7 @@ provide('notificationService', {
   </header>
 
   <RouterView />
+  <GlobalGame ref="globalGame" />
   <transition name="slide-down">
     <div v-if="gameInviteNotification" class="game-invite-banner">
       <div class="game-invite-content">

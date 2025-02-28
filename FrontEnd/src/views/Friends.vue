@@ -275,7 +275,7 @@
 
     <!-- Game Window -->
     <!-- filepath: /home/ipetruni/Desktop/Transcendence/FrontEnd/src/views/Friends.vue -->
-    <transition name="fade">
+    <!-- <transition name="fade">
         <div v-if="showGameWindow" class="overlay">
             <PongGame 
                 :opponent="opponent || ''"
@@ -285,9 +285,9 @@
                 @close="closeGameWindow"
             />
         </div>
-    </transition>
+    </transition> -->
 
-    <transition name="slide-down">
+    <!-- <transition name="slide-down">
       <div v-if="gameInviteNotification" class="game-invite-banner">
           <div class="game-invite-content">
               <span class="game-invite-text">
@@ -299,7 +299,7 @@
               </div>
           </div>
       </div>
-    </transition>
+    </transition> -->
   </div>
 
   <!-- Debugging
@@ -312,7 +312,7 @@
 
 <script>
 import PongGame from './Game.vue';
-import { inject } from 'vue';
+import { inject, ref } from 'vue';
 
 export default {
   name: 'Friends',
@@ -389,7 +389,8 @@ export default {
 
   setup() {
     const notificationService = inject('notificationService');
-    return { notificationService };
+    const globalGame = inject('globalGame');
+    return { notificationService, globalGame };
   },
 
   computed: {
@@ -468,12 +469,18 @@ export default {
               case 'game_accepted':
                 this.handleGameAccepted(data);
                 break;
-              case 'game_declined':
+              case 'game_declined': // Make sure this is 'game_declined' (not 'game_decline')
+                console.log('Game decline notification detected, calling handleGameDecline');
                 this.handleGameDecline(data);
                 break;
               case 'chat_message':
                 this.handleChatNotification(data);
                 break;
+              // case 'is_online':
+              //   this.handleOnlineStatus(data);
+              //   break;
+              default:
+                console.log('Unknown notification type:', data.type);
             }
 
             // Update the global friend request count via the service
@@ -490,6 +497,11 @@ export default {
     console.error('Initialization error:', error);
     this.$router.push('/login');
   }
+},
+
+mounted() {
+  // Ensure game window is closed on component initialization
+  this.showGameWindow = false;
 },
 
   methods: {
@@ -1114,7 +1126,7 @@ export default {
           this.handleGameState(data.message);
         }
         else if (data.type === 'game_declined') {
-          this.handleGameDeclined(data.message);
+          this.handleGameDecline(data.message);
         }
         else if (data.type === 'tournament_notification') {
           this.handleTournamentNotification(data.message);
@@ -1320,60 +1332,76 @@ export default {
     },
 
     handleGameAccepted(data) {
-        console.log('Game acceptance received:', data);
-        
-        try {
-            // If we're handling a click event (recipient accepting)
-            if (!data || data instanceof Event) {
-                if (!this.gameInviteNotification) {
-                    console.error('No game invite notification found');
-                    return;
-                }
+      console.log('Game acceptance received:', data);
+      
+      try {
+          // Handle click event from recipient accepting invitation
+          if (!data || data instanceof Event) {
+              if (!this.gameInviteNotification) {
+                  console.error('No game invite notification found');
+                  return;
+              }
 
-                // Set game data for recipient
-                this.currentGameId = this.gameInviteNotification.gameId;
-                this.opponent = this.gameInviteNotification.sender;
-                
-                // Send accept message through notification WebSocket
-                if (this.notificationService) {
-                    const acceptData = {
-                        type: 'game_accepted',
-                        game_id: this.currentGameId,
-                        sender_id: this.gameInviteNotification.senderId,
-                        recipient_id: this.currentUserId,
-                        recipient_name: this.profile.display_name,
-                        sender_name: this.gameInviteNotification.sender
-                    };
-                    
-                    console.log('Sending game acceptance:', acceptData);
-                    this.notificationService.sendNotification(acceptData);
-                }
-            } 
-            // If we're handling a WebSocket message (sender receiving acceptance)
-            else {
-                // Set game data for sender
-                this.currentGameId = data.game_id;
-                this.opponent = data.recipient_name;
-                this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+              // Set game data for recipient
+              if (this.globalGame) {
+                this.globalGame.openGame({
+                  opponent: this.gameInviteNotification.sender,
+                  gameId: this.gameInviteNotification.gameId,
+                  isHost: false
+                });
+              }
+              
+              // Send accept message through notification service
+              if (this.notificationService) {
+                  const acceptData = {
+                      type: 'game_accepted',
+                      game_id: this.gameInviteNotification.gameId,
+                      sender_id: parseInt(this.currentUserId),
+                      recipient_id: parseInt(this.gameInviteNotification.senderId),
+                      recipient_name: this.profile.display_name || 'Player',
+                      sender_name: this.gameInviteNotification.sender
+                  };
+                  
+                  console.log('Sending game acceptance:', acceptData);
+                  this.notificationService.sendNotification(acceptData);
+              }
+          } 
+          // Handle WebSocket message (sender receiving acceptance)
+          else {
+            // Only process if we're the original sender
+            if (parseInt(data.sender_id) === parseInt(this.currentUserId) &&
+                this.globalGame) {
+              
+              this.globalGame.openGame({
+                opponent: data.recipient_name,
+                gameId: data.game_id,
+                isHost: true
+              });
+              
+              this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+            } else {
+              console.log('Ignoring game acceptance not meant for us');
+              return;
             }
+          }
+          this.showChat = false;
+          
+          // Clear any existing notifications
+          if (this.gameInviteNotification) {
+              this.gameInviteNotification = null;
+          }
+          
+          console.log('Game starting with settings:', {
+              gameId: this.currentGameId,
+              opponent: this.opponent,
+              isHost: this.gameInviteSent,
+              userId: this.currentUserId
+          });
 
-            // Common actions for both sender and recipient
-            this.showGameWindow = true;
-            this.showChat = false;
-            this.gameInviteSent = !data; // true for recipient, false for sender
-            
-            // Clear any existing notifications
-            if (this.gameInviteNotification) {
-                this.gameInviteNotification = null;
-            }
-
-            // Initialize game connection
-            this.initializeGameConnection(this.currentGameId);
-
-        } catch (error) {
-            console.error('Error handling game acceptance:', error);
-            this.showStatus('Failed to process game acceptance', {}, 'error');
-        }
+      } catch (error) {
+          console.error('Error handling game acceptance:', error);
+          this.showStatus('Failed to process game acceptance', {}, 'error');
+      }
     },
 
     initializeGameConnection(gameId) {
@@ -1404,36 +1432,50 @@ export default {
     },
 
     declineGameInvite() {
-      if (!this.gameInviteNotification) return;
-
-      // Clear the timeout
-      if (this.gameInviteTimeout) {
-        clearTimeout(this.gameInviteTimeout);
-      }
-
+      if (!gameInviteNotification.value) return;
+      
+      console.log('Declining game invitation from:', gameInviteNotification.value.sender);
+      
       // Send decline message through WebSocket
-      if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+      if (notificationSocket.value && notificationSocket.value.readyState === WebSocket.OPEN) {
         const declineData = {
-          type: 'game_decline',
-          game_id: this.gameInviteNotification.gameId,
-          recipient_id: this.selectedFriend.id
+          type: 'game_declined', // IMPORTANT: Changed from 'game_decline' to 'game_declined'
+          game_id: gameInviteNotification.value.gameId,
+          sender_id: store.state.userId || parseInt(localStorage.getItem('userId')),
+          recipient_id: gameInviteNotification.value.senderId,
+          sender_name: store.state.profile?.display_name || localStorage.getItem('username') || 'Player'
         };
         
-        console.log('Sending game decline:', declineData);
-        this.chatSocket.send(JSON.stringify(declineData));
+        console.log('Sending game decline notification:', declineData);
+        notificationSocket.value.send(JSON.stringify(declineData));
       }
-
-      // Clear the notification
-      this.gameInviteNotification = null;
+      
+      // Clear the invitation
+      if (gameInviteTimeout.value) {
+        clearTimeout(gameInviteTimeout.value);
+      }
+      gameInviteNotification.value = null;
     },
     
-    // handleGameDecline(data) {
-    //     if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
-    //         this.showStatus('Game invite declined', {}, 'warning');
-    //         this.gameInviteSent = false;
-    //         this.showGameWindow = false;
-    //     }
-    // },
+    // Uncomment and update the handleGameDecline method
+
+    handleGameDecline(data) {
+      console.log('Game decline received:', data);
+      
+      // If we're the one who sent the invitation (the host)
+      if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+        console.log('Our game invitation was declined by:', data.sender_name);
+        this.showStatus(`${data.sender_name || 'Player'} declined your game invitation`, {}, 'warning');
+        
+        // Close the game window using the global game component
+        if (this.globalGame) {
+          console.log('Closing game window due to decline');
+          this.globalGame.closeGame();
+        } else {
+          console.error('GlobalGame not available for closing');
+        }
+      }
+    },
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
@@ -1477,15 +1519,14 @@ export default {
     async sendGameInvite() {
       try {
         const uuid = crypto.randomUUID();
-        this.currentGameId = uuid;
-        this.opponent = this.selectedFriend.display_name;
+        console.log('Generated game ID:', uuid);
         
         if (this.notificationService) {
           const inviteData = {
             type: 'game_invite',
             game_id: uuid,
-            sender_id: this.currentUserId,
-            recipient_id: this.selectedFriend.id,
+            sender_id: parseInt(this.currentUserId),
+            recipient_id: parseInt(this.selectedFriend.id),
             sender_name: this.profile.display_name || 'User',
             recipient_name: this.selectedFriend.display_name
           };
@@ -1494,10 +1535,26 @@ export default {
           const sent = this.notificationService.sendNotification(inviteData);
           
           if (sent) {
-            this.gameInviteSent = true;
-            this.showGameWindow = true;
-            this.showChat = false;
-            this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
+            // Use the injected globalGame directly (NOT through $parent.$refs)
+            if (this.globalGame) {
+              console.log('Opening game with:', {
+                opponent: this.selectedFriend.display_name,
+                gameId: uuid,
+                isHost: true
+              });
+              
+              this.globalGame.openGame({
+                opponent: this.selectedFriend.display_name,
+                gameId: uuid,
+                isHost: true
+              });
+              
+              this.showChat = false;
+              this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
+            } else {
+              console.error('Global game component not available');
+              throw new Error('Game component not available');
+            }
           } else {
             throw new Error('Failed to send notification');
           }
@@ -1671,6 +1728,31 @@ export default {
         console.error('Error processing chat notification:', error);
       }
     },
+
+
+    // handleOnlineStatus(data) {
+    //   try {
+    //     console.log('Handling online status:', data);
+        
+    //     if (data.user_id === parseInt(this.currentUserId)) {
+    //       this.isOnline = data.is_online;
+    //     }
+        
+    //     if (this.searchResults.length > 0) {
+    //       this.searchResults = this.searchResults.map(profile => {
+    //         if (profile.id === parseInt(data.user_id)) {
+    //           return {
+    //             ...profile,
+    //             is_online: data.is_online
+    //           };
+    //         }
+    //         return profile;
+    //       });
+    //     }
+    //   } catch (error) {
+    //     console.error('Error handling online status:', error);
+    //   }
+    // },
 
     closeGameWindow() {
         this.showGameWindow = false;
