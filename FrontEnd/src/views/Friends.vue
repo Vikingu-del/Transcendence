@@ -1475,33 +1475,39 @@ export default {
 
     // Game Invite Methods
     async sendGameInvite() {
-        try {
-            const uuid = crypto.randomUUID();
-            this.currentGameId = uuid;
-            this.opponent = this.selectedFriend.display_name; // Set the opponent name
-            
-            if (this.notificationService) {
-                const inviteData = {
-                    type: 'game_invite',
-                    game_id: uuid,
-                    sender_id: this.currentUserId,
-                    recipient_id: this.selectedFriend.id,
-                    sender_name: this.profile.display_name,
-                    recipient_name: this.selectedFriend.display_name
-                };
-                
-                console.log('Sending game invite:', inviteData);
-                this.notificationService.sendNotification(inviteData);
-                this.gameInviteSent = true;
-                this.showGameWindow = true;
-                this.showChat = false;
-            } else {
-                throw new Error('Notification socket not connected');
-            }
-        } catch (error) {
-            console.error('Error sending game invite:', error);
-            this.showStatus('Failed to send game invite', {}, 'error');
+      try {
+        const uuid = crypto.randomUUID();
+        this.currentGameId = uuid;
+        this.opponent = this.selectedFriend.display_name;
+        
+        if (this.notificationService) {
+          const inviteData = {
+            type: 'game_invite',
+            game_id: uuid,
+            sender_id: this.currentUserId,
+            recipient_id: this.selectedFriend.id,
+            sender_name: this.profile.display_name || 'User',
+            recipient_name: this.selectedFriend.display_name
+          };
+          
+          console.log('Sending game invite via notification service:', inviteData);
+          const sent = this.notificationService.sendNotification(inviteData);
+          
+          if (sent) {
+            this.gameInviteSent = true;
+            this.showGameWindow = true;
+            this.showChat = false;
+            this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
+          } else {
+            throw new Error('Failed to send notification');
+          }
+        } else {
+          throw new Error('Notification service not available');
         }
+      } catch (error) {
+        console.error('Error sending game invite:', error);
+        this.showStatus('Failed to send game invite', {}, 'error');
+      }
     },
 
     // Add method to handle game join

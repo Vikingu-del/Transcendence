@@ -79,20 +79,37 @@ function initNotificationSocket() {
     
     notificationSocket.value.onmessage = (event) => {
       try {
-        const data = JSON.parse(event.data)
-        console.log('Notification received in App.vue:', data)
+        const data = JSON.parse(event.data);
+        console.log('Notification received in App.vue:', data);
         
-        // Handle game invites specially
-        if (data.type === 'game_invite' && parseInt(data.recipient_id) === parseInt(store.state.userId)) {
-          handleGameInvite(data);
+        // Handle game invites with detailed logging
+        if (data.type === 'game_invite') {
+          console.log('Game invite detected in App.vue:', {
+            recipientId: data.recipient_id,
+            myId: store.state.userId,
+            match: parseInt(data.recipient_id) === parseInt(store.state.userId)
+          });
+          
+          // Modified comparison that will work even if store.state.userId isn't set
+          const currentUserId = store.state.userId || localStorage.getItem('userId');
+          
+          if (parseInt(data.recipient_id) === parseInt(currentUserId)) {
+            console.log('This game invite is for me, handling it now');
+            handleGameInvite(data);
+          } else {
+            console.log('This game invite is not for me:', {
+              recipientId: parseInt(data.recipient_id),
+              currentUserId: parseInt(currentUserId)
+            });
+          }
         }
         
         // Update notification count for all notifications
         fetchUnreadNotificationCount();
       } catch (error) {
-        console.error('Error processing notification:', error)
+        console.error('Error processing notification:', error);
       }
-    }
+    };
 
     // Add the game invite handler function
     function handleGameInvite(data) {
@@ -224,6 +241,20 @@ onMounted(async () => {
     
     if (!response.ok) {
       throw new Error('Token validation failed')
+    }
+
+    // Add this code to get the user's ID
+    const userResponse = await fetch('/api/user/verify/', {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (userResponse.ok) {
+      const userData = await userResponse.json()
+      store.commit('setUserId', userData.id) // Make sure you have this mutation
+      localStorage.setItem('userId', userData.id)
+      console.log('User ID set in store:', userData.id)
     }
 
     store.commit('setToken', token)
