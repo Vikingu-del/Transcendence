@@ -786,8 +786,6 @@ export default defineComponent({
 					game_id: props.gameId,
 					host_id: props.userId
 				}));
-
-
 			}
 		};
 

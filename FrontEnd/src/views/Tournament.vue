@@ -1,12 +1,25 @@
 <template>
-  <div class="tournament-container">
-    <!-- Enrollment prompt -->
+  <!-- <div class="tournament-container">
     <div v-if="!isEnrolled" class="tournament-prompt">
       <p class="question">New Tournament Starting Soon. Wanna Join?</p>
       <div class="button-group">
         <button class="btn btn-yes" @click="handleYes">Yes</button>
         <button class="btn btn-no" @click="handleNo">No</button>
       </div>
+    </div> -->
+    <div class="tournament-container">
+    <!-- Show enrollment prompt only if not enrolled and can enroll -->
+    <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
+      <p class="question">New Tournament Starting Soon. Wanna Join?</p>
+      <div class="button-group">
+        <button class="btn btn-yes" @click="handleYes">Yes</button>
+        <button class="btn btn-no" @click="handleNo">No</button>
+      </div>
+    </div>
+
+    <!-- Show message if there's an active tournament but user can't enroll -->
+    <div v-if="!isEnrolled && !canEnroll" class="tournament-message">
+      <p>{{ enrollmentMessage }}</p>
     </div>
 
     <!-- Tournament status -->
@@ -37,6 +50,8 @@
         <div v-if="lastMessage" class="notification">
           {{ lastMessage }}
         </div>
+        <!-- Add a button to start the match -->
+        <button @click="prepareAndSendInvite(currentMatch)" class="btn primary-btn">Start Match</button>
       </div>
 
       <!-- Tournament starting -->
@@ -122,18 +137,33 @@
     />
   </Teleport>
 
+  <div v-if="gameInviteNotification" class="game-invite-banner">
+    <div class="game-invite-content">
+      <p class="game-invite-text">
+        {{ gameInviteNotification.sender_name }} has invited you to a game!
+      </p>
+      <div class="game-invite-actions">
+        <button @click="acceptGameInvite" class="btn primary-btn">Accept</button>
+        <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
+      </div>
+    </div>
+  </div>
+
 </template>
 
 
 <script>
 
 import Game from './Game.vue'; 
+import { inject } from 'vue';
+import Friends from './Friends.vue'; // Import Friends component to reuse methods
 
 export default {
   name: 'Tournament',
 
   components: {
-    Game
+    Game,
+    Friends // Register Friends component
   },
 
   data() {
@@ -147,6 +177,8 @@ export default {
       tournamentId: null,
       lastMessage: '',
       currentUserId: null,
+      canEnroll: false,
+      enrollmentMessage: '',
 
       // WebSocket connection
       tournamentSocket: null,
@@ -164,7 +196,8 @@ export default {
       },
       showGame: false,
       currentMatch: null,
-      isHost: false
+      isHost: false,
+      gameInviteNotification: null
     }
   },
   computed: {
@@ -210,6 +243,12 @@ export default {
         this.$router.push('/login');
       }
     }
+  },
+
+  setup() {
+    const notificationService = inject('notificationService');
+    const globalGame = inject('globalGame');
+    return { notificationService, globalGame };
   },
 
   methods: {
@@ -310,6 +349,14 @@ export default {
 
         const data = await response.json();
         this.isEnrolled = data.enrolled;
+        this.canEnroll = data.can_enroll;
+        this.enrollmentMessage = data.message;
+
+        // If enrolled, fetch tournament status
+        if (this.isEnrolled) {
+          await this.fetchTournamentStatus();
+          this.connectWebSocket();
+        }
         
       } catch (error) {
         console.error('Error checking enrollment:', error);
@@ -484,9 +531,7 @@ export default {
     // Build WebSocket URL
     buildWebSocketUrl() {
       const token = localStorage.getItem('token');
-
       const wsUrl = `ws://localhost:8005/ws/tournament/${this.tournamentId}/?token=${token}`;
-
       return wsUrl;
     },
 
@@ -585,14 +630,106 @@ export default {
              match.player2.id === this.currentUserId;
     },
 
+    showStatus(message, variables = {}, type = 'success') {
+      // Validate message type
+      const validTypes = ['success', 'warning', 'error'];
+      if (!validTypes.includes(type)) {
+        type = 'success'; // Default fallback
+      }
+
+      // Interpolate variables into message
+      let text = message;
+      Object.entries(variables).forEach(([key, value]) => {
+        text = text.replace(`{${key}}`, value);
+      });
+
+      // Set status message
+      this.statusMessage = { text, type };
+
+      // Clear after timeout
+      setTimeout(() => {
+        this.statusMessage = null;
+      }, 3000);
+    },
+
     startMatch(match) {
-      console.log('Starting match:', match);
-      this.currentMatch = {
-        match_id: match.match_id,
-        opponent: match.player1.id === this.currentUserId ? match.player2 : match.player1
-      };
-      this.isHost = match.player1.id === this.currentUserId;
-      this.showGame = true;
+      console.log('startMatch called with match:', match);
+
+      if (!match || !this.notificationService) {
+        console.error('Cannot start match: Missing data', {
+          match: !!match,
+          notificationService: !!this.notificationService
+        });
+        return;
+      }
+  
+      try {
+        // Generate unique game ID if not provided
+        const gameId = crypto.randomUUID();
+        
+        // Determine opponent
+        const opponent = match.player1.id === this.currentUserId ? match.player2 : match.player1;
+        
+        // Log attempt
+        console.log('Starting tournament match:', {
+          matchId: match.match_id,
+          gameId: gameId,
+          opponent: opponent,
+          currentUserId: this.currentUserId
+        });
+  
+        // This is the crucial part - Send notification with correct format
+        const notificationData = {
+          type: 'game_invite',
+          game_id: gameId,
+          sender_id: this.currentUserId,
+          recipient_id: opponent.id,
+          sender_name: this.profile.display_name || this.profile.username,
+          recipient_name: opponent.display_name || opponent.username
+        };
+  
+        console.log('Sending game invite notification:', notificationData);
+        
+        // Send using notification service
+        const sent = this.notificationService.sendNotification(notificationData);
+  
+        if (sent) {
+          console.log('Game invite sent successfully');
+          this.showStatus(`Game invite sent to ${opponent.username}`, {}, 'success');
+        } else {
+          throw new Error('Failed to send notification');
+        }
+  
+        // Update local game state
+        this.currentMatch = {
+          match_id: match.match_id,
+          gameId: gameId,
+          opponent: opponent
+        };
+        this.isHost = true;
+  
+        // Handle game window
+        if (this.globalGame) {
+          console.log('Opening game window for host:', {
+            opponent: opponent.display_name || opponent.username,
+            gameId: gameId,
+            isHost: true,
+            matchId: match.match_id
+          });
+          this.globalGame.openGame({
+            opponent: opponent.display_name || opponent.username,
+            gameId: gameId,
+            isHost: true,
+            matchId: match.match_id
+          });
+        } else {
+          console.error('Global game component not available');
+        }
+  
+      } catch (error) {
+        console.error('Error starting tournament match:', error);
+        this.showStatus('Failed to start match', {}, 'error');
+      }
     },
 
     handleGameEnd() {
@@ -651,6 +788,98 @@ export default {
           this.tournamentData.current_phase = 'completed';
           console.log('Tournament completed, winner:', winner_id);
         }
+      }
+    },
+
+    async sendGameInvite(match) {
+      try {
+        if (this.notificationService) {
+          const inviteData = {
+            type: 'game_invite',
+            game_id: match.match_id, // Use the generated game ID
+            sender_id: parseInt(this.currentUserId),
+            recipient_id: parseInt(match.opponent.id),
+            sender_name: this.profile.display_name || 'User',
+            recipient_name: match.opponent.username
+          };
+
+          console.log('Sending game invite via notification service:', inviteData);
+          const sent = this.notificationService.sendNotification(inviteData);
+
+          if (sent) {
+            console.log('Game invite sent successfully');
+            this.showStatus(`Game invite sent to ${match.opponent.username}`, {}, 'success');
+          } else {
+            throw new Error('Failed to send notification');
+          }
+        } else {
+          throw new Error('Notification service not available');
+        }
+      } catch (error) {
+        console.error('Error sending game invite:', error);
+        this.showStatus('Failed to send game invite', {}, 'error');
+      }
+    },
+
+    prepareAndSendInvite(match) {
+      if (!match) {
+        console.error('No match data available');
+        return;
+      }
+      const gameId = crypto.randomUUID(); // Generate a new game ID
+      this.currentMatch = {
+        match_id: gameId,
+        opponent: match.player1.id === this.currentUserId ? match.player2 : match.player1
+      };
+      this.isHost = match.player1.id === this.currentUserId;
+      this.sendGameInvite(this.currentMatch);
+    },
+
+    handleGameInvite(data) {
+      console.log('Handling game invite:', data);
+      this.gameInviteNotification = data;
+    },
+    acceptGameInvite() {
+      console.log('acceptGameInvite called with notification:', this.gameInviteNotification);
+      if (this.gameInviteNotification && this.globalGame) {
+        const { game_id, sender_name, match_id } = this.gameInviteNotification;
+        
+        console.log('Opening game window for recipient:', {
+          opponent: sender_name,
+          gameId: game_id,
+          isHost: false,
+          matchId: match_id
+        });
+        this.globalGame.openGame({
+          opponent: sender_name,
+          gameId: game_id,
+          isHost: false,
+          matchId: match_id // Pass the tournament match ID
+        });
+        
+        this.gameInviteNotification = null;
+      }
+    },
+    declineGameInvite() {
+      console.log('declineGameInvite called with notification:', this.gameInviteNotification);
+      if (this.gameInviteNotification) {
+        const { game_id, sender_id } = this.gameInviteNotification;
+        console.log(`Declining game invite from ${sender_id} for game ${game_id}`);
+        
+        // Send decline notification via notification service
+        if (this.notificationService) {
+          const declineData = {
+            type: 'game_declined', // Match the expected type in NotificationConsumer
+            game_id: game_id,
+            sender_id: sender_id,
+            recipient_id: this.currentUserId
+          };
+          console.log('Sending game decline notification:', declineData);
+          this.notificationService.sendNotification(declineData);
+        } else {
+          console.error('Notification service not available');
+        }
+        this.gameInviteNotification = null;
       }
     },
 
@@ -954,5 +1183,68 @@ color: white;
 
 .player-name {
   font-weight: bold;
+}
+
+.tournament-message {
+  background: #2c2c2c;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin: 2rem auto;
+  max-width: 600px;
+  text-align: center;
+}
+
+.tournament-message p {
+  color: #fff;
+  font-size: 1.2rem;
+  margin: 0;
+}
+
+.game-invite-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: rgba(3, 166, 112, 0.95);
+  color: white;
+  padding: 1rem;
+  z-index: 2000;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.game-invite-content {
+  max-width: 600px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.game-invite-text {
+  font-size: 1.1rem;
+  font-weight: 500;
+}
+
+.game-invite-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.slide-down-enter-active,
+.slide-down-leave-active {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.slide-down-enter-from,
+.slide-down-leave-to {
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.slide-down-enter-to,
+.slide-down-leave-from {
+  transform: translateY(0);
+  opacity: 1;
 }
 </style>

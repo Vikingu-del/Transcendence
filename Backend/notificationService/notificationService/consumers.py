@@ -45,7 +45,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 await self.handle_game_invite(data)
             elif message_type == 'game_accepted':
                 await self.handle_game_accept(data)
-            elif message_type == 'game_declined':
+            elif message_type == 'game_declined':  # Ensure this matches the type sent from Tournament.vue
                 await self.handle_game_decline(data)
             elif message_type == 'chat_message':
                 await self.handle_chat_message(data)

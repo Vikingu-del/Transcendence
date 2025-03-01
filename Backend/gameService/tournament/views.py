@@ -11,6 +11,39 @@ import logging
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
+# class EnrollmentCheckView(generics.RetrieveAPIView):
+#     authentication_classes = [JWTAuthentication]
+#     permission_classes = [IsAuthenticated]
+
+#     def get(self, request, *args, **kwargs):
+#         try:
+#             if not request.user.is_authenticated:
+#                 return Response(
+#                     {'error': 'Authentication required'},
+#                     status=status.HTTP_401_UNAUTHORIZED
+#                 )
+
+#             logger.debug(f"Request user: {request.user}")
+#             logger.debug(f"Request auth: {request.auth}")
+            
+#             user = request.user
+#             tournament = Tournament.objects.filter(
+#                 status="waiting", 
+#                 is_active=True
+#             ).first()
+            
+#             if not tournament:
+#                 return Response({'enrolled': False})
+            
+#             enrolled = tournament.players.filter(id=user.id).exists()
+#             return Response({'enrolled': enrolled})
+            
+#         except Exception as e:
+#             logger.error(f"Error in check_enrollment: {str(e)}")
+#             return Response(
+#                 {'error': str(e)},
+#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
+#             )
 class EnrollmentCheckView(generics.RetrieveAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -23,20 +56,35 @@ class EnrollmentCheckView(generics.RetrieveAPIView):
                     status=status.HTTP_401_UNAUTHORIZED
                 )
 
-            logger.debug(f"Request user: {request.user}")
-            logger.debug(f"Request auth: {request.auth}")
-            
             user = request.user
+            # First check for any active tournament (regardless of status)
             tournament = Tournament.objects.filter(
-                status="waiting", 
                 is_active=True
             ).first()
             
             if not tournament:
-                return Response({'enrolled': False})
+                return Response({
+                    'enrolled': False,
+                    'can_enroll': True,
+                    'message': 'No active tournament'
+                })
             
-            enrolled = tournament.players.filter(id=user.id).exists()
-            return Response({'enrolled': enrolled})
+            # Check if user is already enrolled in this tournament
+            is_enrolled = tournament.players.filter(id=user.id).exists()
+            
+            # If tournament is in progress or completed, new enrollments shouldn't be allowed
+            can_enroll = tournament.status == "waiting" and not is_enrolled
+
+            return Response({
+                'enrolled': is_enrolled,
+                'can_enroll': can_enroll,
+                'tournament_status': tournament.status,
+                'message': (
+                    'Tournament in progress' if tournament.status == 'in_progress'
+                    else 'Tournament completed' if tournament.status == 'completed'
+                    else 'Tournament waiting for players'
+                )
+            })
             
         except Exception as e:
             logger.error(f"Error in check_enrollment: {str(e)}")

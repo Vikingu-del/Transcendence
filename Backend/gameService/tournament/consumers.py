@@ -4,6 +4,7 @@ from channels.db import database_sync_to_async
 from .models import Tournament
 import os
 import aiohttp
+import uuid
 
 import logging
 logger = logging.getLogger(__name__)
@@ -81,14 +82,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
         data = json.loads(text_data)
         
         if data['type'] == 'match_complete':
-            await self.channel_layer.group_send(
-                self.tournament_group,
-                {
-                    'type': 'match_update',
-                    'match_id': data['match_id'],
-                    'winner_id': data['winner_id']
-                }
-            )
+            await self.handle_match_complete(data)
 
     async def broadcast_player_update(self, event):
         try:
@@ -174,7 +168,8 @@ class TournamentConsumer(AsyncWebsocketConsumer):
                         'display_name': players[i + 1].username  # Default to username
                     },
                     'status': 'pending',
-                    'winner': None
+                    'winner': None,
+                    'game_id': str(uuid.uuid4())  # Generate a unique game ID
                 })
             
             tournament_data = {
@@ -185,7 +180,8 @@ class TournamentConsumer(AsyncWebsocketConsumer):
                     'player1': None,
                     'player2': None,
                     'status': 'waiting',
-                    'winner': None
+                    'winner': None,
+                    'game_id': str(uuid.uuid4())  # Generate a unique game ID for the final
                 },
                 'current_phase': 'semi-final'
             }
@@ -209,12 +205,6 @@ class TournamentConsumer(AsyncWebsocketConsumer):
     async def get_tournament(self):
         """Get tournament instance"""
         return await database_sync_to_async(Tournament.objects.get)(id=self.tournament_id)
-
-    async def receive(self, text_data):
-        data = json.loads(text_data)
-        
-        if data['type'] == 'match_complete':
-            await self.handle_match_complete(data)
 
     async def handle_match_complete(self, data):
         match_id = data['match_id']
