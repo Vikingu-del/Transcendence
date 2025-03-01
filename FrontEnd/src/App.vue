@@ -301,53 +301,135 @@ function declineGameInvite() {
   gameInviteNotification.value = null;
 }
 
-// Check authentication state on app load
 onMounted(async () => {
   let token = localStorage.getItem('token')
-  console.log('Token status:', token ? 'Present' : 'Not found')
+  const refreshToken = localStorage.getItem('refreshToken')
+  console.log('Token status:', token ? 'Present' : 'Not found', 
+              'Refresh token:', refreshToken ? 'Present' : 'Not found')
 
   const clearTokenAndRedirect = () => {
     localStorage.removeItem('token')
+    localStorage.removeItem('refreshToken')
     store.commit('setToken', null)
     if (router.currentRoute.value.path !== '/login') {
       router.push('/login')
     }
   }
 
-  if (!token || token === 'undefined' || token === 'null') {
+  // If no access token but refresh token exists, try to refresh
+  if ((!token || token === 'undefined' || token === 'null') && refreshToken) {
+    try {
+      console.log('No valid token but refresh token exists, trying to refresh');
+      
+      // Set refreshing state BEFORE starting the refresh
+      store.commit('setIsRefreshing', true);
+      
+      if (typeof store._actions['refreshToken'] !== 'undefined') {
+        token = await store.dispatch('refreshToken');
+        console.log('Got new token from refresh:', token ? 'Success' : 'Failed');
+        
+        if (token) {
+          // Successfully refreshed the token
+          store.commit('setToken', token);
+
+          // Force update authentication state
+          store.commit('setIsAuthenticated', true);
+  
+          // Skip validation after refresh
+          console.log('Token refreshed successfully, skipping validation');
+          
+          // Get user ID with the new token
+          await fetchUserProfile(token);
+          
+          // Return early
+          return;
+        }
+      } else {
+        console.error('refreshToken action is not defined in the store');
+        clearTokenAndRedirect();
+        return;
+      }
+    } catch (error) {
+      console.error('Failed to refresh token:', error);
+      clearTokenAndRedirect();
+      return;
+    } finally {
+      // Make sure we clear the refreshing state when done
+      store.commit('setIsRefreshing', false);
+    }
+  } else if (!token || token === 'undefined' || token === 'null') {
+    // No token and no refresh token
+    console.log('No token and no refresh token, redirecting to login')
     clearTokenAndRedirect()
     return
   }
 
+  // Only run the validation flow if we didn't just refresh the token
   try {
-    const response = await fetch('/api/auth/validate-token/', {
-      headers: {
-        'Authorization': `Bearer ${token}`
+    // Only validate if we have a token
+    if (token) {
+      console.log('Validating existing token...')
+      const response = await fetch('/api/auth/validate-token/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (!response.ok) {
+        console.error('Token validation failed with status:', response.status)
+        
+        // Try refreshing one more time if we have a refresh token
+        if (refreshToken) {
+          console.log('Token validation failed, trying to refresh token')
+          try {
+            token = await store.dispatch('refreshToken')
+            if (token) {
+              console.log('Refresh successful after validation failure')
+              store.commit('setToken', token)
+              await fetchUserProfile(token)
+              return
+            }
+          } catch (refreshError) {
+            console.error('Failed to refresh token after validation error:', refreshError)
+            clearTokenAndRedirect()
+            return
+          }
+        } else {
+          clearTokenAndRedirect()
+          return
+        }
       }
-    })
-    
-    if (!response.ok) {
-      throw new Error('Token validation failed')
+      
+      console.log('Token validated successfully')
     }
 
-    // Add this code to get the user's ID
-    const userResponse = await fetch('/api/user/verify/', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-    
-    if (userResponse.ok) {
-      const userData = await userResponse.json()
-      store.commit('setUserId', userData.id) // Make sure you have this mutation
-      localStorage.setItem('userId', userData.id)
-      console.log('User ID set in store:', userData.id)
-    }
-
-    store.commit('setToken', token)
+    // Get user ID with validated token
+    await fetchUserProfile(token)
   } catch (error) {
-    console.error('Token validation error:', error)
+    console.error('Authentication error:', error)
     clearTokenAndRedirect()
+  }
+  
+  // Helper function to fetch user profile
+  async function fetchUserProfile(token) {
+    try {
+      const userResponse = await fetch('/api/user/verify/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (userResponse.ok) {
+        const userData = await userResponse.json()
+        store.commit('setUserId', userData.id)
+        localStorage.setItem('userId', userData.id)
+        console.log('User ID set in store:', userData.id)
+      } else {
+        console.error('Failed to verify user:', userResponse.status)
+      }
+    } catch (error) {
+      console.error('Error fetching user profile:', error)
+    }
   }
 })
 

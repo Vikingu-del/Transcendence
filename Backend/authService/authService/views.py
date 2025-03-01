@@ -131,7 +131,18 @@ class LogoutView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, 
                           status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
+
+
+class TokenRefreshView(APIView):
+    def post(self, request):
+        try:
+            refresh = request.data.get('refresh')
+            token = RefreshToken(refresh)
+            print(f'token: {token}')
+            return Response({'access': str(token.access_token)})
+        except Exception as e:
+            logger.error(f"Token refresh error: {str(e)}", exc_info=True)
+            return Response({'error': 'Token refresh failed'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class ValidateTokenView(APIView):
     def get(self, request):
