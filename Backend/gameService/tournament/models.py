@@ -29,6 +29,7 @@ class Tournament(models.Model):
         blank=True, 
         related_name='tournaments_won'
     )
+    tournament_data = models.JSONField(default=dict)  # Add this field to store tournament data
 
     class Meta:
         ordering = ['-created_at']

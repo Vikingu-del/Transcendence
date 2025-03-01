@@ -493,6 +493,11 @@ export default {
       try {
         if (!this.validateConnection()) return;
         
+        if (this.wsConnected) {
+          console.log('WebSocket already connected');
+          return;
+        }
+        
         this.closeExistingConnection();
         const wsUrl = this.buildWebSocketUrl();
         
@@ -517,91 +522,80 @@ export default {
         console.log('Missing token or tournament ID');
         return false;
       }
+      if (this.wsConnected) {
+        console.log('Already connected');
+        return false;
+      }
       return true;
     },
 
     // Close existing connection
     closeExistingConnection() {
-      if (this.tournamentSocket) {
-        this.tournamentSocket.close();
+      if (this.tournamentSocket && this.tournamentSocket.readyState === WebSocket.OPEN) {
+        console.log('Closing existing connection');
+        this.tournamentSocket.close(1000, 'Intentional close');
         this.tournamentSocket = null;
+        this.wsConnected = false;
       }
     },
 
     // Build WebSocket URL
     buildWebSocketUrl() {
-      const token = localStorage.getItem('token');
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsHost = window.location.host
-      const wsUrl = `${wsProtocol}//${wsHost}/ws/tournament/${this.tournamentId}/??token=${encodeURIComponent(token)}`;
-      return wsUrl;
+      const token = this.getToken;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsHost = window.location.host;
+      return `${wsProtocol}//${wsHost}/ws/tournament/${this.tournamentId}/?token=${encodeURIComponent(token)}`;
     },
 
     // Setup WebSocket event handlers
     setupWebSocketHandlers() {
+      if (!this.tournamentSocket) return;
+      
+      // Remove any existing event listeners
+      this.tournamentSocket.onopen = null;
+      this.tournamentSocket.onclose = null;
+      this.tournamentSocket.onerror = null;
+      this.tournamentSocket.onmessage = null;
+      
+      // Set new event listeners
       this.tournamentSocket.onopen = this.handleOpen;
       this.tournamentSocket.onclose = this.handleClose;
       this.tournamentSocket.onerror = this.handleError;
       this.tournamentSocket.onmessage = this.handleMessage;
     },
 
-    // WebSocket event handlers
-    handleOpen() {
-      console.log('WebSocket connection established');
-      this.wsConnected = true;
-      this.wsReconnectAttempts = 0;
-    },
-
-    handleClose(event) {
-      console.log('WebSocket closed:', event.code, event.reason);
-      this.wsConnected = false;
-      
-      // Only reconnect for specific close codes
-      if (event.code === 4000 || event.code === 1006) {
-        this.handleReconnection();
-      } else if (event.code === 4001) {
-        // Authentication failed, redirect to login
-        this.$router.push('/login');
-      }
-    },
-
-    handleError(error) {
-      console.error('WebSocket error:', error);
-      this.wsConnected = false;
-    },
-
-    // Update tournament state
-    updateTournamentState(data) {
-      this.currentPlayers = data.players;
-      this.connectedPlayers = data.connected_players || [];
-    },
-
     waitForConnection(timeout = 5000) {
+      if (!this.tournamentSocket) {
+        return Promise.reject(new Error('No WebSocket instance'));
+      }
+
       return new Promise((resolve, reject) => {
         const timer = setTimeout(() => {
+          this.wsConnected = false;
           reject(new Error('WebSocket connection timeout'));
         }, timeout);
 
-        this.tournamentSocket.onopen = () => {
+        const onOpen = () => {
+          this.tournamentSocket.removeEventListener('open', onOpen);
           clearTimeout(timer);
           this.wsConnected = true;
           this.wsReconnectAttempts = 0;
           console.log('WebSocket connection established');
           resolve();
         };
+
+        this.tournamentSocket.addEventListener('open', onOpen);
       });
     },
 
     async handleReconnection() {
-      if (this.wsReconnectAttempts >= this.maxReconnectAttempts) {
-        console.log('Max reconnection attempts reached');
-        this.$router.push('/tournament'); // Redirect to tournament page
+      if (this.wsConnected || this.wsReconnectAttempts >= this.maxReconnectAttempts) {
+        console.log('Already connected or max reconnection attempts reached');
         return;
       }
 
       this.wsReconnectAttempts++;
       
-      // Exponential backoff with maximum delay of 5 seconds
       const delay = Math.min(1000 * Math.pow(1.5, this.wsReconnectAttempts), 5000);
       console.log(`Reconnecting in ${delay}ms... Attempt ${this.wsReconnectAttempts}`);
       
@@ -611,13 +605,11 @@ export default {
       
       this.reconnectionTimeout = setTimeout(async () => {
         try {
-          // Check if we're still enrolled before reconnecting
-          await this.checkEnrollment();
-          if (this.isEnrolled) {
-            await this.connectWebSocket();
-          } else {
-            console.log('No longer enrolled in tournament');
-            this.$router.push('/tournament');
+          if (!this.wsConnected) {
+            await this.checkEnrollment();
+            if (this.isEnrolled) {
+              await this.connectWebSocket();
+            }
           }
         } catch (error) {
           console.error('Reconnection failed:', error);
@@ -625,6 +617,11 @@ export default {
       }, delay);
     },
 
+    // Update tournament state
+    updateTournamentState(data) {
+      this.currentPlayers = data.players;
+      this.connectedPlayers = data.connected_players || [];
+    },
 
     //Game Related Methods
     isPlayerInMatch(match) {

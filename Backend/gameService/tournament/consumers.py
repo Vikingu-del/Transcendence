@@ -38,7 +38,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
             
             # Get current players and broadcast to the new connection
             players_data = await self.get_tournament_players()
-            print(players_data)
+            logger.debug(f"Initial players data: {players_data}")
             
             # Send initial state to the connecting client
             await self.send(text_data=json.dumps({
@@ -62,6 +62,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
         
 
     async def disconnect(self, close_code):
+        logger.debug(f"Disconnecting with code: {close_code}")
         # Get updated players list after disconnect
         players = await self.get_tournament_players()
         
@@ -80,6 +81,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
         )
 
     async def receive(self, text_data):
+        logger.debug(f"Received message: {text_data}")
         data = json.loads(text_data)
         
         if data['type'] == 'match_complete':
@@ -88,6 +90,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
     async def broadcast_player_update(self, event):
         try:
             players_data = await self.get_tournament_players()
+            logger.debug(f"Broadcasting player update: {players_data}")
             response = {
                 'type': 'player_update',
                 'players': players_data['players'],
@@ -111,6 +114,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
 
     async def broadcast_tournament_start(self, event):
         """Handle tournament start broadcast"""
+        logger.debug(f"Broadcasting tournament start: {event['tournament_data']}")
         await self.send(text_data=json.dumps({
             'type': 'tournament_start',
             'tournament_data': event['tournament_data'],
@@ -118,6 +122,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
         }))
 
     async def match_update(self, event):
+        logger.debug(f"Match update: {event}")
         await self.send(text_data=json.dumps({
             'type': 'match_update',
             'match_id': event['match_id'],
@@ -213,7 +218,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
         
         # Update tournament state
         tournament = await self.get_tournament()
-        tournament_data = tournament.tournament_data
+        tournament_data = tournament.tournament_data  # Ensure this field exists or is handled correctly
         
         if match_id.startswith('semi_'):
             # Handle semi-final completion
@@ -250,3 +255,14 @@ class TournamentConsumer(AsyncWebsocketConsumer):
                 'tournament_data': tournament_data
             }
         )
+
+    async def update_tournament(self, tournament_data):
+        """Update tournament data in the database"""
+        try:
+            tournament = await database_sync_to_async(Tournament.objects.get)(id=self.tournament_id)
+            # Ensure 'tournament_data' field exists or handle it appropriately
+            tournament.tournament_data = tournament_data  # This line assumes 'tournament_data' is a valid field
+            await database_sync_to_async(tournament.save)()
+        except Exception as e:
+            logger.error(f"Error updating tournament data: {str(e)}")
+            raise
