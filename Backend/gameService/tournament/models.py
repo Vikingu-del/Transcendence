@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 import random
 import logging
+import uuid
 logger = logging.getLogger(__name__)
 
 class Tournament(models.Model):
@@ -58,7 +59,8 @@ class Tournament(models.Model):
                         'display_name': players[1].profile.display_name if hasattr(players[1], 'profile') else players[1].username
                     },
                     'status': 'pending',
-                    'winner': None
+                    'winner': None,
+                    'game_id': str(uuid.uuid4())  # Generate a unique game ID
                 },
                 {
                     'match_id': f'semi_1',
@@ -74,7 +76,8 @@ class Tournament(models.Model):
                         'display_name': players[3].profile.display_name if hasattr(players[3], 'profile') else players[3].username
                     },
                     'status': 'pending',
-                    'winner': None
+                    'winner': None,
+                    'game_id': str(uuid.uuid4())  # Generate a unique game ID
                 }
             ]
 
@@ -86,7 +89,8 @@ class Tournament(models.Model):
                     'player1': None,
                     'player2': None,
                     'status': 'waiting',
-                    'winner': None
+                    'winner': None,
+                    'game_id': str(uuid.uuid4())  # Generate a unique game ID for the final
                 },
                 'current_phase': 'semi-final'
             }
@@ -139,6 +143,7 @@ class TournamentMatch(models.Model):
     status = models.CharField(max_length=20, choices=MATCH_STATUS_CHOICES, default='pending')
     created_at = models.DateTimeField(auto_now_add=True)
     game_session_id = models.CharField(max_length=100, null=True, blank=True)
+    game_id = models.UUIDField(default=uuid.uuid4, db_index=True)  # Add game_id field
 
     class Meta:
         ordering = ['round_number', 'match_order']

@@ -1550,8 +1550,8 @@ mounted() {
               });
               
               this.showChat = false;
-              this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
-            } else {
+            this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
+} else {
               console.error('Global game component not available');
               throw new Error('Game component not available');
             }
