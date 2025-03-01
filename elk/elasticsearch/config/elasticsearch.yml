@@ -1,0 +1,8 @@
+network.host: 0.0.0.0
+
+# Discovery
+discovery.type: single-node
+
+# License
+xpack.license.self_generated.type: basic
+
