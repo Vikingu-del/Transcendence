@@ -531,7 +531,9 @@ export default {
     // Build WebSocket URL
     buildWebSocketUrl() {
       const token = localStorage.getItem('token');
-      const wsUrl = `ws://localhost:8005/ws/tournament/${this.tournamentId}/?token=${token}`;
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+      const wsHost = window.location.host
+      const wsUrl = `${wsProtocol}//${wsHost}/ws/tournament/${this.tournamentId}/??token=${encodeURIComponent(token)}`;
       return wsUrl;
     },
 

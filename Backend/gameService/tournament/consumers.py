@@ -38,6 +38,7 @@ class TournamentConsumer(AsyncWebsocketConsumer):
             
             # Get current players and broadcast to the new connection
             players_data = await self.get_tournament_players()
+            print(players_data)
             
             # Send initial state to the connecting client
             await self.send(text_data=json.dumps({
