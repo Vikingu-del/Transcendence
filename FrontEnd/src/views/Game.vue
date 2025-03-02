@@ -90,20 +90,15 @@ interface GameState {
 	score: Uint8Array; // [player, opponent]
 }
 
-interface GameEndResponse {
-    type: 'game_state';
-    game_status: 'ended';
-    winner_id: string;
-    winner_name: string;
-    score: [number, number];
-    message: string;
-}
-
 export default defineComponent({
 	name: 'Game',
 	props: {
 		opponent: {
 			type: String,
+			required: true
+		},
+		opponentId: {
+			type: Number,
 			required: true
 		},
 		gameId: {
@@ -493,7 +488,7 @@ export default defineComponent({
 			const { score } = gameState.value;
 			console.log('Checking game over - Current scores:', score[0], score[1]);
 			
-			if (score[0] >= 2 || score[1] >= 2) {  // Changed to 2 points
+			if (score[0] >= 2 || score[1] >= 2) {
 				console.log('Game over condition met');
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
@@ -505,12 +500,15 @@ export default defineComponent({
 						player1: score[0],
 						player2: score[1]
 					},
-					winner_id: score[0] > score[1] ? props.userId : props.opponent
+					player1_id: props.userId,
+					player2_id: props.opponentId,
+					is_host: isLocalHost.value,
+					winner_id: score[0] > score[1] ? props.userId : props.opponentId,
+					game_id: props.gameId 
 				};
 				
 				console.log('Sending game end data:', gameEndData);
 				
-				// Send to WebSocket
 				if (gameSocket.value?.readyState === WebSocket.OPEN) {
 					gameSocket.value.send(JSON.stringify(gameEndData));
 				}
@@ -520,6 +518,13 @@ export default defineComponent({
 
 		const saveGameResult = async (player1Score: number, player2Score: number) => {
 			try {
+				console.log('Saving game result:', {
+					player1Score,
+					player2Score,
+					gameId: props.gameId,
+					winnerId: player1Score > player2Score ? props.userId : props.opponentId
+				});
+
 				const response = await fetch(`/pong/game/${props.gameId}/save/`, {
 				method: 'POST',
 				headers: {
@@ -528,7 +533,8 @@ export default defineComponent({
 				},
 				body: JSON.stringify({
 					player1_score: player1Score,
-					player2_score: player2Score
+					player2_score: player2Score,
+					winner_id: player1Score > player2Score ? props.userId : props.opponentId
 				})
 				});
 				const data = await response.json();
@@ -822,6 +828,13 @@ export default defineComponent({
 				gameStarted.value = false;
 				showEndGame.value = true;
 
+				console.log('Game over with state:', {
+					opponentId: props.opponentId,
+					userId: props.userId,
+					isHost: isLocalHost.value
+				});
+
+
 				if (data.reason === 'disconnect') {
 					// Handle disconnect case
 					disconnectMessage.value = data.message || 'Opponent has left the game';
@@ -838,6 +851,7 @@ export default defineComponent({
 
 					// Determine winner based on scores
 					const isPlayer1Winner = player1Score > player2Score;
+					const winnerId = isPlayer1Winner ? props.userId : props.opponentId;
 					
 					// Update local display values
 					playerScore.value = isLocalHost.value ? player1Score : player2Score;
@@ -845,15 +859,19 @@ export default defineComponent({
 					isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
 
 					// Send game end data if socket is still open
-					if (gameSocket.value?.readyState === WebSocket.OPEN) {
+					if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
 						const gameEndData = {
 							type: 'game_end',
-							reason: data.reason || 'score',
-							winner_id: isPlayer1Winner ? props.userId : props.opponent,
+							reason: 'score',
 							final_score: {
 								player1: player1Score,
 								player2: player2Score
-							}
+							},
+							player1_id: props.userId,
+							player2_id: props.opponentId,
+							is_host: true,
+							winner_id: winnerId,
+							game_id: props.gameId
 						};
 						
 						gameSocket.value.send(JSON.stringify(gameEndData));

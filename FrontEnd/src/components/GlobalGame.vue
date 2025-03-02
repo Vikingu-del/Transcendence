@@ -3,6 +3,7 @@
       <div v-if="showGameWindow" class="overlay">
         <PongGame 
           :opponent="opponent"
+          :opponentId="opponentId"
           :gameId="gameId"
           :isHost="isHost"
           :userId="userId"
@@ -28,18 +29,26 @@
       // Get game state from store
       const showGameWindow = ref(false);
       const opponent = ref('');
+      const opponentId = ref(null);
       const gameId = ref('');
       const isHost = ref(false);
       const userId = computed(() => store.state.userId || parseInt(localStorage.getItem('userId')));
   
       // Method to open game
       const openGame = (gameData) => {
-        console.log('GlobalGame: Opening game with data:', gameData);
+        console.log('GlobalGame: Opening game with data:', {
+          opponent: gameData.opponent,
+          opponentId: gameData.opponentId,
+          gameId: gameData.gameId,
+          isHost: gameData.isHost,
+          userId: userId.value
+        });
+        
         opponent.value = gameData.opponent;
+        opponentId.value = parseInt(gameData.opponentId);
         gameId.value = gameData.gameId;
         isHost.value = gameData.isHost;
         showGameWindow.value = true;
-        console.log('Game window open status:', showGameWindow.value);
       };
       
       // Method to close game
@@ -54,6 +63,7 @@
       return {
         showGameWindow,
         opponent,
+        opponentId,
         gameId,
         isHost,
         userId,

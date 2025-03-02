@@ -194,9 +194,7 @@ class PongConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error broadcasting ball: {str(e)}")
 
     async def handle_game_end(self, data):
-        """Handle game end"""
         try:
-            # Simple check if game already ended
             if hasattr(self, 'game_ended'):
                 return
             self.game_ended = True
@@ -207,19 +205,47 @@ class PongConsumer(AsyncWebsocketConsumer):
                 'game_status': 'ended',
             }
 
-            # Handle disconnect case
-            if end_reason == 'disconnect':
-                message.update({
-                    'reason': 'disconnect',
-                    'message': f"Game ended - opponent has left the game"
-                })
             # Handle normal game end (score)
-            else:
+            if end_reason != 'disconnect':
                 final_score = data.get('final_score', {})
                 player1_score = final_score.get('player1', 0)
                 player2_score = final_score.get('player2', 0)
-                winner = 'player1' if player1_score > player2_score else 'player2'
                 
+                # Get player IDs
+                player1_id = data.get('player1_id')
+                player2_id = data.get('player2_id')
+                
+                # Determine winner - default to player1 if no player2 or winner_id
+                winner_id = data.get('winner_id')
+                if winner_id is None:
+                    # If player2 is None or player1 has higher score, player1 wins
+                    if player2_id is None or player1_score > player2_score:
+                        winner_id = player1_id
+                    else:
+                        winner_id = player2_id
+                
+                # Only save if this is the host's connection
+                is_host = data.get('is_host', False)
+                if is_host:
+                    logger.info(f"Host saving game result with winner_id={winner_id}, player1_id={player1_id}, player2_id={player2_id}")
+                    logger.info(f"Final scores: player1={player1_score}, player2={player2_score}")
+                    
+                    game_session = await save_game_result(
+                        data.get('game_id'),
+                        winner_id,
+                        player1_id,
+                        player2_id,
+                        player1_score,
+                        player2_score
+                    )
+                    
+                    if game_session:
+                        logger.info(f"Successfully saved game session {game_session.id}")
+                    else:
+                        logger.error("Failed to save game session")
+
+                # Update message with winner info
+                winner = 'player1' if winner_id == player1_id else 'player2'
                 message.update({
                     'reason': 'score',
                     'message': f"Game Over! {winner.title()} wins!",
@@ -227,7 +253,7 @@ class PongConsumer(AsyncWebsocketConsumer):
                     'score': [player1_score, player2_score]
                 })
 
-            # Send the game end message to all players
+            # Send final state update to all clients
             await self.channel_layer.group_send(
                 self.room_group_name,
                 {
@@ -240,19 +266,58 @@ class PongConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error handling game end: {str(e)}", exc_info=True)
 
 @database_sync_to_async
-def save_game_result(game_id, winner_id, player1_score, player2_score):
-    """Save only the final game result"""
+def save_game_result(game_id, winner_id, player1_id, player2_id, player1_score, player2_score):
+    """Save the final game result with complete player information"""
     try:
-        winner = User.objects.get(id=winner_id)
-        GameSession.objects.create(
-            game_id=game_id,
-            winner=winner,
-            player1_score=player1_score,
-            player2_score=player2_score,
-            is_active=False
-        )
+
+        # Validate and convert IDs to integers
+        winner_id = winner_id
+        player1_id = player1_id
+        player2_id = player2_id
+        
+        logger.info(f"""Attempting to save game result: 
+            game_id={game_id}, 
+            winner_id={winner_id}, 
+            player1_id={player1_id}, 
+            player2_id={player2_id}, 
+            scores={player1_score}-{player2_score}
+        """)
+        
+        try:
+            # Get player1 and winner objects
+            player1 = User.objects.get(id=player1_id)
+            winner = User.objects.get(id=winner_id)
+            
+            # Try to get player2 if it exists
+            player2 = None
+            if player2_id:
+                try:
+                    player2 = User.objects.get(id=player2_id)
+                except User.DoesNotExist:
+                    logger.warning(f"Player2 with id {player2_id} not found")
+
+            # Create the game session
+            game_session = GameSession.objects.create(
+                game_id=game_id,
+                player1=player1,
+                player2=player2,
+                winner=winner,
+                player1_score=player1_score,
+                player2_score=player2_score,
+                is_active=False,
+                ended_at=timezone.now()
+            )
+            
+            logger.info(f"Game result saved successfully. Game session ID: {game_session.id}")
+            return game_session
+            
+        except User.DoesNotExist as e:
+            logger.error(f"User not found error: {str(e)}")
+            return None
+            
     except Exception as e:
-        logger.error(f"Error saving game result: {str(e)}")
+        logger.error(f"Error saving game result: {str(e)}", exc_info=True)
+        return None
 
 @database_sync_to_async
 def save_game_session(game_session):

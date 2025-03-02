@@ -196,9 +196,21 @@
               </div>
             </div>
 
-            <div class="detail-group">
-              <h5>Match History</h5>
-              <p>Coming soon...</p>
+            <div class="detail-group match-history-group">
+              <h3 class="match-history-title">Match History</h3>
+              
+              <div v-if="!selectedFriend.match_history || selectedFriend.match_history.length === 0" class="no-matches">
+                No matches played yet
+              </div>
+              
+              <ul v-else class="match-list">
+                <li v-for="match in selectedFriend.match_history" :key="match.id" 
+                    :class="['match-item', match.result.toLowerCase()]">
+                  <div class="match-result">{{ match.result }}</div>
+                  <div class="match-score">{{ match.score }}</div>
+                  <div class="match-opponent">{{ selectedFriend.display_name }} vs {{ match.opponentDisplayName || match.opponent }}</div>
+                </li>
+              </ul>
             </div>
             
           </div>
@@ -1155,6 +1167,7 @@ mounted() {
         
     async showFriendInfo(friend) {
       try {
+        // First fetch the friend's profile information
         const response = await fetch(`/api/user/profile/${friend.id}/`, {
           headers: {
             'Authorization': `Bearer ${this.getToken}`,
@@ -1175,12 +1188,101 @@ mounted() {
           friends: friendData.friends || [],
           friends_count: friendData.friends_count || 0
         };
+        
+        // Then fetch the friend's match history
+        await this.fetchFriendMatchHistory(friend.id);
+        
         this.showFriendProfile = true;
         this.showChat = false;  // Close chat if open
 
       } catch (error) {
         console.error('Error fetching friend details:', error);
         this.showStatus('Failed to load friend profile', {}, 'error');
+      }
+    },
+
+    async fetchFriendMatchHistory(friendId) {
+      try {
+        const token = this.getToken;
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+        
+        const response = await fetch(`/api/game/match-history/${friendId}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+            
+        if (!response.ok) {
+          throw new Error('Failed to fetch friend match history');
+        }
+        
+        const matchHistory = await response.json();
+        
+        // Process match history to get opponent display names
+        for (const match of matchHistory) {
+          if (match.opponent_id) {
+            try {
+              match.opponentDisplayName = await this.getUserDisplayName(match.opponent);
+            } catch (error) {
+              console.error('Error fetching opponent display name:', error);
+              match.opponentDisplayName = match.opponent || 'Unknown';
+            }
+          } else if (match.opponent && !match.opponentDisplayName) {
+            // If we have a username but no display name, try to get it
+            try {
+              match.opponentDisplayName = await this.getUserDisplayName(match.opponent);
+            } catch (error) {
+              console.error('Error converting username to display name:', error);
+              match.opponentDisplayName = match.opponent;
+            }
+          } else {
+            // Solo games or missing opponent_id and opponent
+            match.opponentDisplayName = match.opponent || 'Solo Game';
+          }
+        }
+        
+        // Add match history to selectedFriend
+        this.selectedFriend.match_history = matchHistory;
+        
+      } catch (error) {
+        console.error('Error fetching friend match history:', error);
+        this.selectedFriend.match_history = [];
+      }
+    },
+
+    // Add a new method to resolve usernames to display names
+    async getUserDisplayName(username) {
+      try {
+        const token = this.getToken;
+        if (!token) throw new Error('No auth token found');
+        
+        const response = await fetch(`/api/user/profile/by-username/${encodeURIComponent(username)}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+        // Check if the response contains display_name directly
+        if (data.display_name) {
+          return data.display_name;
+        } else {
+          console.error('Unexpected response format:', data);
+          return username; // Fall back to username if unexpected format
+        }
+      } catch (error) {
+        console.error('Error fetching display name:', error);
+        return username; // Fall back to username if we can't get display name
       }
     },
 
@@ -1346,6 +1448,7 @@ mounted() {
               if (this.globalGame) {
                 this.globalGame.openGame({
                   opponent: this.gameInviteNotification.sender,
+                  opponentId: this.gameInviteNotification.senderId,
                   gameId: this.gameInviteNotification.gameId,
                   isHost: false
                 });
@@ -1374,6 +1477,7 @@ mounted() {
               
               this.globalGame.openGame({
                 opponent: data.recipient_name,
+                opponentId: data.recipient_id,
                 gameId: data.game_id,
                 isHost: true
               });
@@ -1526,7 +1630,7 @@ mounted() {
             type: 'game_invite',
             game_id: uuid,
             sender_id: parseInt(this.currentUserId),
-            recipient_id: parseInt(this.selectedFriend.id),
+            recipient_id: this.selectedFriend.id,
             sender_name: this.profile.display_name || 'User',
             recipient_name: this.selectedFriend.display_name
           };
@@ -1539,19 +1643,21 @@ mounted() {
             if (this.globalGame) {
               console.log('Opening game with:', {
                 opponent: this.selectedFriend.display_name,
+                opponentId: this.selectedFriend.id,
                 gameId: uuid,
                 isHost: true
               });
               
               this.globalGame.openGame({
                 opponent: this.selectedFriend.display_name,
+                opponentId: this.selectedFriend.id,
                 gameId: uuid,
                 isHost: true
               });
               
               this.showChat = false;
             this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
-} else {
+            } else {
               console.error('Global game component not available');
               throw new Error('Game component not available');
             }
@@ -2504,4 +2610,80 @@ mounted() {
     transform: scale(1);
   }
 }
+
+/* Match History Styles */
+.match-history-group {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.match-history-title {
+  margin-bottom: 15px;
+  text-align: center;
+  font-size: 1.2rem;
+  color: #ffffff;
+}
+
+.no-matches {
+  text-align: center;
+  font-style: italic;
+  color: #666;
+  margin-top: 10px;
+}
+
+.match-list {
+  list-style: none;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.match-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.match-item.win {
+  border-left: 4px solid #03a670;
+}
+
+.match-item.loss {
+  border-left: 4px solid #a60303;
+}
+
+.match-result {
+  font-weight: bold;
+  min-width: 40px;
+}
+
+.match-result.win {
+  color: #03a670;
+}
+
+.match-result.loss {
+  color: #a60303;
+}
+
+.match-score {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin: 0 10px;
+}
+
+.match-opponent {
+  font-size: 0.9rem;
+  color: #ccc;
+  flex-grow: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 </style>
