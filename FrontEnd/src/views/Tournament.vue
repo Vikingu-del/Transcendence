@@ -106,53 +106,53 @@
             </div>
           </div>
 
-        <!-- Finals -->
-        <div class="match-card"
-            :class="{ 'completed': tournamentData.final.status === 'completed' }">
-          <h4>Final Match</h4>
-          <div class="player"
-              :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
-            {{ tournamentData.final.player1?.username || 'TBD' }}
-          </div>
-          <div class="vs">VS</div>
-          <div class="player"
-              :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player2?.id }">
-            {{ tournamentData.final.player2?.username || 'TBD' }}
-          </div>
-          
-          <!-- Display final match score if completed -->
-          <div v-if="tournamentData.final.status === 'completed'" class="match-score">
-            <span class="score-text">Final Score: 
-              <span class="score-number">{{ tournamentData.final.score?.player1 || tournamentData.match_scores?.['final']?.player1 || 0 }}</span>
-              -
-              <span class="score-number">{{ tournamentData.final.score?.player2 || tournamentData.match_scores?.['final']?.player2 || 0 }}</span>
-            </span>
-          </div>
-          
-          <button v-if="tournamentData.final && tournamentData.final.player1 && tournamentData.final.player2 && isPlayerInMatch(tournamentData.final) && tournamentData.final.status === 'pending'"
-                  @click="startMatch(tournamentData.final)"
-                  class="btn primary-btn">
-            Start Final Match
-          </button>
-        </div>
-
-        <div v-if="tournamentData.current_phase === 'completed'" class="tournament-complete">
-          <h3 class="champion-title">🏆 Tournament Champion 🏆</h3>
-          <div class="champion">
-            <div v-if="tournamentData.final && tournamentData.final.winner" class="champion-info">
-              <img v-if="getWinnerAvatar(tournamentData.final)" 
-                  :src="getWinnerAvatar(tournamentData.final)" 
-                  class="champion-avatar" 
-                  alt="Champion avatar">
-              <span class="champion-name">
-                {{ getWinnerName(tournamentData.final) }}
+          <!-- Finals -->
+          <div class="match-card"
+              :class="{ 'completed': tournamentData.final.status === 'completed' }">
+            <h4>Final Match</h4>
+            <div class="player"
+                :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
+              {{ tournamentData.final.player1?.username || 'TBD' }}
+            </div>
+            <div class="vs">VS</div>
+            <div class="player"
+                :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player2?.id }">
+              {{ tournamentData.final.player2?.username || 'TBD' }}
+            </div>
+            
+            <!-- Display final match score if completed -->
+            <div v-if="tournamentData.final.status === 'completed'" class="match-score">
+              <span class="score-text">Final Score: 
+                <span class="score-number">{{ tournamentData.final.score?.player1 || tournamentData.match_scores?.['final']?.player1 || 0 }}</span>
+                -
+                <span class="score-number">{{ tournamentData.final.score?.player2 || tournamentData.match_scores?.['final']?.player2 || 0 }}</span>
               </span>
+            </div>
+            
+            <button v-if="tournamentData.final && tournamentData.final.player1 && tournamentData.final.player2 && isPlayerInMatch(tournamentData.final) && tournamentData.final.status === 'pending'"
+                    @click="startMatch(tournamentData.final)"
+                    class="btn primary-btn">
+              Start Final Match
+            </button>
+          </div>
+
+          <div v-if="tournamentData.current_phase === 'completed'" class="tournament-complete">
+            <h3 class="champion-title">🏆 Tournament Champion 🏆</h3>
+            <div class="champion">
+              <div v-if="tournamentData.final && tournamentData.final.winner" class="champion-info">
+                <img v-if="getWinnerAvatar(tournamentData.final)" 
+                    :src="getWinnerAvatar(tournamentData.final)" 
+                    class="champion-avatar" 
+                    alt="Champion avatar">
+                <span class="champion-name">
+                  {{ getWinnerName(tournamentData.final) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
       </div>
     </div>
-  </div>
 
   <!-- WebSocket connection status -->
   <!-- WebSocket connection status -->
@@ -281,7 +281,65 @@ export default {
     return { notificationService, globalGame };
   },
 
+  mounted() {
+    // Listen for window events (since GlobalGame is using window.dispatchEvent)
+    window.addEventListener('tournament:gameComplete', this.handleGameCompleteEvent);
+  },  
   methods: {
+
+    handleGameCompleteEvent(event) {
+  console.log('Tournament received game complete event:', event.detail);
+  
+  // Only process if we have tournament data and active match
+  if (this.tournamentSocket?.readyState === WebSocket.OPEN && 
+      this.currentMatch && event.detail.tournamentId) {
+    
+    // Find the proper match data in tournamentData
+    const matchId = this.currentMatch.match_id;
+    let matchData = null;
+    
+    if (matchId.startsWith('semi_')) {
+      const semiIndex = parseInt(matchId.split('_')[1]);
+      matchData = this.tournamentData?.semi_finals?.[semiIndex];
+    } else if (matchId === 'final') {
+      matchData = this.tournamentData?.final;
+    }
+    
+    if (!matchData) {
+      console.error('Cannot find match data for', matchId);
+      return;
+    }
+    
+    // Use the player IDs from the match data
+    const player1Id = matchData.player1?.id;
+    const player2Id = matchData.player2?.id;
+    
+    // Format the match result data
+    const matchResult = {
+      type: 'match_complete',
+      match_id: matchId,
+      winner_id: event.detail.winnerId,
+      player1_id: player1Id ? parseInt(player1Id) : null,
+      player2_id: player2Id ? parseInt(player2Id) : null,
+      final_score: {
+        player1: event.detail.playerScore,
+        player2: event.detail.opponentScore
+      },
+      tournament_id: parseInt(this.tournamentId)
+    };
+    
+    console.log('Sending match complete to tournament:', matchResult);
+    this.tournamentSocket.send(JSON.stringify(matchResult));
+    
+    // Clear current match
+    this.currentMatch = null;
+    
+    // Add a timeout to fetch updated tournament bracket
+    setTimeout(() => {
+      this.fetchTournamentBracket();
+    }, 1000);
+  }
+},
     async fetchProfile() {
       try {
         const token = this.getToken;
@@ -497,6 +555,35 @@ export default {
               };
             }
             if (data.message) this.lastMessage = data.message;
+            break;
+          
+          // In the handleMessage method, update the tournament_update case:
+
+          // In the handleMessage method, update the case for tournament_update:
+
+          case 'tournament_update':
+            console.log('Tournament update received:', data.tournament_data);
+            this.tournamentData = data.tournament_data;
+            
+            // Update UI based on tournament phase
+            if (data.tournament_data.current_phase === 'final') {
+              if (data.tournament_data.final?.status === 'completed') {
+                // Tournament is completed, show the winner
+                this.lastMessage = 'Tournament completed!';
+                this.showTournamentResults();
+              } else if (data.tournament_data.final?.status === 'pending') {
+                this.lastMessage = 'Semi-finals completed! Final match is ready.';
+                
+                // Check if this player is in the final match
+                if (this.isPlayerInMatch(data.tournament_data.final)) {
+                  this.showStatus('You are in the final match! Click to start when ready.', {}, 'success');
+                }
+              }
+            } else if (data.tournament_data.current_phase === 'completed') {
+              // Tournament is officially completed
+              this.lastMessage = 'Tournament completed!';
+              this.showTournamentResults();
+            }
             break;
 
           case 'match_update':
@@ -771,17 +858,20 @@ export default {
     },
 
     handleGameOver(result) {
-      if (this.tournamentSocket?.readyState === WebSocket.OPEN) {
+      if (this.tournamentSocket?.readyState === WebSocket.OPEN && this.currentMatch) {
+        console.log('Tournament received game over event:', result);
+        
         // Parse player scores
         const finalScore = {
-          player1: result.playerScore,
-          player2: result.opponentScore
+          player1: result.playerScore || 0,
+          player2: result.opponentScore || 0
         };
         
+        // Use the winnerId directly from the result instead of interpreting "You" or "Opponent"
         const matchResult = {
           type: 'match_complete',
           match_id: this.currentMatch.match_id,
-          winner_id: result.winner === 'You' ? this.currentUserId : this.currentMatch.opponent.id,
+          winner_id: result.winnerId, // Use the direct ID
           player1_id: this.isHost ? this.currentUserId : this.currentMatch.opponent.id,
           player2_id: this.isHost ? this.currentMatch.opponent.id : this.currentUserId,
           final_score: finalScore,
@@ -796,6 +886,8 @@ export default {
         setTimeout(() => {
           this.fetchTournamentBracket();
         }, 500);
+      } else {
+        console.error('Cannot send match result: WebSocket not connected or no current match');
       }
       this.handleGameEnd();
     },
@@ -823,7 +915,7 @@ export default {
           semiMatch.status = 'completed';
           semiMatch.winner = winner_id;
           if (final_score) {
-            semiMatch.score = final_score;
+            semiMatch.score = final_score; // Add score directly to match object too
           }
         }
 
@@ -831,8 +923,7 @@ export default {
         const allSemisComplete = this.tournamentData.semi_finals.every(m => m.status === 'completed');
         if (allSemisComplete && this.tournamentData.current_phase === 'semi-final') {
           this.tournamentData.current_phase = 'final';
-          
-          // Fetch updated bracket data
+
           this.fetchTournamentBracket();
         }
       }
@@ -843,12 +934,9 @@ export default {
           this.tournamentData.final.status = 'completed';
           this.tournamentData.final.winner = winner_id;
           if (final_score) {
-            this.tournamentData.final.score = final_score;
+            this.tournamentData.final.score = final_score; // Add score to final match
           }
           this.tournamentData.current_phase = 'completed';
-          
-          // Fetch complete tournament data when the tournament is finished
-          this.fetchTournamentBracket();
         }
       }
     },
@@ -975,7 +1063,7 @@ export default {
     async fetchTournamentBracket() {
       try {
         const token = this.getToken;
-        if (!token) throw new Error('No auth token found');
+        if (!token) return;
 
         const response = await fetch(`/api/tournament/${this.tournamentId}/bracket/`, {
           headers: {
@@ -991,61 +1079,9 @@ export default {
         const data = await response.json();
         console.log('Fetched tournament data:', data);
         
-        // Update tournament data with complete bracket info
-        if (data.rounds) {
-          // Process semi-finals (round 1)
-          if (data.rounds[1]) {
-            this.tournamentData.semi_finals = data.rounds[1].map(match => ({
-              match_id: `semi_${match.match_number - 1}`,
-              phase: 'semi-final',
-              player1: {
-                id: this.findPlayerId(match.player1),
-                username: match.player1
-              },
-              player2: {
-                id: this.findPlayerId(match.player2),
-                username: match.player2
-              },
-              status: match.status,
-              winner: match.winner ? {
-                id: this.findPlayerId(match.winner),
-                username: match.winner
-              } : null,
-              score: match.score || null
-            }));
-          }
-          
-          // Process final (round 2)
-          if (data.rounds[2] && data.rounds[2].length > 0) {
-            const finalMatch = data.rounds[2][0];
-            this.tournamentData.final = {
-              match_id: 'final',
-              phase: 'final',
-              player1: finalMatch.player1 ? {
-                id: this.findPlayerId(finalMatch.player1),
-                username: finalMatch.player1
-              } : null,
-              player2: finalMatch.player2 ? {
-                id: this.findPlayerId(finalMatch.player2),
-                username: finalMatch.player2
-              } : null,
-              status: finalMatch.status,
-              winner: finalMatch.winner ? {
-                id: this.findPlayerId(finalMatch.winner),
-                username: finalMatch.winner
-              } : null,
-              score: finalMatch.score || null
-            };
-          }
-          
-          // Update tournament phase based on data
-          if (data.status === 'completed') {
-            this.tournamentData.current_phase = 'completed';
-          } else if (this.tournamentData.final && this.tournamentData.final.player1 && this.tournamentData.final.player2) {
-            this.tournamentData.current_phase = 'final';
-          } else {
-            this.tournamentData.current_phase = 'semi-final';
-          }
+        // Update local state with fetched data
+        if (data.tournament_data) {
+          this.tournamentData = data.tournament_data;
         }
       } catch (error) {
         console.error('Error fetching tournament bracket:', error);
@@ -1057,6 +1093,20 @@ export default {
       // Search in connected players
       const player = this.connectedPlayers.find(p => p.username === username);
       return player ? player.id : null;
+    },
+
+    startFinalMatch() {
+      if (!this.tournamentData?.final?.player1 || !this.tournamentData?.final?.player2) {
+        console.error('Cannot start final: Players not set');
+        return;
+      }
+      
+      // Find the final match data
+      const match = this.tournamentData.final;
+      
+      // Start match with the match data
+      console.log('Starting final match:', match);
+      this.startMatch(match);
     },
 
     // Add this method to clean up
@@ -1071,6 +1121,9 @@ export default {
     },
 
     beforeUnmount() {
+      window.removeEventListener('tournament:gameComplete', this.handleGameCompleteEvent);
+  
+      // Keep your existing cleanup code
       if (this.showGame) {
         this.handleGameEnd();
       }

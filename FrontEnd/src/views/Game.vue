@@ -652,7 +652,7 @@ export default defineComponent({
 				gameSocket.value.onmessage = (event) => {
 					try {
 						const data = JSON.parse(event.data);
-						console.log('Game message received:', data);
+						// console.log('Game message received:', data);
 						
 						// Add this special handler for decline messages
 						if (data.type === 'player_declined') {
@@ -861,55 +861,51 @@ export default defineComponent({
 				showEndGame.value = true;
 
 				console.log('Game over with state:', {
-					opponentId: props.opponentId,
-					userId: props.userId,
-					isHost: isLocalHost.value
+				opponentId: props.opponentId,
+				userId: props.userId,
+				isHost: isLocalHost.value
 				});
 
-
 				if (data.reason === 'disconnect') {
-					// Handle disconnect case
-					disconnectMessage.value = data.message || 'Opponent has left the game';
-					const [score1, score2] = data.score || [0, 0];
-					playerScore.value = isLocalHost.value ? score1 : score2;
-					opponentScore.value = isLocalHost.value ? score2 : score1;
-					isWinner.value = false; // No winner in case of disconnect
+				// Handle disconnect case
+				disconnectMessage.value = data.message || 'Opponent has left the game';
+				const [score1, score2] = data.score || [0, 0];
+				playerScore.value = isLocalHost.value ? score1 : score2;
+				opponentScore.value = isLocalHost.value ? score2 : score1;
+				isWinner.value = false; // No winner in case of disconnect
+				
+				// When emitting on disconnect, include winner ID as null
+				emit('gameOver', {
+					winner: 'None',
+					winnerId: null,
+					playerScore: playerScore.value,
+					opponentScore: opponentScore.value,
+					message: disconnectMessage.value
+				});
 				} else {
-					// Handle normal game end
-					disconnectMessage.value = ''; // Clear any disconnect message
-					const finalScores = getLocalScore(gameKey.value);
-					const player1Score = finalScores.playerScore;
-					const player2Score = finalScores.opponentScore;
+				// Handle normal game end
+				disconnectMessage.value = ''; // Clear any disconnect message
+				const finalScores = getLocalScore(gameKey.value);
+				const player1Score = finalScores.playerScore;
+				const player2Score = finalScores.opponentScore;
 
-					// Determine winner based on scores
-					const isPlayer1Winner = player1Score > player2Score;
-					const winnerId = isPlayer1Winner ? props.userId : props.opponentId;
-					
-					// Update local display values
-					playerScore.value = isLocalHost.value ? player1Score : player2Score;
-					opponentScore.value = isLocalHost.value ? player2Score : player1Score;
-					isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
+				// Determine winner based on scores
+				const isPlayer1Winner = player1Score > player2Score;
+				const winnerId = isPlayer1Winner ? props.userId : props.opponentId;
+				
+				// Update local display values
+				playerScore.value = isLocalHost.value ? player1Score : player2Score;
+				opponentScore.value = isLocalHost.value ? player2Score : player1Score;
+				isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
 
-					// Send game end data if socket is still open
-					// In the handleGameOver method, when sending game end data:
-					if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
-						const gameEndData = {
-							type: 'game_end',
-							reason: 'score',
-							final_score: {
-							player1: player1Score,
-							player2: player2Score
-							},
-							player1_id: props.userId,
-							player2_id: props.opponentId,
-							is_host: true,
-							winner_id: winnerId,
-							game_id: props.gameId,
-							tournament_id: props.tournamentId
-						};
-						
-						gameSocket.value.send(JSON.stringify(gameEndData));
-					}
+				// IMPORTANT: Include winnerId when emitting the event
+				emit('gameOver', {
+				winner: isWinner.value ? 'You' : 'Opponent',
+				winnerId: isPlayer1Winner ? props.userId : props.opponentId, // Make sure this is correct
+				playerScore: playerScore.value,
+				opponentScore: opponentScore.value,
+				message: isWinner.value ? 'Congratulations! You won!' : 'Game Over! You lost!'
+				});
 				}
 
 				// Clear local storage
@@ -940,10 +936,10 @@ export default defineComponent({
 								const response = JSON.parse(event.data);
 								if (response.type === 'game_state' && response.game_status === 'ended') {
 									emit('gameOver', {
-										winner: isWinner.value ? 'You' : 'Opponent',
-										playerScore: playerScore.value,
-										opponentScore: opponentScore.value,
-										message: isWinner.value ? 'Congratulations! You won!' : 'Game Over! You lost!'
+									winnerId: isWinner.value ? props.userId : props.opponentId,  // Add actual winner ID
+									playerScore: playerScore.value,
+									opponentScore: opponentScore.value,
+									winner: isWinner.value ? 'You' : 'Opponent'  // Keep for display purposes
 									});
 								}
 							} catch (error) {

@@ -201,24 +201,75 @@ class TournamentBracketView(generics.RetrieveAPIView):
     def get(self, request, tournament_id, *args, **kwargs):
         try:
             tournament = get_object_or_404(Tournament, id=tournament_id)
-            matches = TournamentMatch.objects.filter(tournament=tournament).order_by('round', 'match_number')
             
-            rounds = {}
-            for match in matches:
-                if match.round not in rounds:
-                    rounds[match.round] = []
-                rounds[match.round].append({
-                    'id': match.id,
-                    'player1': match.player1.username if match.player1 else 'TBD',
-                    'player2': match.player2.username if match.player2 else 'TBD',
-                    'winner': match.winner.username if match.winner else None,
-                    'match_number': match.match_number,
-                    'status': match.status
+            # If tournament data is already stored, return it directly
+            if hasattr(tournament, 'tournament_data') and tournament.tournament_data:
+                return Response({
+                    'tournament_id': tournament_id,
+                    'tournament_data': tournament.tournament_data,
+                    'status': tournament.status
                 })
+            
+            # Otherwise build tournament data from matches
+            matches = TournamentMatch.objects.filter(tournament=tournament).order_by('round_number', 'match_order')
+            
+            # Structure tournament data with semi-finals and final
+            semi_finals = []
+            final = None
+            
+            for match in matches:
+                # Build match data
+                match_data = {
+                    'match_id': f"{'final' if match.round_number == 2 else f'semi_{match.match_order}'}",
+                    'phase': 'final' if match.round_number == 2 else 'semi-final',
+                    'status': match.status,
+                    'winner': match.winner_id,
+                    'game_id': match.game_id
+                }
+                
+                # Add player info
+                if match.player1:
+                    match_data['player1'] = {
+                        'id': match.player1.id,
+                        'username': match.player1.username,
+                        'display_name': match.player1.username
+                    }
+                
+                if match.player2:
+                    match_data['player2'] = {
+                        'id': match.player2.id,
+                        'username': match.player2.username,
+                        'display_name': match.player2.username
+                    }
+                
+                # Add to appropriate round
+                if match.round_number == 1:
+                    semi_finals.append(match_data)
+                else:
+                    final = match_data
+            
+            # Determine current phase
+            current_phase = 'semi-final'
+            if all(m['status'] == 'completed' for m in semi_finals if m):
+                current_phase = 'final'
+                if final and final['status'] == 'completed':
+                    current_phase = 'completed'
+            
+            # Build full tournament data
+            tournament_data = {
+                'semi_finals': semi_finals,
+                'final': final,
+                'current_phase': current_phase,
+                'match_scores': {}  # Initialize empty match scores
+            }
+            
+            # Save data to tournament for future use
+            tournament.tournament_data = tournament_data
+            tournament.save()
             
             return Response({
                 'tournament_id': tournament_id,
-                'rounds': rounds,
+                'tournament_data': tournament_data,
                 'status': tournament.status
             })
         except Exception as e:

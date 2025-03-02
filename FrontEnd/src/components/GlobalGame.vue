@@ -9,6 +9,7 @@
           :userId="userId"
           :tournamentId="tournamentId"
           @close="closeGame"
+          @gameOver="handleGameOver"
         />
       </div>
     </transition>
@@ -16,7 +17,7 @@
   
   <script>
   import PongGame from '../views/Game.vue';
-  import { ref, computed } from 'vue';
+  import { ref, computed, inject } from 'vue';
   import { useStore } from 'vuex';
   
   export default {
@@ -26,6 +27,7 @@
     },
     setup() {
       const store = useStore();
+      const eventBus = inject('eventBus', null);
       
       // Get game state from store
       const showGameWindow = ref(false);
@@ -64,6 +66,36 @@
         tournamentId.value = null;
         console.log('Game window closed, new status:', showGameWindow.value);
       };
+
+      const handleGameOver = (result) => {
+        console.log('GlobalGame: Game over event received:', result);
+        
+        // Emit the event globally for Tournament component
+        if (eventBus) {
+          eventBus.emit('tournament:gameOver', {
+            gameId: gameId.value,
+            tournamentId: tournamentId.value,
+            ...result
+          });
+        }
+        
+        // Global custom event for components without eventBus
+        if (window) {
+          const customEvent = new CustomEvent('tournament:gameComplete', {
+            detail: {
+              gameId: gameId.value,
+              tournamentId: tournamentId.value,
+              ...result
+            }
+          });
+          window.dispatchEvent(customEvent);
+        }
+        
+        // Close the game window after a short delay
+        setTimeout(() => {
+          closeGame();
+        }, 200);
+      };
       
       return {
         showGameWindow,
@@ -74,7 +106,8 @@
         userId,
         tournamentId,
         openGame,
-        closeGame
+        closeGame,
+        handleGameOver
       };
     }
   }
