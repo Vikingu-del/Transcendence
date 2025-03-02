@@ -8,20 +8,20 @@
       </div>
     </div> -->
     <div class="tournament-container">
-    <!-- Show enrollment prompt only if not enrolled and can enroll -->
-    <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
-      <p class="question">New Tournament Starting Soon. Wanna Join?</p>
-      <div class="button-group">
-        <button class="btn btn-yes" @click="handleYes">Yes</button>
-        <button class="btn btn-no" @click="handleNo">No</button>
-      </div>
-    </div>
+        <!-- Show enrollment prompt only if not enrolled and can enroll -->
+        <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
+          <p class="question">New Tournament Starting Soon. Wanna Join?</p>
+          <div class="button-group">
+            <button class="btn btn-yes" @click="handleYes">Yes</button>
+            <button class="btn btn-no" @click="handleNo">No</button>
+          </div>
+        </div>
 
-    <!-- Show message if there's an active tournament but user can't enroll -->
-    <div v-if="!isEnrolled && !canEnroll" class="tournament-message">
-      <p>{{ enrollmentMessage }}</p>
+        <!-- Show message if there's an active tournament but user can't enroll -->
+        <div v-if="!isEnrolled && !canEnroll" class="tournament-message">
+          <p>{{ enrollmentMessage }}</p>
+        </div>
     </div>
-
     <!-- Tournament status -->
     <div v-if="isEnrolled" class="tournament-status">
       <!-- Waiting room -->
@@ -63,31 +63,41 @@
           <h3>Semi-finals</h3>
           <div class="semi-finals">
             <div v-for="match in tournamentData.semi_finals" 
-                :key="match.match_id" 
-                class="match-card"
-                :class="{ 'completed': match.status === 'completed' }">
+              :key="match.match_id" 
+              class="match-card"
+              :class="{ 'completed': match.status === 'completed' }">
               <h4>Semi-Final {{ match.match_id.split('_')[1] + 1 }}</h4>
               <div class="player" 
-                    :class="{ 'winner': match.winner?.id === match.player1.id }">
-                  <div class="player-info">
-                    <img v-if="match.player1.avatar_url" 
-                        :src="match.player1.avatar_url" 
-                        class="player-avatar"
-                        alt="Player avatar">
-                    <span class="player-name">{{ formattedPlayerName(match.player1) }}</span>
-                  </div>
+                  :class="{ 'winner': match.winner?.id === match.player1.id }">
+                <div class="player-info">
+                  <img v-if="match.player1.avatar_url" 
+                      :src="match.player1.avatar_url" 
+                      class="player-avatar"
+                      alt="Player avatar">
+                  <span class="player-name">{{ formattedPlayerName(match.player1) }}</span>
                 </div>
-                <div class="vs">VS</div>
-                <div class="player"
-                    :class="{ 'winner': match.winner?.id === match.player2.id }">
-                  <div class="player-info">
-                    <img v-if="match.player2.avatar_url" 
-                        :src="match.player2.avatar_url" 
-                        class="player-avatar"
-                        alt="Player avatar">
-                    <span class="player-name">{{ formattedPlayerName(match.player2) }}</span>
-                  </div>
+              </div>
+              <div class="vs">VS</div>
+              <div class="player"
+                  :class="{ 'winner': match.winner?.id === match.player2.id }">
+                <div class="player-info">
+                  <img v-if="match.player2.avatar_url" 
+                      :src="match.player2.avatar_url" 
+                      class="player-avatar"
+                      alt="Player avatar">
+                  <span class="player-name">{{ formattedPlayerName(match.player2) }}</span>
                 </div>
+              </div>
+              
+              <!-- Display score if match is completed -->
+              <div v-if="match.status === 'completed'" class="match-score">
+                <span class="score-text">Final Score: 
+                  <span class="score-number">{{ match.score?.player1 || tournamentData.match_scores?.[match.match_id]?.player1 || 0 }}</span>
+                  -
+                  <span class="score-number">{{ match.score?.player2 || tournamentData.match_scores?.[match.match_id]?.player2 || 0 }}</span>
+                </span>
+              </div>
+              
               <button v-if="isPlayerInMatch(match) && match.status === 'pending'"
                       @click="startMatch(match)"
                       class="btn primary-btn">
@@ -95,29 +105,48 @@
               </button>
             </div>
           </div>
-        </div>
 
         <!-- Finals -->
-        <div v-if="tournamentData.current_phase === 'final'" class="finals-container">
-          <h3>Final</h3>
-          <div class="final-match">
-            <div class="match-card"
-                :class="{ 'completed': tournamentData.final.status === 'completed' }">
-              <h4>Final Match</h4>
-              <div class="player"
-                  :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
-                {{ tournamentData.final.player1?.username || 'TBD' }}
-              </div>
-              <div class="vs">VS</div>
-              <div class="player"
-                  :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player2?.id }">
-                {{ tournamentData.final.player2?.username || 'TBD' }}
-              </div>
-              <button v-if="isPlayerInMatch(tournamentData.final) && tournamentData.final.status === 'pending'"
-                      @click="startMatch(tournamentData.final)"
-                      class="btn primary-btn">
-                Start Final Match
-              </button>
+        <div class="match-card"
+            :class="{ 'completed': tournamentData.final.status === 'completed' }">
+          <h4>Final Match</h4>
+          <div class="player"
+              :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
+            {{ tournamentData.final.player1?.username || 'TBD' }}
+          </div>
+          <div class="vs">VS</div>
+          <div class="player"
+              :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player2?.id }">
+            {{ tournamentData.final.player2?.username || 'TBD' }}
+          </div>
+          
+          <!-- Display final match score if completed -->
+          <div v-if="tournamentData.final.status === 'completed'" class="match-score">
+            <span class="score-text">Final Score: 
+              <span class="score-number">{{ tournamentData.final.score?.player1 || tournamentData.match_scores?.['final']?.player1 || 0 }}</span>
+              -
+              <span class="score-number">{{ tournamentData.final.score?.player2 || tournamentData.match_scores?.['final']?.player2 || 0 }}</span>
+            </span>
+          </div>
+          
+          <button v-if="tournamentData.final && tournamentData.final.player1 && tournamentData.final.player2 && isPlayerInMatch(tournamentData.final) && tournamentData.final.status === 'pending'"
+                  @click="startMatch(tournamentData.final)"
+                  class="btn primary-btn">
+            Start Final Match
+          </button>
+        </div>
+
+        <div v-if="tournamentData.current_phase === 'completed'" class="tournament-complete">
+          <h3 class="champion-title">🏆 Tournament Champion 🏆</h3>
+          <div class="champion">
+            <div v-if="tournamentData.final && tournamentData.final.winner" class="champion-info">
+              <img v-if="getWinnerAvatar(tournamentData.final)" 
+                  :src="getWinnerAvatar(tournamentData.final)" 
+                  class="champion-avatar" 
+                  alt="Champion avatar">
+              <span class="champion-name">
+                {{ getWinnerName(tournamentData.final) }}
+              </span>
             </div>
           </div>
         </div>
@@ -126,12 +155,15 @@
   </div>
 
   <!-- WebSocket connection status -->
+  <!-- WebSocket connection status -->
   <Teleport to="body" v-if="showGame">
     <Game 
       :opponent="currentMatch.opponent.username"
-      :gameId="currentMatch.match_id"
+      :opponentId="currentMatch.opponent.id"
+      :gameId="currentMatch.gameId"
       :isHost="isHost"
       :userId="currentUserId"
+      :tournamentId="tournamentId" 
       @close="handleGameEnd"
       @gameOver="handleGameOver"
     />
@@ -192,7 +224,8 @@ export default {
       tournamentData: {
         semi_finals: [],
         final: null,
-        current_phase: null
+        current_phase: null,
+        match_scores: {}
       },
       showGame: false,
       currentMatch: null,
@@ -612,8 +645,11 @@ export default {
 
     //Game Related Methods
     isPlayerInMatch(match) {
+      if (!match || !match.player1 || !match.player2) {
+        return false;
+      }
       return match.player1.id === this.currentUserId || 
-             match.player2.id === this.currentUserId;
+            match.player2.id === this.currentUserId;
     },
 
     showStatus(message, variables = {}, type = 'success') {
@@ -665,7 +701,8 @@ export default {
           opponent: opponent,
           opponentId: opponentId,
           currentUserId: this.currentUserId,
-          recipient_id: opponent.id
+          recipient_id: opponent.id,
+          tournamentId: this.tournamentId
         });
   
         // This is the crucial part - Send notification with correct format
@@ -675,7 +712,9 @@ export default {
           sender_id: this.currentUserId,
           recipient_id: opponent.id,
           sender_name: this.profile.display_name || this.profile.username,
-          recipient_name: opponent.display_name || opponent.username
+          recipient_name: opponent.display_name || opponent.username,
+          match_id: match.match_id,
+          tournament_id: this.tournamentId  // Add tournament ID
         };
   
         
@@ -692,7 +731,9 @@ export default {
         this.currentMatch = {
           match_id: match.match_id,
           gameId: gameId,
-          opponent: opponent
+          opponent: opponent,
+          opponentId: opponentId,
+          tournament_id: this.tournamentId
         };
         this.isHost = true;
   
@@ -702,15 +743,17 @@ export default {
             opponent: opponent.display_name || opponent.username,
             gameId: gameId,
             isHost: true,
-            matchId: match.match_id
+            matchId: match.match_id,
+            tournamentId: this.tournamentId
           });
           this.globalGame.openGame({
             opponent: opponent.display_name || opponent.username,
-            opponentId: opponentId,  // Add this line
+            opponentId: opponentId,
             gameId: gameId,
             isHost: true,
-            userId: this.currentUserId,  // Add this line
-            matchId: match.match_id
+            userId: this.currentUserId,
+            matchId: match.match_id,
+            tournamentId: this.tournamentId
           });
         } else {
           console.error('Global game component not available');
@@ -729,24 +772,48 @@ export default {
 
     handleGameOver(result) {
       if (this.tournamentSocket?.readyState === WebSocket.OPEN) {
+        // Parse player scores
+        const finalScore = {
+          player1: result.playerScore,
+          player2: result.opponentScore
+        };
+        
         const matchResult = {
           type: 'match_complete',
           match_id: this.currentMatch.match_id,
-          winner_id: result.winner,
-          final_score: result.score
+          winner_id: result.winner === 'You' ? this.currentUserId : this.currentMatch.opponent.id,
+          player1_id: this.isHost ? this.currentUserId : this.currentMatch.opponent.id,
+          player2_id: this.isHost ? this.currentMatch.opponent.id : this.currentUserId,
+          final_score: finalScore,
+          tournament_id: this.tournamentId
         };
         
+        console.log('Sending match result to tournament:', matchResult);
         this.tournamentSocket.send(JSON.stringify(matchResult));
+        
+        // Add this: Fetch updated tournament data after a short delay
+        // to ensure the backend has processed the match result
+        setTimeout(() => {
+          this.fetchTournamentBracket();
+        }, 500);
       }
       this.handleGameEnd();
     },
 
     handleMatchUpdate(data) {
-      const { match_id, winner_id } = data;
+      const { match_id, winner_id, final_score } = data;
       
       if (!this.tournamentData) {
         console.error('Tournament data not initialized');
         return;
+      }
+
+      // Store match scores if provided
+      if (final_score) {
+        if (!this.tournamentData.match_scores) {
+          this.tournamentData.match_scores = {};
+        }
+        this.tournamentData.match_scores[match_id] = final_score;
       }
 
       // Update semi-finals
@@ -755,12 +822,18 @@ export default {
         if (semiMatch) {
           semiMatch.status = 'completed';
           semiMatch.winner = winner_id;
+          if (final_score) {
+            semiMatch.score = final_score;
+          }
         }
 
         // Check if all semi-finals are complete
         const allSemisComplete = this.tournamentData.semi_finals.every(m => m.status === 'completed');
         if (allSemisComplete && this.tournamentData.current_phase === 'semi-final') {
           this.tournamentData.current_phase = 'final';
+          
+          // Fetch updated bracket data
+          this.fetchTournamentBracket();
         }
       }
       
@@ -769,7 +842,13 @@ export default {
         if (this.tournamentData.final) {
           this.tournamentData.final.status = 'completed';
           this.tournamentData.final.winner = winner_id;
+          if (final_score) {
+            this.tournamentData.final.score = final_score;
+          }
           this.tournamentData.current_phase = 'completed';
+          
+          // Fetch complete tournament data when the tournament is finished
+          this.fetchTournamentBracket();
         }
       }
     },
@@ -810,7 +889,8 @@ export default {
       const gameId = crypto.randomUUID(); // Generate a new game ID
       this.currentMatch = {
         match_id: gameId,
-        opponent: match.player1.id === this.currentUserId ? match.player2 : match.player1
+        opponent: match.player1.id === this.currentUserId ? match.player2 : match.player1,
+        opponentId: match.player1.id === this.currentUserId ? match.player2.id : match.player1.id
       };
       this.isHost = match.player1.id === this.currentUserId;
       this.sendGameInvite(this.currentMatch);
@@ -819,26 +899,35 @@ export default {
     handleGameInvite(data) {
       this.gameInviteNotification = data;
     },
+
     acceptGameInvite() {
       if (this.gameInviteNotification && this.globalGame) {
-        const { game_id, sender_name, match_id } = this.gameInviteNotification;
+        const { game_id, sender_name, sender_id, match_id, tournament_id } = this.gameInviteNotification;
         
         console.log('Opening game window for recipient:', {
           opponent: sender_name,
+          opponentId: sender_id,
           gameId: game_id,
           isHost: false,
-          matchId: match_id
+          userId: this.currentUserId,
+          matchId: match_id,
+          tournamentId: tournament_id
         });
+        
         this.globalGame.openGame({
           opponent: sender_name,
+          opponentId: sender_id,
           gameId: game_id,
           isHost: false,
-          matchId: match_id // Pass the tournament match ID
+          userId: this.currentUserId,
+          matchId: match_id,
+          tournamentId: tournament_id
         });
         
         this.gameInviteNotification = null;
       }
     },
+  
     declineGameInvite() {
       if (this.gameInviteNotification) {
         const { game_id, sender_id } = this.gameInviteNotification;
@@ -857,6 +946,117 @@ export default {
         }
         this.gameInviteNotification = null;
       }
+    },
+
+    getWinnerName(match) {
+      if (!match || !match.winner) return 'Unknown';
+      
+      if (match.player1 && match.winner.id === match.player1.id) {
+        return this.formattedPlayerName(match.player1);
+      } else if (match.player2 && match.winner.id === match.player2.id) {
+        return this.formattedPlayerName(match.player2);
+      }
+      
+      return 'Unknown';
+    },
+    
+    getWinnerAvatar(match) {
+      if (!match || !match.winner) return null;
+      
+      if (match.player1 && match.winner.id === match.player1.id) {
+        return match.player1.avatar_url;
+      } else if (match.player2 && match.winner.id === match.player2.id) {
+        return match.player2.avatar_url;
+      }
+      
+      return null;
+    },
+
+    async fetchTournamentBracket() {
+      try {
+        const token = this.getToken;
+        if (!token) throw new Error('No auth token found');
+
+        const response = await fetch(`/api/tournament/${this.tournamentId}/bracket/`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          throw new Error(`Failed to fetch tournament bracket: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log('Fetched tournament data:', data);
+        
+        // Update tournament data with complete bracket info
+        if (data.rounds) {
+          // Process semi-finals (round 1)
+          if (data.rounds[1]) {
+            this.tournamentData.semi_finals = data.rounds[1].map(match => ({
+              match_id: `semi_${match.match_number - 1}`,
+              phase: 'semi-final',
+              player1: {
+                id: this.findPlayerId(match.player1),
+                username: match.player1
+              },
+              player2: {
+                id: this.findPlayerId(match.player2),
+                username: match.player2
+              },
+              status: match.status,
+              winner: match.winner ? {
+                id: this.findPlayerId(match.winner),
+                username: match.winner
+              } : null,
+              score: match.score || null
+            }));
+          }
+          
+          // Process final (round 2)
+          if (data.rounds[2] && data.rounds[2].length > 0) {
+            const finalMatch = data.rounds[2][0];
+            this.tournamentData.final = {
+              match_id: 'final',
+              phase: 'final',
+              player1: finalMatch.player1 ? {
+                id: this.findPlayerId(finalMatch.player1),
+                username: finalMatch.player1
+              } : null,
+              player2: finalMatch.player2 ? {
+                id: this.findPlayerId(finalMatch.player2),
+                username: finalMatch.player2
+              } : null,
+              status: finalMatch.status,
+              winner: finalMatch.winner ? {
+                id: this.findPlayerId(finalMatch.winner),
+                username: finalMatch.winner
+              } : null,
+              score: finalMatch.score || null
+            };
+          }
+          
+          // Update tournament phase based on data
+          if (data.status === 'completed') {
+            this.tournamentData.current_phase = 'completed';
+          } else if (this.tournamentData.final && this.tournamentData.final.player1 && this.tournamentData.final.player2) {
+            this.tournamentData.current_phase = 'final';
+          } else {
+            this.tournamentData.current_phase = 'semi-final';
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching tournament bracket:', error);
+      }
+    },
+
+    // Helper method to find player ID from username
+    findPlayerId(username) {
+      // Search in connected players
+      const player = this.connectedPlayers.find(p => p.username === username);
+      return player ? player.id : null;
     },
 
     // Add this method to clean up
@@ -1222,5 +1422,44 @@ color: white;
 .slide-down-leave-from {
   transform: translateY(0);
   opacity: 1;
+}
+
+.match-score {
+  margin-top: 1rem;
+  padding: 0.5rem;
+  background: rgba(3, 166, 112, 0.1);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.score-text {
+  color: #ccc;
+}
+
+.score-number {
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin: 0 0.2rem;
+}
+
+/* Add this to highlight the champion in the final match */
+.tournament-complete .champion {
+  animation: glow 1.5s infinite alternate;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  border-radius: 4px;
+  background: rgba(3, 166, 112, 0.2);
+}
+
+@keyframes glow {
+  from {
+    box-shadow: 0 0 5px rgba(3, 166, 112, 0.5);
+  }
+  to {
+    box-shadow: 0 0 20px rgba(3, 166, 112, 0.8);
+  }
 }
 </style>

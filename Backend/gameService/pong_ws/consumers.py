@@ -215,6 +215,9 @@ class PongConsumer(AsyncWebsocketConsumer):
                 player1_id = data.get('player1_id')
                 player2_id = data.get('player2_id')
                 
+                # Get tournament ID if available
+                tournament_id = data.get('tournament_id')
+                
                 # Determine winner - default to player1 if no player2 or winner_id
                 winner_id = data.get('winner_id')
                 if winner_id is None:
@@ -229,6 +232,7 @@ class PongConsumer(AsyncWebsocketConsumer):
                 if is_host:
                     logger.info(f"Host saving game result with winner_id={winner_id}, player1_id={player1_id}, player2_id={player2_id}")
                     logger.info(f"Final scores: player1={player1_score}, player2={player2_score}")
+                    logger.info(f"Tournament ID: {tournament_id}")
                     
                     game_session = await save_game_result(
                         data.get('game_id'),
@@ -236,7 +240,8 @@ class PongConsumer(AsyncWebsocketConsumer):
                         player1_id,
                         player2_id,
                         player1_score,
-                        player2_score
+                        player2_score,
+                        tournament_id
                     )
                     
                     if game_session:
@@ -250,7 +255,8 @@ class PongConsumer(AsyncWebsocketConsumer):
                     'reason': 'score',
                     'message': f"Game Over! {winner.title()} wins!",
                     'winner': winner,
-                    'score': [player1_score, player2_score]
+                    'score': [player1_score, player2_score],
+                    'tournament_game': tournament_id is not None
                 })
 
             # Send final state update to all clients
@@ -266,10 +272,9 @@ class PongConsumer(AsyncWebsocketConsumer):
             logger.error(f"Error handling game end: {str(e)}", exc_info=True)
 
 @database_sync_to_async
-def save_game_result(game_id, winner_id, player1_id, player2_id, player1_score, player2_score):
+def save_game_result(game_id, winner_id, player1_id, player2_id, player1_score, player2_score, tournament_id=None):
     """Save the final game result with complete player information"""
     try:
-
         # Validate and convert IDs to integers
         winner_id = winner_id
         player1_id = player1_id
@@ -280,7 +285,8 @@ def save_game_result(game_id, winner_id, player1_id, player2_id, player1_score, 
             winner_id={winner_id}, 
             player1_id={player1_id}, 
             player2_id={player2_id}, 
-            scores={player1_score}-{player2_score}
+            scores={player1_score}-{player2_score},
+            tournament_id={tournament_id}
         """)
         
         try:
@@ -304,6 +310,7 @@ def save_game_result(game_id, winner_id, player1_id, player2_id, player1_score, 
                 winner=winner,
                 player1_score=player1_score,
                 player2_score=player2_score,
+                tournament_id=tournament_id,  # Add tournament ID
                 is_active=False,
                 ended_at=timezone.now()
             )

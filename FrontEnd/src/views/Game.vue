@@ -1,9 +1,13 @@
 <template>
 	<div class="game-container">
 		<div class="game-header">
-            <h4 class="game-title">Game with {{ opponent }}</h4>
-            <button @click="$emit('close')" class="btn secondary-btn">Close</button>
-        </div>
+			<h4 class="game-title">Game with {{ opponent }}</h4>
+			<div v-if="isTournamentGame" class="tournament-badge">
+				Tournament Match
+			</div>
+			<!-- Only show close button for non-tournament games -->
+			<button v-if="!isTournamentGame" @click="$emit('close')" class="btn secondary-btn">Close</button>
+		</div>
         
         <div class="game-content">
             <!-- Show waiting message for host -->
@@ -53,28 +57,29 @@
 		</div>
 
 		<div v-if="showEndGame" class="game-end-screen">
-			<h2>Game Over!</h2>
+            <h2>Game Over!</h2>
 			<template v-if="disconnectMessage">
 				<p class="disconnect-message">{{ disconnectMessage }}</p>
 				<p class="score-message">
 					Final Score: {{ playerScore }} - {{ opponentScore }}
 				</p>
 				<button 
+					v-if="!isTournamentGame"
 					@click="$emit('close')" 
 					class="btn primary-btn"
 				>
 					Return to Menu
 				</button>
 			</template>
-			<template v-else>
-				<p :class="isWinner ? 'win-message' : 'lose-message'">
-					{{ isWinner ? 'Congratulations! You won!' : 'Game Over! You lost!' }}
-				</p>
-				<p class="score-message">
-					Final Score: {{ playerScore }} - {{ opponentScore }}
-				</p>
-			</template>
-		</div>
+            <template v-else>
+                <p :class="isWinner ? 'win-message' : 'lose-message'">
+                    {{ isWinner ? 'Congratulations! You won!' : 'Game Over! You lost!' }}
+                </p>
+                <p class="score-message">
+                    Final Score: {{ playerScore }} - {{ opponentScore }}
+                </p>
+            </template>
+        </div>
 		
 	  </div>
 	</div>
@@ -112,6 +117,10 @@ export default defineComponent({
 		userId: {
 			type: Number,
 			required: true
+		},
+		tournamentId: {
+			type: Number,
+			default: null
 		}
 	},
 
@@ -150,7 +159,6 @@ export default defineComponent({
 			return { playerScore: 0, opponentScore: 0 };
 		};
 
-		// At the start of your setup function
 		// Add new reactive refs
 		const isLocalHost = ref<boolean>(props.isHost);
 		const isWaiting = ref<boolean>(props.isHost);
@@ -190,6 +198,7 @@ export default defineComponent({
 		const disconnectMessage = ref<string>('');
 		const isWinner = ref(false);
 		const winner = ref<string>('');
+		const isTournamentGame = ref<boolean>(!!props.tournamentId);
 
 		const PLAYER_POSITIONS = {
 			HOST: {
@@ -492,7 +501,24 @@ export default defineComponent({
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
 				
-				const gameEndData = {
+				// Define the type for game end data
+				interface GameEndData {
+					type: string;
+					reason: string;
+					final_score: {
+						player1: number;
+						player2: number;
+					};
+					player1_id: number;
+					player2_id: number;
+					is_host: boolean;
+					winner_id: number;
+					game_id: string;
+					tournament_id?: number;
+				}
+
+				// Create base game end data
+				const gameEndData: GameEndData = {
 					type: 'game_end',
 					reason: 'score',
 					final_score: {
@@ -503,8 +529,14 @@ export default defineComponent({
 					player2_id: props.opponentId,
 					is_host: isLocalHost.value,
 					winner_id: score[0] > score[1] ? props.userId : props.opponentId,
-					game_id: props.gameId 
+					game_id: props.gameId
 				};
+				
+				// Add tournament_id only if it exists in props (game was started from tournament)
+				if (props.tournamentId) {
+					console.log('Tournament game detected, including tournament ID:', props.tournamentId);
+					gameEndData.tournament_id = props.tournamentId;
+				}
 				
 				console.log('Sending game end data:', gameEndData);
 				
@@ -518,10 +550,11 @@ export default defineComponent({
 		const saveGameResult = async (player1Score: number, player2Score: number) => {
 			try {
 				console.log('Saving game result:', {
-					player1Score,
-					player2Score,
-					gameId: props.gameId,
-					winnerId: player1Score > player2Score ? props.userId : props.opponentId
+				player1Score,
+				player2Score,
+				gameId: props.gameId,
+				winnerId: player1Score > player2Score ? props.userId : props.opponentId,
+				tournamentId: props.tournamentId
 				});
 
 				const response = await fetch(`/pong/game/${props.gameId}/save/`, {
@@ -533,11 +566,11 @@ export default defineComponent({
 				body: JSON.stringify({
 					player1_score: player1Score,
 					player2_score: player2Score,
-					winner_id: player1Score > player2Score ? props.userId : props.opponentId
+					winner_id: player1Score > player2Score ? props.userId : props.opponentId,
+					tournament_id: props.tournamentId
 				})
 				});
 				const data = await response.json();
-				// console.log('Match result saved!', data);
 			} catch (error) {
 				console.error('Error saving game result:', error);
 			}
@@ -858,19 +891,21 @@ export default defineComponent({
 					isWinner.value = isLocalHost.value ? isPlayer1Winner : !isPlayer1Winner;
 
 					// Send game end data if socket is still open
+					// In the handleGameOver method, when sending game end data:
 					if (gameSocket.value?.readyState === WebSocket.OPEN && isLocalHost.value) {
 						const gameEndData = {
 							type: 'game_end',
 							reason: 'score',
 							final_score: {
-								player1: player1Score,
-								player2: player2Score
+							player1: player1Score,
+							player2: player2Score
 							},
 							player1_id: props.userId,
 							player2_id: props.opponentId,
 							is_host: true,
 							winner_id: winnerId,
-							game_id: props.gameId
+							game_id: props.gameId,
+							tournament_id: props.tournamentId
 						};
 						
 						gameSocket.value.send(JSON.stringify(gameEndData));
@@ -879,6 +914,19 @@ export default defineComponent({
 
 				// Clear local storage
 				localStorage.removeItem(gameKey.value);
+
+				// Auto-close for tournament games after a short delay to show the result
+				if (props.tournamentId) {
+					setTimeout(() => {
+						emit('close');
+						emit('gameOver', {
+							winner: isWinner.value ? 'You' : 'Opponent',
+							playerScore: playerScore.value,
+							opponentScore: opponentScore.value,
+							message: isWinner.value ? 'Congratulations! You won!' : 'Game Over! You lost!'
+						});
+					}, 2000); // 2 second delay to allow players to see the result
+				}
 
 				// Update socket message handler for both cases
 				if (gameSocket.value) {
@@ -983,6 +1031,7 @@ export default defineComponent({
 					return;
 				}
 
+				isTournamentGame.value = !!props.tournamentId;
 				// console.log('Canvas element found:', {
 				// 	element: gameCanvas.value,
 				// 	width: gameCanvas.value.width,
@@ -1020,6 +1069,11 @@ export default defineComponent({
 			});
 		});
 
+		watch(() => props.tournamentId, (newValue) => {
+			console.log('Tournament ID changed:', newValue);
+			isTournamentGame.value = !!newValue;
+		});
+
 		onUnmounted(() => {
 			cancelAnimationFrame(animationFrame.value);
 			window.removeEventListener('keydown', handleKeyDown);
@@ -1035,6 +1089,7 @@ export default defineComponent({
 		});
 
 		return {
+			isTournamentGame,
 			gameCanvas,
 			playerScore,
 			opponentScore,
@@ -1463,6 +1518,31 @@ canvas {
 .game-end-screen button {
     margin-top: 1.5rem;
     padding: 10px 20px;
+}
+
+.tournament-badge {
+  background-color: #03a670;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  display: inline-block;
+  margin-left: 0.8rem;
+  font-weight: bold;
+  animation: pulse 2s infinite;
+  box-shadow: 0 0 10px rgba(3, 166, 112, 0.5);
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(3, 166, 112, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(3, 166, 112, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(3, 166, 112, 0);
+  }
 }
 
 </style>

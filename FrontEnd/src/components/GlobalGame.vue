@@ -7,6 +7,7 @@
           :gameId="gameId"
           :isHost="isHost"
           :userId="userId"
+          :tournamentId="tournamentId"
           @close="closeGame"
         />
       </div>
@@ -33,6 +34,7 @@
       const gameId = ref('');
       const isHost = ref(false);
       const userId = computed(() => store.state.userId || parseInt(localStorage.getItem('userId')));
+      const tournamentId = ref(null);
   
       // Method to open game
       const openGame = (gameData) => {
@@ -41,13 +43,15 @@
           opponentId: gameData.opponentId,
           gameId: gameData.gameId,
           isHost: gameData.isHost,
-          userId: userId.value
+          userId: userId.value,
+          tournamentId: gameData.tournamentId
         });
         
         opponent.value = gameData.opponent;
         opponentId.value = parseInt(gameData.opponentId);
         gameId.value = gameData.gameId;
         isHost.value = gameData.isHost;
+        tournamentId.value = gameData.tournamentId;
         showGameWindow.value = true;
       };
       
@@ -57,6 +61,7 @@
         showGameWindow.value = false;
         gameId.value = '';
         opponent.value = '';
+        tournamentId.value = null;
         console.log('Game window closed, new status:', showGameWindow.value);
       };
       
@@ -67,6 +72,7 @@
         gameId,
         isHost,
         userId,
+        tournamentId,
         openGame,
         closeGame
       };
