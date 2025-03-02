@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/22 18:58:33 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/03/02 15:43:35 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -50,7 +50,8 @@ class VerifyUserView(APIView):
                     'id': profile.id,
                     'display_name': profile.display_name,
                     'is_online': profile.is_online,
-                    'avatar_url': profile.get_avatar_url()
+                    'avatar_url': profile.get_avatar_url(),
+                    'language': profile.language
                 }
             }, status=status.HTTP_200_OK)
 
@@ -215,6 +216,18 @@ class ProfileView(APIView):
                 profile.avatar = avatar
                 profile.save()
                 logger.info(f"Updated avatar for user {request.user.username}")
+            elif 'language' in data:
+                language = data['language']
+                # Validate language - add your supported languages
+                valid_languages = ['en', 'fr', 'de']
+                if language not in valid_languages:
+                    return Response(
+                        {"error": "Unsupported language"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                profile.language = language
+                profile.save(update_fields=['language'])
+                logger.info(f"Updated language preference for user {request.user.username} to {language}")
 
             serializer = UserProfileSerializer(profile, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
