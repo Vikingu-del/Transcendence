@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from .views import RegisterView, LoginView, LogoutView, ValidateTokenView, TokenRefreshView
+from .views import RegisterView, LoginView, LogoutView, ValidateTokenView, TokenRefreshView, GenerateQRCodeView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -25,4 +25,5 @@ urlpatterns = [
     path('api/auth/logout/', LogoutView.as_view(), name='logout'),
 	path('api/auth/validate-token/', ValidateTokenView.as_view(), name='validate-token'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='refresh-token'),
+	path('api/auth/generate_qrcode/', GenerateQRCodeView.as_view(), name='generate_qrcode'),
 ]

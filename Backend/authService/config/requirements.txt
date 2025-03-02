@@ -8,3 +8,6 @@ python-dotenv==1.0.0
 django-cors-headers==4.3.1
 daphne==4.0.0
 channels==4.0.0
+qrcode[pil] #QR code generation
+Pillow==10.0.0
+pyotp==2.9.0
