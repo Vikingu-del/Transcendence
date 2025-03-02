@@ -10,21 +10,26 @@
         <label for="password">{{ t('login.password') }}</label>
         <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
       </div>
+	  <div class="form-group">
+		<label for="otp">OTP</label>
+		<input id="otp" v-model="otp" placeholder="Please enter your OTP" required>
+	  </div>
       <button type="submit" class="submit-btn" :disabled="loading">
         {{ loading ? this.t('login.loading') : this.t('login.title') }}
       </button>
+	  <a href="#" @click.prevent="generateQRCode" class="forgot-password-link">Get new authenticator QR Code</a>
     </form>
     <p v-if="error" class="message error">{{ error }}</p>
-    <!-- <form v-if="tfa" @submit.prevent="verifyTFA"> // for walid
-      <label for="ottp">Username</label> // for walid
-        <input id="ottp" v-model="username" type="digit" placeholder="Enter the code" required /> // for walid
-    </form>>   //for walid -->  
+	<div v-if="showQRCode">
+		<img :src="qrCode">
+	</div>
   </div>
 </template>
 
 <script>
 import router from '@/router';
 import { auth } from '@/utils/auth';
+// import { faL } from '@fortawesome/free-solid-svg-icons';
 import { useI18n } from 'vue-i18n';
 
 export default {
@@ -39,7 +44,10 @@ export default {
       error: '',
       loading: false,
       redirect: null,
-      // tfa: true, for walid
+      tfa: true,
+	  otp: '',
+	  showQRCode: false,
+	  qrCode: ''
     };
   },
   
@@ -49,28 +57,6 @@ export default {
   },
 
   methods: {
-    // async verifyTFA() { // for walid
-    //   try {
-    //       const response = await fetch('/api/auth/login/', {
-    //           method: 'POST',
-    //           headers: { 
-    //               'Content-Type': 'application/json',
-    //               'Accept': 'application/json'
-    //           },
-    //           body: JSON.stringify({
-    //               username: this.username,
-    //               password: this.password
-    //           })
-    //       });
-    //       await router.push('/profile');
-    //     } catch (error) {
-    //       console.error('Login error:', error);
-    //       this.error = 'Network error occurred';
-    //       this.password = '';
-    //     } finally {
-    //       this.loading = false;
-    //     }  
-    // },
     async login() {
       if (this.loading) return;
       this.loading = true;
@@ -85,7 +71,8 @@ export default {
               },
               body: JSON.stringify({
                   username: this.username,
-                  password: this.password
+                  password: this.password,
+				  otp: this.otp
               })
           });
 
@@ -117,11 +104,40 @@ export default {
       }
     },
 
+	async generateQRCode(){
+		try{
+			const response = await fetch('/api/auth/generate_qrcode/', {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify({
+					username: this.username
+				})
+			});
+
+			const data = await response.json();
+			if (response.ok){
+				this.showQRCode = true;
+				this.qrCode = data.qr_code;
+			} else {
+				this.error = data.error || 'QR code generation failed';
+			}
+		} catch (error) {
+			console.error('QR code generation error: ', error);
+			this.error = 'Network error occured';
+		}
+	},
+
     resetForm() {
       this.username = '';
-      this.password = '';
+    //   this.password = '';
       this.error = '';
       this.loading = false;
+	  this.otp = '',
+	  this.showQRCode = false;
+	  this.qrCode = '';
     }
   }
 };

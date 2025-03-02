@@ -62,10 +62,20 @@ class LoginView(APIView):
 		try:
 			username = request.data.get("username")
 			password = request.data.get("password")
-			
+			otp = request.data.get("otp")
+
 			user = authenticate(username=username, password=password)
 			
 			if user:
+				try:
+					user_totp = UserTOTP.objects.get(user__username=username)
+					totp_secret = user_totp.totp_secret
+					totp = pyotp.TOTP(totp_secret)
+					if not totp.verify(otp):
+						return Response({'error': 'Invalid OTP'}, status=status.HTTP_401_UNAUTHORIZED)
+				except UserTOTP.DoesNotExist:
+					return Response({'error': 'User Not found'}, status=status.HTTP_404_NOT_FOUND)
+
 				# Generate JWT token
 				refresh = RefreshToken.for_user(user)
 				access_token = str(refresh.access_token)
