@@ -51,7 +51,7 @@
           {{ lastMessage }}
         </div>
         <!-- Add a button to start the match -->
-        <button @click="prepareAndSendInvite(currentMatch)" class="btn primary-btn">Start Match</button>
+        <!-- <button @click="prepareAndSendInvite(currentMatch)" class="btn primary-btn">Start Match</button> -->
       </div>
 
       <!-- Tournament starting -->
@@ -217,12 +217,9 @@ export default {
     try {
       // Check authentication first
       if (!this.getToken) { // Changed from !this.isAuthenticated
-        console.log('No token found, redirecting to login');
         this.$router.push('/login');
         return;
       }
-
-      console.log('Initial token:', this.getToken);
 
       // First fetch profile
       await this.fetchProfile();
@@ -432,7 +429,6 @@ export default {
     handleMessage(event) {
       try {
         const data = JSON.parse(event.data);
-        console.log('Received websocket message:', data);
 
         switch(data.type) {
           case 'player_update':
@@ -443,7 +439,6 @@ export default {
 
             // Check if tournament is starting
             if (data.tournament_status === 'starting') {
-              console.log('Tournament is starting, updating state');
               this.tournamentStatus = 'starting';
               
               // Check if we have valid matches data
@@ -460,7 +455,6 @@ export default {
             break;
           
           case 'tournament_start':
-            console.log('Received tournament start event');
             this.tournamentStatus = 'starting';
             if (data.tournament_data) {
               this.tournamentData = {
@@ -494,7 +488,6 @@ export default {
         if (!this.validateConnection()) return;
         
         if (this.wsConnected) {
-          console.log('WebSocket already connected');
           return;
         }
         
@@ -519,11 +512,9 @@ export default {
     // Validation check
     validateConnection() {
       if (!this.getToken || !this.tournamentId) {
-        console.log('Missing token or tournament ID');
         return false;
       }
       if (this.wsConnected) {
-        console.log('Already connected');
         return false;
       }
       return true;
@@ -532,7 +523,6 @@ export default {
     // Close existing connection
     closeExistingConnection() {
       if (this.tournamentSocket && this.tournamentSocket.readyState === WebSocket.OPEN) {
-        console.log('Closing existing connection');
         this.tournamentSocket.close(1000, 'Intentional close');
         this.tournamentSocket = null;
         this.wsConnected = false;
@@ -580,7 +570,6 @@ export default {
           clearTimeout(timer);
           this.wsConnected = true;
           this.wsReconnectAttempts = 0;
-          console.log('WebSocket connection established');
           resolve();
         };
 
@@ -590,14 +579,12 @@ export default {
 
     async handleReconnection() {
       if (this.wsConnected || this.wsReconnectAttempts >= this.maxReconnectAttempts) {
-        console.log('Already connected or max reconnection attempts reached');
         return;
       }
 
       this.wsReconnectAttempts++;
       
       const delay = Math.min(1000 * Math.pow(1.5, this.wsReconnectAttempts), 5000);
-      console.log(`Reconnecting in ${delay}ms... Attempt ${this.wsReconnectAttempts}`);
       
       if (this.reconnectionTimeout) {
         clearTimeout(this.reconnectionTimeout);
@@ -665,16 +652,20 @@ export default {
       try {
         // Generate unique game ID if not provided
         const gameId = crypto.randomUUID();
+        console.log('Generated game ID:', gameId);
         
         // Determine opponent
         const opponent = match.player1.id === this.currentUserId ? match.player2 : match.player1;
-        
+        const opponentId = opponent.id;
+
         // Log attempt
         console.log('Starting tournament match:', {
           matchId: match.match_id,
           gameId: gameId,
           opponent: opponent,
-          currentUserId: this.currentUserId
+          opponentId: opponentId,
+          currentUserId: this.currentUserId,
+          recipient_id: opponent.id
         });
   
         // This is the crucial part - Send notification with correct format
@@ -687,13 +678,11 @@ export default {
           recipient_name: opponent.display_name || opponent.username
         };
   
-        console.log('Sending game invite notification:', notificationData);
         
         // Send using notification service
         const sent = this.notificationService.sendNotification(notificationData);
   
         if (sent) {
-          console.log('Game invite sent successfully');
           this.showStatus(`Game invite sent to ${opponent.username}`, {}, 'success');
         } else {
           throw new Error('Failed to send notification');
@@ -717,8 +706,10 @@ export default {
           });
           this.globalGame.openGame({
             opponent: opponent.display_name || opponent.username,
+            opponentId: opponentId,  // Add this line
             gameId: gameId,
             isHost: true,
+            userId: this.currentUserId,  // Add this line
             matchId: match.match_id
           });
         } else {
@@ -732,13 +723,11 @@ export default {
     },
 
     handleGameEnd() {
-      console.log('Game ended');
       this.showGame = false;
       this.currentMatch = null;
     },
 
     handleGameOver(result) {
-      console.log('Game over with result:', result);
       if (this.tournamentSocket?.readyState === WebSocket.OPEN) {
         const matchResult = {
           type: 'match_complete',
@@ -747,14 +736,12 @@ export default {
           final_score: result.score
         };
         
-        console.log('Sending match result:', matchResult);
         this.tournamentSocket.send(JSON.stringify(matchResult));
       }
       this.handleGameEnd();
     },
 
     handleMatchUpdate(data) {
-      console.log('Handling match update:', data);
       const { match_id, winner_id } = data;
       
       if (!this.tournamentData) {
@@ -768,14 +755,12 @@ export default {
         if (semiMatch) {
           semiMatch.status = 'completed';
           semiMatch.winner = winner_id;
-          console.log('Updated semi-final match:', semiMatch);
         }
 
         // Check if all semi-finals are complete
         const allSemisComplete = this.tournamentData.semi_finals.every(m => m.status === 'completed');
         if (allSemisComplete && this.tournamentData.current_phase === 'semi-final') {
           this.tournamentData.current_phase = 'final';
-          console.log('All semi-finals complete, moving to finals');
         }
       }
       
@@ -785,7 +770,6 @@ export default {
           this.tournamentData.final.status = 'completed';
           this.tournamentData.final.winner = winner_id;
           this.tournamentData.current_phase = 'completed';
-          console.log('Tournament completed, winner:', winner_id);
         }
       }
     },
@@ -802,11 +786,9 @@ export default {
             recipient_name: match.opponent.username
           };
 
-          console.log('Sending game invite via notification service:', inviteData);
           const sent = this.notificationService.sendNotification(inviteData);
 
           if (sent) {
-            console.log('Game invite sent successfully');
             this.showStatus(`Game invite sent to ${match.opponent.username}`, {}, 'success');
           } else {
             throw new Error('Failed to send notification');
@@ -835,11 +817,9 @@ export default {
     },
 
     handleGameInvite(data) {
-      console.log('Handling game invite:', data);
       this.gameInviteNotification = data;
     },
     acceptGameInvite() {
-      console.log('acceptGameInvite called with notification:', this.gameInviteNotification);
       if (this.gameInviteNotification && this.globalGame) {
         const { game_id, sender_name, match_id } = this.gameInviteNotification;
         
@@ -860,10 +840,8 @@ export default {
       }
     },
     declineGameInvite() {
-      console.log('declineGameInvite called with notification:', this.gameInviteNotification);
       if (this.gameInviteNotification) {
         const { game_id, sender_id } = this.gameInviteNotification;
-        console.log(`Declining game invite from ${sender_id} for game ${game_id}`);
         
         // Send decline notification via notification service
         if (this.notificationService) {
@@ -873,7 +851,6 @@ export default {
             sender_id: sender_id,
             recipient_id: this.currentUserId
           };
-          console.log('Sending game decline notification:', declineData);
           this.notificationService.sendNotification(declineData);
         } else {
           console.error('Notification service not available');

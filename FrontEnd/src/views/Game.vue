@@ -153,7 +153,6 @@ export default defineComponent({
 		// At the start of your setup function
 		// Add new reactive refs
 		const isLocalHost = ref<boolean>(props.isHost);
-		console.log('isLocalHost value IN REF:', isLocalHost.value);
 		const isWaiting = ref<boolean>(props.isHost);
 		const gameStarted = ref<boolean>(false);
 		const gameAccepted = ref<boolean>(false);
