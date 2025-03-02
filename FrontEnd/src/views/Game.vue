@@ -40,11 +40,11 @@
 			<!-- Canvas -->
 			<canvas 
 				ref="gameCanvas"
-				:width=800
-				:height=400
 				:style="{
 					display: gameStarted ? 'block' : 'none',
-					background: '#000000'
+					background: '#000000',
+					width: '100%',
+					height: '100%'
 				}"
 			></canvas>
 
@@ -488,7 +488,7 @@ export default defineComponent({
 			const { score } = gameState.value;
 			console.log('Checking game over - Current scores:', score[0], score[1]);
 			
-			if (score[0] >= 2 || score[1] >= 2) {
+			if (score[0] >= 15 || score[1] >= 15) {
 				console.log('Game over condition met');
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
@@ -1072,6 +1072,41 @@ export default defineComponent({
   position: relative; /* Add this */
 }
 
+@media (max-width: 600px) {
+	.game-container {
+    width: 100dvh;  /* Swap width and height */
+    height: 100dvh;
+    min-width: unset; /* Remove min-width constraint */
+    min-height: unset; /* Remove min-height constraint */
+    max-width: unset; /* Remove max-width constraint */
+    border-radius: 0; /* Optional: Remove if it causes cut edges */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    translate: -50% -50%;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+  }
+
+	body {
+		overflow: hidden;
+		margin: 0;
+	}
+
+	 canvas {
+    transform: rotate(90deg);
+    transform-origin: center;
+    width: 80dvh; 
+    height: 80dvw;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    margin: 0;
+    translate: -50% -50%;  
+  	}
+}
+
 .game-header {
   background: #2d2d2d;
   padding: 1rem;
@@ -1283,7 +1318,7 @@ canvas {
 @media (max-width: 768px) {
   .game-container {
     width: 95%;
-    min-width: 450px;
+    /* min-width: 450px; */
   }
 
   .game-content {
