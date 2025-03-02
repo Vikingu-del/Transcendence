@@ -3,10 +3,10 @@
 #                                                         :::      ::::::::    #
 #    serializers.py                                     :+:      :+:    :+:    #
 #                                                     +:+ +:+         +:+      #
-#    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
+#    By: wmoughar <wmoughar@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/20 18:07:43 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/03/02 12:08:03 by wmoughar         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -23,7 +23,7 @@ class UserSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ['username', 'password1', 'password2']
+        fields = ['username', 'email','password1', 'password2']
 
     def validate(self, data):
         if data['password1'] != data['password2']:
@@ -33,6 +33,7 @@ class UserSerializer(serializers.ModelSerializer):
     def save(self, **kwargs):
         username = self.validated_data['username']
         password = self.validated_data['password1']
+        email = self.validated_data['email']
 
         user = User.objects.create_user(username=username, password=password)
 

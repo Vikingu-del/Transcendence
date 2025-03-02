@@ -14,6 +14,17 @@
             :disabled="loading"
           />
         </div>
+		<div class="form-group">
+			<label for="email">Email</label>
+			<input
+				id="email"
+				v-model="email"
+				type="text"
+				placeholder="Enter Email"
+				required
+				:disabled="loading"
+			/>
+		</div>
         <div class="form-group">
           <label for="password">Password</label>
           <input 
@@ -52,35 +63,48 @@
     <ul v-if="errors.length" class="errors-list">
       <li v-for="error in errors" :key="error">{{ error }}</li>
     </ul>
+
+	<div v-if="showQRCode">
+		<h2>Use Google or Microsoft authenticator app to scan this QR code</h2>
+		<img :src="qrCode" alt="2FA QR CODE">
+		<button type="submit" class="submit-btn" @click="redirectToLogin">Done</button>
+	</div>
+
   </div>
 </template>
 
 <script>
 
 import { SERVICE_URLS } from '@/config/services';
+import auth from '@/utils/auth';
 
 export default {
   data() {
     return {
       username: '',
+	  email: '',
       password: '',
       passwordConfirm: '',
       message: '',
       messageType: '',
       errors: [],
       loading: false,
-      isRegistrationSuccessful: false
+      isRegistrationSuccessful: false,
+	  showQRCode: '',
+	  qrCode: ''
     };
   },
   methods: {
     resetForm() {
       this.username = '';
       this.password = '';
+	  this.email = '';
       this.passwordConfirm = '';
       this.message = '';
       this.messageType = '';
       this.errors = [];
       this.loading = false;
+	  this.showQRCode = false;
     },
 
     async register() {
@@ -91,6 +115,7 @@ export default {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             username: this.username,
+			email: this.email,
             password1: this.password,
             password2: this.passwordConfirm
           })
@@ -106,11 +131,9 @@ export default {
           // Clear sensitive data
           this.password = '';
           this.passwordConfirm = '';
-          
+          this.showQRCode = true;
+		//   this.qrCode = authData.qr_code;
           // Delay redirect to show success message
-          setTimeout(() => {
-            this.$router.push('/login');
-          }, 1500);
         } else {
           console.log('Cause: ', authData.details);
           // Handle auth service error
@@ -131,7 +154,12 @@ export default {
       } finally {
         this.loading = false;
       }
-    }
+    },
+	redirectToLogin(){
+		setTimeout(() => {
+			this.$router.push('/login');
+		}, 1500);
+	}
   }
 };
 </script>
