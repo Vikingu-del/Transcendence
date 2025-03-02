@@ -4,6 +4,7 @@ import HelloWorld from './components/HelloWorld.vue'
 import { computed, onMounted, ref, onUnmounted, nextTick } from 'vue'
 import { useStore } from 'vuex'
 import { provide } from 'vue'
+import { watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import GlobalGame from './components/GlobalGame.vue'
 
@@ -301,6 +302,48 @@ function declineGameInvite() {
   gameInviteNotification.value = null;
 }
 
+// Add this function to update the user's language preference
+async function updateLanguagePreference(lang) {
+  if (!isAuthenticated.value) return;
+  
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('/api/user/profile/', {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ language: lang })
+    });
+    
+    if (response.ok) {
+      console.log('Language preference updated successfully');
+      if (store.state.profile) {
+        store.commit('updateProfile', { ...store.state.profile, language: lang });
+      }
+    } else {
+      console.error('Failed to update language preference');
+    }
+  } catch (error) {
+    console.error('Error updating language preference:', error);
+  }
+}
+
+// Modify the language setter to update the backend
+const setLocale = (value) => {
+  locale.value = value;
+  if (isAuthenticated.value) {
+    updateLanguagePreference(value);
+  }
+};
+
+// Use a computed property with getter and setter for locale
+const userLocale = computed({
+  get: () => locale.value,
+  set: (value) => setLocale(value)
+});
+
 onMounted(async () => {
   let token = localStorage.getItem('token')
   const refreshToken = localStorage.getItem('refreshToken')
@@ -410,7 +453,6 @@ onMounted(async () => {
     clearTokenAndRedirect()
   }
   
-  // Helper function to fetch user profile
   async function fetchUserProfile(token) {
     try {
       const userResponse = await fetch('/api/user/verify/', {
@@ -424,6 +466,24 @@ onMounted(async () => {
         store.commit('setUserId', userData.id)
         localStorage.setItem('userId', userData.id)
         console.log('User ID set in store:', userData.id)
+        
+        // Now also fetch the complete profile to get language preference
+        const profileResponse = await fetch('/api/user/profile/', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+        
+        if (profileResponse.ok) {
+          const profileData = await profileResponse.json()
+          store.commit('updateProfile', profileData)
+          
+          // Update locale based on profile language
+          if (profileData.language) {
+            locale.value = profileData.language
+            console.log('Language set from profile:', profileData.language)
+          }
+        }
       } else {
         console.error('Failed to verify user:', userResponse.status)
       }
@@ -435,7 +495,12 @@ onMounted(async () => {
 
 // Replace your second onMounted with this version
 onMounted(() => {
-  locale.value = 'en'
+
+  if (isAuthenticated.value) {
+    locale.value = store.state.profile?.language || 'en'
+  }
+  else 
+    locale.value = 'en'
   
   // Set up notification handling if authenticated
   if (isAuthenticated.value) {
@@ -460,6 +525,38 @@ onMounted(() => {
     })
   }
 })
+
+// Watch for authentication state changes
+watch(() => isAuthenticated.value, async (newIsAuthenticated) => {
+  if (newIsAuthenticated) {
+    // User just logged in, fetch their profile to get language preference
+    try {
+      const token = localStorage.getItem('token')
+      if (!token) return
+      
+      const profileResponse = await fetch('/api/user/profile/', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (profileResponse.ok) {
+        const profileData = await profileResponse.json()
+        
+        // Update locale based on profile language
+        if (profileData.language) {
+          locale.value = profileData.language
+          console.log('Language set after login:', profileData.language)
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching language preference after login:', error)
+    }
+  } else {
+    // User logged out, reset to default language
+    locale.value = 'en'
+  }
+}, { immediate: true })
 
 // Make notification socket and methods available to all child components
 provide('notificationService', {
@@ -504,7 +601,7 @@ provide('globalGame', globalGame);
       </nav>
     </div>
     <div class="language-selector">
-      <select v-model="locale">
+      <select v-model="userLocale">
         <option v-for="lang in languages" :key="lang.code" :value="lang.code">
           {{ lang.name }}
         </option>
