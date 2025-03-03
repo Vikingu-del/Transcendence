@@ -8,4 +8,5 @@ urlpatterns = [
     path('<int:tournament_id>/matches/', views.TournamentMatchesView.as_view(), name='tournament_matches'),
     path('<int:tournament_id>/bracket/', views.TournamentBracketView.as_view(), name='tournament_bracket'),
     path('match/<int:match_id>/complete/', views.CompleteMatchView.as_view(), name='complete_match'),
+    path('local-tournament/', views.CreateLocalTournamentView.as_view(), name='create-local-tournament')
 ]

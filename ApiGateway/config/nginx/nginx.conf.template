@@ -263,6 +263,21 @@ http {
             access_log /var/log/nginx/game-api-access.log combined;
             error_log /var/log/nginx/game-api-error.log debug;
         }
+
+        location /api/local-tournament/ {
+            proxy_pass http://game:8005/tournament/local/;
+            proxy_http_version 1.1;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header Authorization $http_authorization;
+            proxy_pass_header Authorization;
+
+            # Debug logging
+            access_log /var/log/nginx/local-tournament-access.log combined;
+            error_log /var/log/nginx/local-tournament-error.log debug;
+        }
         
         # Game WebSocket proxy
         location /ws/game/ {

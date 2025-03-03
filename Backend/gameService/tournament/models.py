@@ -177,3 +177,15 @@ class TournamentMatch(models.Model):
                         player2=winners[i + 1],
                         match_number=i // 2
                     )
+
+
+class LocalTournament(models.Model):
+    match_id = models.UUIDField(default=uuid.uuid4, editable=False, unique=True)
+    player1 = models.CharField(max_length=255)
+    player2 = models.CharField(max_length=255)
+    player3 = models.CharField(max_length=255)
+    player4 = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Local Tournament {self.match_id}"                   

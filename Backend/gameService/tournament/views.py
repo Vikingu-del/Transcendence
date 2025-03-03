@@ -4,12 +4,49 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from .models import Tournament, TournamentMatch
 from django.contrib.auth import get_user_model
 import logging
+from .models import Tournament, TournamentMatch, LocalTournament
+import random
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
+
+class CreateLocalTournamentView(generics.CreateAPIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        try:
+            data = request.data
+            logger.info(f"Received data: {data}")
+            players = [data['player1'], data['player2'], data['player3'], data['player4']]
+            random.shuffle(players)
+            logger.info(f"Shuffled players: {players}")
+
+            local_tournament = LocalTournament.objects.create(
+                player1=players[0],
+                player2=players[1],
+                player3=players[2],
+                player4=players[3]
+            )
+            logger.info(f"Created LocalTournament: {local_tournament}")
+
+            matches = [
+                {'semi_final_1': {'player1': players[0], 'player2': players[1]}},
+                {'semi_final_2': {'player1': players[2], 'player2': players[3]}}
+            ]
+
+            return Response({
+                'match_id': local_tournament.match_id,
+                'matches': matches
+            }, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            logger.error(f"Error creating local tournament: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 class EnrollmentCheckView(generics.RetrieveAPIView):
     authentication_classes = [JWTAuthentication]

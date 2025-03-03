@@ -8,7 +8,7 @@ import Register from '../views/Register.vue';
 import Profile from '../views/Profile.vue';
 import Friends from '../views/Friends.vue';
 import Notifications from '../views/Notifications.vue';
-import Tournament from '@/views/Tournament.vue';
+import LocalTournament from '../views/LocalTournament.vue'
 import store from '@/store';
 
 // Create the router instance and configuring the routes through this instance
@@ -52,9 +52,9 @@ const router = createRouter({
       meta: { requiresAuth: true }
     },
     {
-      path: '/tournament',
-      name: 'Tournament',
-      component: Tournament,
+      path: '/local-tournament',
+      name: 'LocalTournament',
+      component: LocalTournament,
       meta: { requiresAuth: true }
     }
   ]

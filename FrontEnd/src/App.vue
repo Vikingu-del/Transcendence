@@ -589,13 +589,13 @@ provide('globalGame', globalGame);
         <RouterLink v-if="!isAuthenticated" to="/register">{{ t('nav.register') }}</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/profile">{{ t('nav.profile') }}</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/friends">{{ t('nav.friends') }}</RouterLink>
+        <RouterLink v-if="isAuthenticated"to="/local-tournament">{{ t('nav.tournament') }}</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/notifications">
           Notifications
           <span v-if="unreadNotificationCount > 0" class="notification-badge">
             {{ unreadNotificationCount }}
           </span>
         </RouterLink>
-        <RouterLink v-if="isAuthenticated" to="/tournament">{{ t('nav.tournament') }}</RouterLink>
       </nav>
     </div>
     <div class="language-selector">
