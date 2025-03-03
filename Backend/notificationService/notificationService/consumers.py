@@ -4,8 +4,10 @@ from asgiref.sync import sync_to_async
 from channels.db import database_sync_to_async
 from django.contrib.auth.models import User
 from django.utils import timezone
+import traceback
 import uuid
 from asgiref.sync import async_to_sync
+from .models import Notification
 
 class NotificationConsumer(AsyncWebsocketConsumer):
     async def connect(self):
@@ -43,7 +45,7 @@ class NotificationConsumer(AsyncWebsocketConsumer):
                 await self.handle_game_invite(data)
             elif message_type == 'game_accepted':
                 await self.handle_game_accept(data)
-            elif message_type == 'game_declined':
+            elif message_type == 'game_declined':  # Ensure this matches the type sent from Tournament.vue
                 await self.handle_game_decline(data)
             elif message_type == 'chat_message':
                 await self.handle_chat_message(data)
@@ -455,18 +457,37 @@ class NotificationConsumer(AsyncWebsocketConsumer):
 
     @database_sync_to_async
     def save_notification(self, recipient_id, sender_id, notification_type, content):
-        """Save notification to database"""
+        """Save notification to database with detailed error reporting"""
         try:
-            recipient = User.objects.get(id=recipient_id)
-            sender = User.objects.get(id=sender_id)
+            print(f"🔔 SAVING NOTIFICATION: type={notification_type}, recipient={recipient_id}, sender={sender_id}")
+            print(f"🔔 CONTENT: {content}")
             
-            Notification.objects.create(
+            # Get User objects
+            try:
+                recipient = User.objects.get(id=recipient_id)
+                print(f"✅ Found recipient: {recipient.username}")
+            except User.DoesNotExist:
+                print(f"❌ ERROR: Recipient user {recipient_id} does not exist")
+                return False
+                
+            try:
+                sender = User.objects.get(id=sender_id)
+                print(f"✅ Found sender: {sender.username}")
+            except User.DoesNotExist:
+                print(f"❌ ERROR: Sender user {sender_id} does not exist")
+                return False
+            
+            # Create and save notification
+            notification = Notification.objects.create(
                 recipient=recipient,
                 sender=sender,
                 notification_type=notification_type,
                 content=content
             )
+            
+            print(f"✅ NOTIFICATION SAVED SUCCESSFULLY: ID={notification.id}")
             return True
         except Exception as e:
-            print(f"Error saving notification: {str(e)}")
+            print(f"❌ ERROR SAVING NOTIFICATION: {str(e)}")
+            traceback.print_exc()
             return False

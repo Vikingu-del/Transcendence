@@ -1,6 +1,8 @@
 from rest_framework import serializers
 from django.contrib.auth.models import User
+from .models import UserTOTP
 import logging
+import pyotp
 
 logger = logging.getLogger(__name__)
 
@@ -10,7 +12,7 @@ class RegistrationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ('id', 'username', 'password1', 'password2')
+        fields = ('id', 'email', 'username', 'password1', 'password2')
 
     def validate_username(self, value):
         # Check minimum length
@@ -44,12 +46,14 @@ class RegistrationSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Passwords do not match")
         return data
 
-
     def create(self, validated_data):
         user = User.objects.create_user(
             username=validated_data['username'],
-            password=validated_data['password1']
+            password=validated_data['password1'],
+            email=validated_data['email']
         )
+        totp_secret = pyotp.random_base32()
+        UserTOTP.objects.create(user=user, totp_secret=totp_secret)
         return user
 
     def to_representation(self, instance):

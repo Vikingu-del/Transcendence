@@ -23,7 +23,7 @@ from django.views.static import serve
 from .views import (
     ProfileView, SearchProfilesView, AddFriendView,
     RemoveFriendView, AcceptFriendRequestView, DeclineFriendRequestView, FriendProfileDetailView,
-    IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView, VerifyUserView
+    IncomingFriendRequestsView, BlockUserView, SyncTokenView, UpdateOnlineStatusView, VerifyUserView, GetDisplayNameView
 )
 
 urlpatterns = [
@@ -49,6 +49,9 @@ urlpatterns = [
 
     # Online Status
     path('api/user/profile/online-status/', UpdateOnlineStatusView.as_view(), name='online-status'),
+
+    # Get Display Name
+    path('api/user/profile/by-username/<str:username>/', GetDisplayNameView.as_view(), name='profile-by-username'),
 
     # Verify User
 	path('api/user/verify/', VerifyUserView.as_view(), name='verify-user'),

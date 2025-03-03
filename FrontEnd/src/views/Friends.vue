@@ -196,9 +196,21 @@
               </div>
             </div>
 
-            <div class="detail-group">
-              <h5>Match History</h5>
-              <p>Coming soon...</p>
+            <div class="detail-group match-history-group">
+              <h3 class="match-history-title">Match History</h3>
+              
+              <div v-if="!selectedFriend.match_history || selectedFriend.match_history.length === 0" class="no-matches">
+                No matches played yet
+              </div>
+              
+              <ul v-else class="match-list">
+                <li v-for="match in selectedFriend.match_history" :key="match.id" 
+                    :class="['match-item', match.result.toLowerCase()]">
+                  <div class="match-result">{{ match.result }}</div>
+                  <div class="match-score">{{ match.score }}</div>
+                  <div class="match-opponent">{{ selectedFriend.display_name }} vs {{ match.opponentDisplayName || match.opponent }}</div>
+                </li>
+              </ul>
             </div>
             
           </div>
@@ -275,7 +287,7 @@
 
     <!-- Game Window -->
     <!-- filepath: /home/ipetruni/Desktop/Transcendence/FrontEnd/src/views/Friends.vue -->
-    <transition name="fade">
+    <!-- <transition name="fade">
         <div v-if="showGameWindow" class="overlay">
             <PongGame 
                 :opponent="opponent || ''"
@@ -285,9 +297,9 @@
                 @close="closeGameWindow"
             />
         </div>
-    </transition>
+    </transition> -->
 
-    <transition name="slide-down">
+    <!-- <transition name="slide-down">
       <div v-if="gameInviteNotification" class="game-invite-banner">
           <div class="game-invite-content">
               <span class="game-invite-text">
@@ -299,7 +311,7 @@
               </div>
           </div>
       </div>
-    </transition>
+    </transition> -->
   </div>
 
   <!-- Debugging
@@ -312,6 +324,7 @@
 
 <script>
 import PongGame from './Game.vue';
+import { inject, ref } from 'vue';
 
 export default {
   name: 'Friends',
@@ -362,7 +375,7 @@ export default {
       // UI State
       statusMessage: null,
       
-      // Chat Functionality
+      // Chat Functionalities
       messages: [],
       newMessage: '',
       showChat: false,
@@ -370,6 +383,7 @@ export default {
       chatId: null,
 
       //Notification
+      notificationService: null,
       notificationSocket: null,
 
       // Game Functionality
@@ -385,6 +399,12 @@ export default {
     }
   },
 
+  setup() {
+    const notificationService = inject('notificationService');
+    const globalGame = inject('globalGame');
+    return { notificationService, globalGame };
+  },
+
   computed: {
     getToken() {
       return this.token;
@@ -395,27 +415,100 @@ export default {
   },
 
   async created() {
-    try {
-      const token = localStorage.getItem('token');
-      console.log('Initial token:', token);
-      
-      if (!token) {
-        await this.$router.push('/login');
-        return;
-      }
-      
-      // Fetch both profile and friend requests
-      await Promise.all([
-        this.fetchProfile(),
-        this.fetchIncomingRequests()
-      ]);
-      
-      this.initNotificationSocket();
-    } catch (error) {
-      console.error('Initialization error:', error);
-      this.$router.push('/login');
+  try {
+    const token = localStorage.getItem('token');
+    
+    if (!token) {
+      await this.$router.push('/login');
+      return;
     }
-  },
+    
+    // Fetch both profile and friend requests
+    await Promise.all([
+      this.fetchProfile(),
+      this.fetchIncomingRequests()
+    ]);
+
+     // Check if we're coming from a game invitation
+    if (this.$route.query.action === 'join-game') {
+      const gameId = this.$route.query.gameId;
+      const sender = this.$route.query.sender;
+      const senderId = this.$route.query.senderId;
+      
+      if (gameId && sender && senderId) {
+        this.handleGameJoin(gameId, sender, parseInt(senderId));
+      }
+    }
+
+    // The notificationService is already injected in setup()
+    
+    // No need to inject again - just log the status
+    if (!this.notificationService) {
+      console.warn('Warning: Notification service was not injected properly');
+    } else {
+      // Add event listener to the socket from notificationService
+      if (this.notificationService && this.notificationService.socket && this.notificationService.socket.value) {
+        
+        this.notificationService.socket.value.addEventListener('message', async (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            
+            // Process different notification types
+            switch (data.type) {
+              case 'friend_request':
+                await this.handleFriendRequestNotification(data);
+                // Update incoming requests count
+                await this.fetchIncomingRequests();
+                break;
+              case 'friend_accepted':
+                await this.handleFriendAcceptNotification(data);
+                break;
+              case 'friend_declined':
+                await this.handleFriendDeclineNotification(data);
+                break;
+              case 'friend_removed':
+                await this.handleFriendRemoveNotification(data);
+                break;
+              // Handle other notification types as needed
+              case 'game_invite':
+                this.handleGameInvite(data);
+                break;
+              case 'game_accepted':
+                this.handleGameAccepted(data);
+                break;
+              case 'game_declined': // Make sure this is 'game_declined' (not 'game_decline')
+                this.handleGameDecline(data);
+                break;
+              case 'chat_message':
+                this.handleChatNotification(data);
+                break;
+              // case 'is_online':
+              //   this.handleOnlineStatus(data);
+              //   break;
+              default:
+                console.log('Unknown notification type:', data.type);
+            }
+
+            // Update the global friend request count via the service
+            if (this.notificationService.fetchFriendRequests) {
+              this.notificationService.fetchFriendRequests();
+            }
+          } catch (error) {
+            console.error('Error processing notification in Friends component:', error);
+          }
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Initialization error:', error);
+    this.$router.push('/login');
+  }
+},
+
+mounted() {
+  // Ensure game window is closed on component initialization
+  this.showGameWindow = false;
+},
 
   methods: {
 
@@ -502,7 +595,7 @@ export default {
         await this.fetchProfile();
 
         // Send friend request notification through WebSocket Erik
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_request',
             recipient_id: friendId,
@@ -510,8 +603,7 @@ export default {
             sender_id: this.currentUserId 
           };
 
-          console.log('Sending friend request notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -548,7 +640,7 @@ export default {
         // Fetch updated profile to get fresh friends list
         await this.fetchProfile();
 
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_accepted',
             recipient_id: request.from_user.id,
@@ -556,8 +648,7 @@ export default {
             sender_id: this.currentUserId
           };
 
-          console.log('Sending friend request accepted notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -586,7 +677,7 @@ export default {
           { name: request.from_user.display_name }, 
           'success'
         );
-        if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+        if (this.notificationService) {
           const notificationData = {
             type: 'friend_declined',
             recipient_id: request.from_user.id,  // Send to the person who originally sent the request
@@ -594,8 +685,7 @@ export default {
             sender_id: this.currentUserId
           };
 
-          console.log('Sending friend decline notification:', notificationData);
-          this.notificationSocket.send(JSON.stringify(notificationData));
+          this.notificationService.sendNotification(notificationData);
         } else {
           console.error('Notification socket not connected');
         }
@@ -643,7 +733,7 @@ export default {
           await this.fetchProfile();
           
           // Send friend removal notification through WebSocket
-          if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
+          if (this.notificationService) {
             const notificationData = {
               type: 'friend_removed',
               recipient_id: friendId,
@@ -651,8 +741,7 @@ export default {
               sender_id: this.currentUserId
             };
 
-            console.log('Sending friend removal notification:', notificationData);
-            this.notificationSocket.send(JSON.stringify(notificationData));
+            this.notificationService.sendNotification(notificationData);
           } else {
             console.error('Notification socket not connected');
           }
@@ -831,8 +920,6 @@ export default {
     reconnectWebSocket(chatId) {
       if (!this.showChat) return; // Don't reconnect if chat is closed
       
-      console.log('Attempting to reconnect WebSocket...');
-      
       // Wait 3 seconds before attempting to reconnect
       setTimeout(() => {
         this.initWebSocket(chatId);
@@ -862,11 +949,6 @@ export default {
         throw new Error('No authentication token available');
       }
 
-      console.log('Starting chat with:', {
-        friendId: friend.id,
-        currentUserId: this.currentUserId,
-        token: this.getToken ? 'Token present' : 'No token'
-      });
     },
 
     // Handles UI state changes
@@ -881,7 +963,6 @@ export default {
       const chatId = [this.currentUserId, friendId]
         .sort((a, b) => a - b)
         .join('_');
-      console.log('Generated chat ID:', chatId);
       return chatId;
     },
 
@@ -897,11 +978,6 @@ export default {
         credentials: 'include'
       });
 
-      console.log('Chat fetch response:', {
-        status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
-      });
 
       await this.processChatResponse(response);
       this.chatId = chatId;
@@ -911,7 +987,6 @@ export default {
     async processChatResponse(response) {
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Chat error response:', errorText);
         
         if (response.status === 404) {
           this.messages = [];
@@ -920,7 +995,6 @@ export default {
         }
       } else {
         const data = await response.json();
-        console.log('Received chat data:', data);
 
         if (!data || !Array.isArray(data.messages)) {
           throw new Error('Invalid chat data received');
@@ -943,7 +1017,6 @@ export default {
       }
 
       const wsUrl = this.buildWebSocketUrl(chatId);
-      console.log('Connecting WebSocket to:', wsUrl);
       
       this.chatSocket = new WebSocket(wsUrl);
       this.setupWebSocketEventHandlers(chatId);
@@ -962,7 +1035,6 @@ export default {
       this.chatSocket.onmessage = (event) => {
         try {
             const data = JSON.parse(event.data);
-            console.log('Received WebSocket message:', data);
             
             if (data.type === 'chat_message') {
               const newMessage = {
@@ -988,19 +1060,16 @@ export default {
         }
     };
       this.chatSocket.onopen = () => {
-        console.log('WebSocket connection established');
         this.wsConnected = true;
       };
 
       this.chatSocket.onerror = (error) => {
-        console.error('WebSocket error:', error);
         this.wsConnected = false;
         this.showStatus('Chat connection error. Attempting to reconnect...', {}, 'warning');
         setTimeout(() => this.reconnectWebSocket(chatId), 3000);
       };
 
       this.chatSocket.onclose = (event) => {
-        console.log('WebSocket connection closed:', event);
         this.wsConnected = false;
         if (this.showChat) {
           setTimeout(() => this.reconnectWebSocket(chatId), 3000);
@@ -1013,7 +1082,6 @@ export default {
     handleWebSocketMessage(event) {
       try {
         const data = JSON.parse(event.data);
-        console.log('Received WebSocket message:', data);
         
         if (data.type === 'chat_message') {
           const newMessage = {
@@ -1039,7 +1107,7 @@ export default {
           this.handleGameState(data.message);
         }
         else if (data.type === 'game_declined') {
-          this.handleGameDeclined(data.message);
+          this.handleGameDecline(data.message);
         }
         else if (data.type === 'tournament_notification') {
           this.handleTournamentNotification(data.message);
@@ -1051,7 +1119,6 @@ export default {
 
     // manages error states
     handleChatError(error) {
-      console.error('Error starting chat:', error);
       this.showStatus(
         `Chat error: ${error.message || 'Unable to connect to chat service'}`, 
         {}, 
@@ -1068,6 +1135,7 @@ export default {
         
     async showFriendInfo(friend) {
       try {
+        // First fetch the friend's profile information
         const response = await fetch(`/api/user/profile/${friend.id}/`, {
           headers: {
             'Authorization': `Bearer ${this.getToken}`,
@@ -1088,12 +1156,96 @@ export default {
           friends: friendData.friends || [],
           friends_count: friendData.friends_count || 0
         };
+        
+        // Then fetch the friend's match history
+        await this.fetchFriendMatchHistory(friend.id);
+        
         this.showFriendProfile = true;
         this.showChat = false;  // Close chat if open
 
       } catch (error) {
         console.error('Error fetching friend details:', error);
         this.showStatus('Failed to load friend profile', {}, 'error');
+      }
+    },
+
+    async fetchFriendMatchHistory(friendId) {
+      try {
+        const token = this.getToken;
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+        
+        const response = await fetch(`/api/game/match-history/${friendId}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+            
+        if (!response.ok) {
+          throw new Error('Failed to fetch friend match history');
+        }
+        
+        const matchHistory = await response.json();
+        
+        // Process match history to get opponent display names
+        for (const match of matchHistory) {
+          if (match.opponent_id) {
+            try {
+              match.opponentDisplayName = await this.getUserDisplayName(match.opponent);
+            } catch (error) {
+              match.opponentDisplayName = match.opponent || 'Unknown';
+            }
+          } else if (match.opponent && !match.opponentDisplayName) {
+            // If we have a username but no display name, try to get it
+            try {
+              match.opponentDisplayName = await this.getUserDisplayName(match.opponent);
+            } catch (error) {
+              match.opponentDisplayName = match.opponent;
+            }
+          } else {
+            // Solo games or missing opponent_id and opponent
+            match.opponentDisplayName = match.opponent || 'Solo Game';
+          }
+        }
+        
+        // Add match history to selectedFriend
+        this.selectedFriend.match_history = matchHistory;
+        
+      } catch (error) {
+        this.selectedFriend.match_history = [];
+      }
+    },
+
+    // Add a new method to resolve usernames to display names
+    async getUserDisplayName(username) {
+      try {
+        const token = this.getToken;
+        if (!token) throw new Error('No auth token found');
+        
+        const response = await fetch(`/api/user/profile/by-username/${encodeURIComponent(username)}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch user profile');
+        }
+
+        const data = await response.json();
+        // Check if the response contains display_name directly
+        if (data.display_name) {
+          return data.display_name;
+        } else {
+          return username; // Fall back to username if unexpected format
+        }
+      } catch (error) {
+        return username; // Fall back to username if we can't get display name
       }
     },
 
@@ -1125,7 +1277,6 @@ export default {
         this.chatSocket.close();
         this.chatSocket = null;
         //Console log to check if chatSocket is closed
-        console.log('Chat socket closed');
       }
 
     
@@ -1140,7 +1291,6 @@ export default {
       if (!this.newMessage.trim() || !this.chatSocket) return;
       
       if (this.chatSocket.readyState !== WebSocket.OPEN) {
-        console.error('WebSocket is not connected');
         return;
       }
 
@@ -1164,18 +1314,12 @@ export default {
           }
         };
 
-        console.log('Sending notification:', notificationMessageData);
-
-        console.log('Sending message data:', {
-          messageContent: messageData,
-          socketState: this.chatSocket.readyState,
-          currentUserId: this.currentUserId,
-          chatId: this.chatId,
-          timestamp: new Date().toISOString()
-        });
-
         this.chatSocket.send(JSON.stringify(messageData));
-        this.notificationSocket.send(JSON.stringify(notificationMessageData));
+        if (this.notificationService) {
+          this.notificationService.sendNotification(notificationMessageData);
+        } else {
+          console.error('Notification service not available');
+        }
         this.scrollToBottom();
         this.newMessage = '';
       } catch (error) {
@@ -1206,7 +1350,6 @@ export default {
     },
 
     handleGameInvite(data) {
-        console.log('Handling game invite:', data);
         
         // Clear any existing timeout
         if (this.gameInviteTimeout) {
@@ -1236,65 +1379,72 @@ export default {
             // Auto-hide notification after 10 seconds
             this.gameInviteTimeout = setTimeout(() => {
                 this.declineGameInvite();
-            }, 10000);
+            }, 30000);
         }
     },
 
     handleGameAccepted(data) {
-        console.log('Game acceptance received:', data);
-        
-        try {
-            // If we're handling a click event (recipient accepting)
-            if (!data || data instanceof Event) {
-                if (!this.gameInviteNotification) {
-                    console.error('No game invite notification found');
-                    return;
-                }
+      
+      try {
+          // Handle click event from recipient accepting invitation
+          if (!data || data instanceof Event) {
+              if (!this.gameInviteNotification) {
+                  return;
+              }
 
-                // Set game data for recipient
-                this.currentGameId = this.gameInviteNotification.gameId;
-                this.opponent = this.gameInviteNotification.sender;
-                
-                // Send accept message through notification WebSocket
-                if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
-                    const acceptData = {
-                        type: 'game_accepted',
-                        game_id: this.currentGameId,
-                        sender_id: this.gameInviteNotification.senderId,
-                        recipient_id: this.currentUserId,
-                        recipient_name: this.profile.display_name,
-                        sender_name: this.gameInviteNotification.sender
-                    };
-                    
-                    console.log('Sending game acceptance:', acceptData);
-                    this.notificationSocket.send(JSON.stringify(acceptData));
-                }
-            } 
-            // If we're handling a WebSocket message (sender receiving acceptance)
-            else {
-                // Set game data for sender
-                this.currentGameId = data.game_id;
-                this.opponent = data.recipient_name;
-                this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+              // Set game data for recipient
+              if (this.globalGame) {
+                this.globalGame.openGame({
+                  opponent: this.gameInviteNotification.sender,
+                  opponentId: this.gameInviteNotification.senderId,
+                  gameId: this.gameInviteNotification.gameId,
+                  isHost: false
+                });
+              }
+              
+              // Send accept message through notification service
+              if (this.notificationService) {
+                  const acceptData = {
+                      type: 'game_accepted',
+                      game_id: this.gameInviteNotification.gameId,
+                      sender_id: parseInt(this.currentUserId),
+                      recipient_id: parseInt(this.gameInviteNotification.senderId),
+                      recipient_name: this.profile.display_name || 'Player',
+                      sender_name: this.gameInviteNotification.sender
+                  };
+                  
+                  this.notificationService.sendNotification(acceptData);
+              }
+          } 
+          // Handle WebSocket message (sender receiving acceptance)
+          else {
+            // Only process if we're the original sender
+            if (parseInt(data.sender_id) === parseInt(this.currentUserId) &&
+                this.globalGame) {
+              
+              this.globalGame.openGame({
+                opponent: data.recipient_name,
+                opponentId: data.recipient_id,
+                gameId: data.game_id,
+                isHost: true
+              });
+              
+              this.showStatus(`${data.recipient_name} accepted your game invite!`, {}, 'success');
+            } else {
+              return;
             }
+          }
+          this.showChat = false;
+          
+          // Clear any existing notifications
+          if (this.gameInviteNotification) {
+              this.gameInviteNotification = null;
+          }
+          
 
-            // Common actions for both sender and recipient
-            this.showGameWindow = true;
-            this.showChat = false;
-            this.gameInviteSent = !data; // true for recipient, false for sender
-            
-            // Clear any existing notifications
-            if (this.gameInviteNotification) {
-                this.gameInviteNotification = null;
-            }
-
-            // Initialize game connection
-            this.initializeGameConnection(this.currentGameId);
-
-        } catch (error) {
-            console.error('Error handling game acceptance:', error);
-            this.showStatus('Failed to process game acceptance', {}, 'error');
-        }
+      } catch (error) {
+          this.showStatus('Failed to process game acceptance', {}, 'error');
+      }
     },
 
     initializeGameConnection(gameId) {
@@ -1315,7 +1465,6 @@ export default {
         };
 
         this.gameSocket.onerror = (error) => {
-            console.error('Game WebSocket error:', error);
             this.showStatus('Error connecting to game server', {}, 'error');
         };
 
@@ -1325,117 +1474,44 @@ export default {
     },
 
     declineGameInvite() {
-      if (!this.gameInviteNotification) return;
-
-      // Clear the timeout
-      if (this.gameInviteTimeout) {
-        clearTimeout(this.gameInviteTimeout);
-      }
-
+      if (!gameInviteNotification.value) return;
+      
+      
       // Send decline message through WebSocket
-      if (this.chatSocket && this.chatSocket.readyState === WebSocket.OPEN) {
+      if (notificationSocket.value && notificationSocket.value.readyState === WebSocket.OPEN) {
         const declineData = {
-          type: 'game_decline',
-          game_id: this.gameInviteNotification.gameId,
-          recipient_id: this.selectedFriend.id
+          type: 'game_declined', // IMPORTANT: Changed from 'game_decline' to 'game_declined'
+          game_id: gameInviteNotification.value.gameId,
+          sender_id: store.state.userId || parseInt(localStorage.getItem('userId')),
+          recipient_id: gameInviteNotification.value.senderId,
+          sender_name: store.state.profile?.display_name || localStorage.getItem('username') || 'Player'
         };
         
-        console.log('Sending game decline:', declineData);
-        this.chatSocket.send(JSON.stringify(declineData));
+        notificationSocket.value.send(JSON.stringify(declineData));
       }
-
-      // Clear the notification
-      this.gameInviteNotification = null;
+      
+      // Clear the invitation
+      if (gameInviteTimeout.value) {
+        clearTimeout(gameInviteTimeout.value);
+      }
+      gameInviteNotification.value = null;
     },
     
-    initNotificationSocket() {
-        try {
-            const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsHost = window.location.host;
-            const token = this.getToken;
+    // Uncomment and update the handleGameDecline method
 
-            if (!token) {
-                console.error('No token available for notification socket');
-                return;
-            }
-
-            const wsUrl = `${wsProtocol}//${wsHost}/ws/notification/?token=${encodeURIComponent(token)}`;
-            console.log('Connecting to notification socket:', wsUrl);
-            this.notificationSocket = new WebSocket(wsUrl);
-            this.notificationSocket.onopen = () => {
-                this.wsConnected = true;
-            };
-
-            // Update the message handler to use proper async/await
-            this.notificationSocket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    console.log('Received notification data:', data);
-
-                    // Handle different notification types synchronously
-                    switch (data.type) {
-                        case 'game_invite':
-                            this.handleGameInvite(data);
-                            break;
-                        case 'game_accepted':
-                            this.handleGameAccepted(data);
-                            break;
-                        case 'game_declined':
-                            this.handleGameDecline(data);
-                            break;
-                        case 'chat_message':
-                            this.handleChatNotification(data);
-                            break;
-                        case 'friend_request':
-                            this.handleFriendRequestNotification(data);
-                            break;
-                        case 'friend_accepted':
-                            this.handleFriendAcceptNotification(data);
-                            break;
-                        case 'friend_declined':
-                            this.handleFriendDeclineNotification(data);
-                            break;
-                        case 'friend_removed':
-                          this.handleFriendRemoveNotification(data);
-                          break;
-                        default:
-                            console.log('Unknown notification type:', data.type);
-                    }
-                } catch (error) {
-                  console.error('Error processing notification:', error);
-                }
-            };
-
-            this.notificationSocket.onerror = (error) => {
-                console.error('Notification WebSocket error:', error);
-                this.wsConnected = false;
-                setTimeout(() => this.initNotificationSocket(), 3000);
-            };
-
-            this.notificationSocket.onclose = () => {
-                console.log('Notification WebSocket closed');
-                this.wsConnected = false;
-                // Only attempt to reconnect if the component is still mounted
-                if (!this._isDestroyed) {
-                    setTimeout(() => this.initNotificationSocket(), 3000);
-                }
-            };
-
-        } catch (error) {
-            console.error('Error initializing notification socket:', error);
-            setTimeout(() => this.initNotificationSocket(), 3000);
+    handleGameDecline(data) {
+      
+      // If we're the one who sent the invitation (the host)
+      if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
+        
+        // Close the game window using the global game component
+        if (this.globalGame) {
+          this.globalGame.closeGame();
+        } else {
+          console.error('GlobalGame not available for closing');
         }
+      }
     },
-
-    
-
-    // handleGameDecline(data) {
-    //     if (parseInt(data.sender_id) === parseInt(this.currentUserId)) {
-    //         this.showStatus('Game invite declined', {}, 'warning');
-    //         this.gameInviteSent = false;
-    //         this.showGameWindow = false;
-    //     }
-    // },
 
     showStatus(message, variables = {}, type = 'success') {
       // Validate message type
@@ -1477,45 +1553,76 @@ export default {
 
     // Game Invite Methods
     async sendGameInvite() {
-        try {
-            const uuid = crypto.randomUUID();
-            this.currentGameId = uuid;
-            this.opponent = this.selectedFriend.display_name; // Set the opponent name
-            
-            if (this.notificationSocket && this.notificationSocket.readyState === WebSocket.OPEN) {
-                const inviteData = {
-                    type: 'game_invite',
-                    game_id: uuid,
-                    sender_id: this.currentUserId,
-                    recipient_id: this.selectedFriend.id,
-                    sender_name: this.profile.display_name,
-                    recipient_name: this.selectedFriend.display_name
-                };
-                
-                console.log('Sending game invite:', inviteData);
-                this.notificationSocket.send(JSON.stringify(inviteData));
-                this.gameInviteSent = true;
-                this.showGameWindow = true;
-                this.showChat = false;
+      try {
+        const uuid = crypto.randomUUID();
+        
+        if (this.notificationService) {
+          const inviteData = {
+            type: 'game_invite',
+            game_id: uuid,
+            sender_id: parseInt(this.currentUserId),
+            recipient_id: this.selectedFriend.id,
+            sender_name: this.profile.display_name || 'User',
+            recipient_name: this.selectedFriend.display_name
+          };
+          
+          const sent = this.notificationService.sendNotification(inviteData);
+          
+          if (sent) {
+            // Use the injected globalGame directly (NOT through $parent.$refs)
+            if (this.globalGame) {
+              
+              this.globalGame.openGame({
+                opponent: this.selectedFriend.display_name,
+                opponentId: this.selectedFriend.id,
+                gameId: uuid,
+                isHost: true
+              });
+              
+              this.showChat = false;
+            this.showStatus(`Game invite sent to ${this.selectedFriend.display_name}`, {}, 'success');
             } else {
-                throw new Error('Notification socket not connected');
+              throw new Error('Game component not available');
             }
-        } catch (error) {
-            console.error('Error sending game invite:', error);
-            this.showStatus('Failed to send game invite', {}, 'error');
+          } else {
+            throw new Error('Failed to send notification');
+          }
+        } else {
+          throw new Error('Notification service not available');
         }
+      } catch (error) {
+        this.showStatus('Failed to send game invite', {}, 'error');
+      }
     },
 
     // Add method to handle game join
-    handleGameJoin(gameId) {
-      this.currentGameId = gameId;
-      this.showGameWindow = true;
-      this.gameInviteSent = false; // Since we're joining, not hosting
+    handleGameJoin(gameId, opponentName, opponentId) {
+      try {
+        this.currentGameId = gameId;
+        this.opponent = opponentName || 'Opponent';
+        
+        // Set up the game window
+        this.showGameWindow = true;
+        this.showChat = false;
+        
+        // Initialize game connection
+        this.initializeGameConnection(gameId);
+        
+        // If we have a selected friend already, use that
+        if (!this.selectedFriend && opponentId) {
+          // Find the friend in your friends list
+          const friend = this.profile.friends.find(f => f.id === opponentId);
+          if (friend) {
+            this.selectedFriend = friend;
+          }
+        }
+      } catch (error) {
+        this.showStatus('Failed to join game', {}, 'error');
+      }
     },
 
     handleFriendRequestNotification(data) {
         try {
-            console.log('Handling friend request notification:', data);
             
             // Only update the UI if we're the recipient, not the sender
             if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
@@ -1534,8 +1641,7 @@ export default {
 
     handleFriendAcceptNotification(data) {
       try {
-        console.log('Handling friend acceptance notification:', data);
-        // some check
+        
         if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
           // Refresh the friends list to show the new friend
           this.fetchProfile().then(() => {
@@ -1553,7 +1659,6 @@ export default {
 
     handleFriendDeclineNotification(data) {
       try {
-        console.log('Handling friend decline notification:', data);
         
         if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
           // Find the declined user in search results and update their status
@@ -1585,7 +1690,6 @@ export default {
     // Add this method to handle friend removal notifications
     handleFriendRemoveNotification(data) {
       try {
-        console.log('Handling friend removal notification:', data);
         
         if (parseInt(data.recipient_id) === parseInt(this.currentUserId)) {
           // Update search results to clear any pending status
@@ -1620,7 +1724,6 @@ export default {
       try {
         // Add defensive checks for data structure
         if (!data || typeof data !== 'object') {
-          console.error('Invalid notification data received:', data);
           return;
         }
 
@@ -1629,12 +1732,6 @@ export default {
         const currentChatId = this.chatId;
 
         // Log the received data for debugging
-        console.log('Received chat notification:', {
-          senderId,
-          senderName,
-          currentChatId,
-          fullData: data
-        });
         
         if (!currentChatId || !currentChatId.includes(senderId)) {
           this.showStatus(
@@ -1648,6 +1745,31 @@ export default {
       }
     },
 
+
+    // handleOnlineStatus(data) {
+    //   try {
+    //     console.log('Handling online status:', data);
+        
+    //     if (data.user_id === parseInt(this.currentUserId)) {
+    //       this.isOnline = data.is_online;
+    //     }
+        
+    //     if (this.searchResults.length > 0) {
+    //       this.searchResults = this.searchResults.map(profile => {
+    //         if (profile.id === parseInt(data.user_id)) {
+    //           return {
+    //             ...profile,
+    //             is_online: data.is_online
+    //           };
+    //         }
+    //         return profile;
+    //       });
+    //     }
+    //   } catch (error) {
+    //     console.error('Error handling online status:', error);
+    //   }
+    // },
+
     closeGameWindow() {
         this.showGameWindow = false;
         this.gameInviteSent = false;
@@ -1658,7 +1780,6 @@ export default {
     },
 
     handleGameInvite(data) {
-        console.log('Handling game invite:', data);
         
         if (this.gameInviteTimeout) {
             clearTimeout(this.gameInviteTimeout);
@@ -2398,4 +2519,80 @@ export default {
     transform: scale(1);
   }
 }
+
+/* Match History Styles */
+.match-history-group {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.match-history-title {
+  margin-bottom: 15px;
+  text-align: center;
+  font-size: 1.2rem;
+  color: #ffffff;
+}
+
+.no-matches {
+  text-align: center;
+  font-style: italic;
+  color: #666;
+  margin-top: 10px;
+}
+
+.match-list {
+  list-style: none;
+  padding: 0;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.match-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background-color: #2d2d2d;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.match-item.win {
+  border-left: 4px solid #03a670;
+}
+
+.match-item.loss {
+  border-left: 4px solid #a60303;
+}
+
+.match-result {
+  font-weight: bold;
+  min-width: 40px;
+}
+
+.match-result.win {
+  color: #03a670;
+}
+
+.match-result.loss {
+  color: #a60303;
+}
+
+.match-score {
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin: 0 10px;
+}
+
+.match-opponent {
+  font-size: 0.9rem;
+  color: #ccc;
+  flex-grow: 1;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 </style>

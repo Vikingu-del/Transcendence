@@ -1,8 +1,10 @@
+# In your notificationService/urls.py
 from django.urls import path
-from .views import NotificationListView, NotificationMarkReadView
+from . import views
 
 urlpatterns = [
-    path('api/notification/', NotificationListView.as_view(), name='notification_list_view'),
-    path('api/notification/mark-read/', NotificationMarkReadView.as_view(), name='mark_all_read'),
-    path('api/notification/mark-read/<int:pk>/', NotificationMarkReadView.as_view(), name='mark_one_read'),
+    path('api/notification/', views.NotificationListView.as_view(), name='notification-list'),
+    path('api/notification/unread-count/', views.NotificationUnreadCountView.as_view(), name='notification-unread-count'),
+    path('api/notification/<int:pk>/read/', views.NotificationMarkReadView.as_view(), name='notification-mark-read'),
+    path('api/notification/read-all/', views.NotificationMarkReadView.as_view(), name='notifications-mark-all-read'),
 ]

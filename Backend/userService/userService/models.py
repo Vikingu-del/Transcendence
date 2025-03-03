@@ -14,6 +14,7 @@ class Profile(models.Model):
     )
     is_online = models.BooleanField(default=False)
     blocked_users = models.ManyToManyField(User, related_name='blocked_users')
+    language = models.CharField(max_length=2, default='en')
 
     def get_avatar_url(self):
         if self.avatar and hasattr(self.avatar, 'url'):

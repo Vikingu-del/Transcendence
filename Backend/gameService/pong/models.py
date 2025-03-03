@@ -14,6 +14,7 @@ class GameSession(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     ended_at = models.DateTimeField(null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    tournament_id = models.IntegerField(null=True, blank=True)
     
     # Game-specific state
     player1_paddle = models.IntegerField(default=0)  # Y position of player 1 paddle

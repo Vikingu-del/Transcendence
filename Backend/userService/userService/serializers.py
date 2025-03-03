@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:09:54 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/20 18:07:43 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/03/02 15:40:10 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -61,7 +61,7 @@ class UserProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = Profile
         fields = ['id', 'display_name', 'avatar', 'is_online', 'friends',
-                 'friend_request_status', 'requested_by_current_user', 'isBlocked']
+                 'friend_request_status', 'requested_by_current_user', 'isBlocked', 'language']
 
     def get_avatar(self, obj):
         return obj.get_avatar_url()

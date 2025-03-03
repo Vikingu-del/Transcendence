@@ -47,6 +47,23 @@
           </button>
         </form>
       </div>
+      <!-- Match History -->
+      <div class="match-history" v-if="profile">
+          <h3>Match History</h3>
+          
+          <div v-if="!profile.match_history || profile.match_history.length === 0" class="no-matches">
+            No matches played yet
+          </div>
+          
+          <ul v-else class="match-list">
+            <li v-for="match in profile.match_history" :key="match.id" 
+            :class="['match-item', match.result.toLowerCase()]">
+            <div class="match-result">{{ match.result }}</div>
+            <div class="match-score">{{ match.score }}</div>
+            <div class="match-opponent">You vs {{ match.opponentDisplayName || match.opponent }}</div>
+          </li>
+        </ul>
+      </div>
     </div>
 
     <div 
@@ -55,59 +72,11 @@
     >
       {{ statusMessage.text }}
     </div>
-
-
+  
     <!-- Loading and Error States -->
     <div v-if="loading">Loading...</div>
     <div v-if="error" class="error">{{ error }}</div>
-
-    <!-- Add this after the search section -->
-    <div v-if="profile" class="debug-section">
-      <h3>Debug Information</h3>
-      <div class="debug-info">
-        <pre>
-    User Profile:
-    -------------
-    ID: {{ profile.id }}
-    Display Name: {{ profile.display_name }}
-    Avatar URL: {{ profile.avatar }}
-    Is Online: {{ profile.is_online }}
-    Default Avatar: {{ isDefaultAvatar }}
-
-    Friends List:
-    -------------
-    <template v-if="profile.friends && profile.friends.length">
-    <span v-for="friend in profile.friends" :key="friend.id">
-    Friend ID: {{ friend.id }}
-    Name: {{ friend.display_name }}
-    Status: {{ friend.is_online ? 'Online' : 'Offline' }}
-    Avatar: {{ friend.avatar }}
-    -------------------
-    </span>
-    </template>
-    <template v-else>No friends</template>
-
-    WebSocket:
-    -------------
-    Connected: {{ wsConnected }}
-    Current User ID: {{ currentUserId }}
-
-    Pending Requests:
-    -------------
-    <template v-if="incomingFriendRequests.length">
-    <span v-for="request in incomingFriendRequests" :key="request.id">
-    Request ID: {{ request.id }}
-    From User: {{ request.from_user.display_name }}
-    Status: {{ request.status }}
-    -------------------
-    </span>
-    </template>
-    <template v-else>No pending requests</template>
-        </pre>
-      </div>
-    </div>
-
-
+    
     <!-- Logout Button -->
     <nav>
       <button @click="logout" class="btn secondary-btn">Logout</button>
@@ -186,7 +155,6 @@ export default {
   async created() {
     try {
       const token = localStorage.getItem('token');
-      console.log('Initial token:', token);
       
       if (!token) {
         await this.$router.push('/login');
@@ -249,7 +217,6 @@ export default {
     async fetchProfile() {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching profile with token:', token);
 
         if (!token) {
           throw new Error('No auth token found');
@@ -274,6 +241,7 @@ export default {
         this.currentUserId = this.profile.id;
         this.loading = false;
         
+        await this.fetchMatchHistory();
       } catch (error) {
         console.error('Profile fetch error:', error);
         if (error.message.includes('token_not_valid')) {
@@ -283,10 +251,79 @@ export default {
       }
     },
 
+    async changeUserNameOfOpponentToDisplayName(opponentId) {
+      try {
+        const token = localStorage.getItem('token');
+        const response = await fetch(`/api/user/profile/${opponentId}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch opponent profile');
+        }
+
+        const opponentProfile = await response.json();
+        return opponentProfile.display_name;
+      } catch (error) {
+        console.error('Error fetching opponent profile:', error);
+        return 'Unknown';
+      }
+    },
+
+    async fetchMatchHistory() {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          throw new Error('No auth token found');
+        }
+        
+        // Use the profile ID to fetch match history for the current user
+        const userId = this.profile.id;
+        const response = await fetch(`/api/game/match-history/${userId}/`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+            
+        if (!response.ok) {
+          throw new Error('Failed to fetch match history');
+        }
+        
+        const matchHistory = await response.json();
+        
+        // Fetch display names for all opponents
+        for (const match of matchHistory) {
+          if (match.opponent_id) {
+            try {
+              match.opponentDisplayName = await this.changeUserNameOfOpponentToDisplayName(match.opponent_id);
+            } catch (error) {
+              console.error('Error fetching opponent display name:', error);
+              match.opponentDisplayName = match.opponent || 'Unknown';
+            }
+          } else {
+            // Solo games or missing opponent_id
+            match.opponentDisplayName = match.opponent || 'Solo Game';
+          }
+        }
+        
+        if (this.profile) {
+          this.profile.match_history = matchHistory;
+        }
+        
+      } catch (error) {
+        console.error('Error fetching match history:', error);
+      }
+    },
+
     async onFileChange(e) {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching profile with token:', token);
 
         if (!token) {
           throw new Error('No auth token found');
@@ -442,7 +479,6 @@ export default {
     },
 
     buildAvatarUrl(avatarPath) {
-      console.log('Building avatar URL:', avatarPath);
       // If no avatar path or it's the default avatar path
       if (!avatarPath || avatarPath.includes('default.png')) {
         return this.defaultAvatarUrl;
@@ -737,6 +773,73 @@ input {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(-10px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+.match-history {
+  width: 100%;
+  max-width: 600px;
+  margin-top: 20px;
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.match-history h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.no-matches {
+  text-align: center;
+  font-style: italic;
+  color: #666;
+}
+
+.match-list {
+  list-style: none;
+  padding: 0;
+}
+
+.match-item {
+  display: inline-flex;
+  width: 100%;
+  justify-content: space-between;
+  padding: 10px 15px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+  background-color: #808080;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.match-item.win {
+  border-left: 4px solid #4caf50;
+}
+
+.match-item.loss {
+  border-left: 4px solid #f44336;
+}
+
+.match-result {
+  font-weight: bold;
+}
+
+.match-result.win {
+  color: #4caf50;
+}
+
+.match-result.loss {
+  color: #f44336;
+}
+
+.match-score {
+  padding-left: 15%;
+  font-size: 1rem;
+  font-weight: bold;
+}
+
+.match-opponent {
+  font-size: 0.9rem;
+  color: #333;
 }
 
 </style>

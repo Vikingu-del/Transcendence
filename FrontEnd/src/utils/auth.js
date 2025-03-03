@@ -5,10 +5,9 @@ export const auth = {
      * Set authentication token
      * @param {string} token - JWT token
      */
-    // setToken(token) {
-    //     localStorage.setItem('token', token);
-    // },
+
     setToken(token) {
+        console.log('Setting token:', token);
         store.dispatch('loginAction', token);
     },
 
@@ -16,9 +15,6 @@ export const auth = {
      * Get current token
      * @returns {string|null} token
      */
-    // getToken() {
-    //     return localStorage.getItem('token');
-    // },
     getToken() {
         return store.getters.getToken;
     },
@@ -26,9 +22,6 @@ export const auth = {
     /**
      * Remove token and clear auth state
      */
-    // removeToken() {
-    //     localStorage.removeItem('token');
-    // },
     async logout() {
         await store.dispatch('logoutAction');
     },
@@ -42,6 +35,15 @@ export const auth = {
     // }
     isAuthenticated() {
         return store.getters.isAuthenticated;
+    },
+
+    isRefreshing() {
+        return store.getters.isRefreshing
+    },
+
+    // Add a helper method to check if we can refresh
+    canRefresh() {
+        return !!localStorage.getItem('refreshToken');
     },
 
     /**

@@ -6,7 +6,7 @@
 #    By: ipetruni <ipetruni@student.42.fr>          +#+  +:+       +#+         #
 #                                                 +#+#+#+#+#+   +#+            #
 #    Created: 2024/11/19 12:10:18 by ipetruni          #+#    #+#              #
-#    Updated: 2025/02/22 18:58:33 by ipetruni         ###   ########.fr        #
+#    Updated: 2025/03/02 17:30:17 by ipetruni         ###   ########.fr        #
 #                                                                              #
 # **************************************************************************** #
 
@@ -50,7 +50,8 @@ class VerifyUserView(APIView):
                     'id': profile.id,
                     'display_name': profile.display_name,
                     'is_online': profile.is_online,
-                    'avatar_url': profile.get_avatar_url()
+                    'avatar_url': profile.get_avatar_url(),
+                    'language': profile.language
                 }
             }, status=status.HTTP_200_OK)
 
@@ -215,6 +216,18 @@ class ProfileView(APIView):
                 profile.avatar = avatar
                 profile.save()
                 logger.info(f"Updated avatar for user {request.user.username}")
+            elif 'language' in data:
+                language = data['language']
+                # Validate language - add your supported languages
+                valid_languages = ['en', 'fr', 'de']
+                if language not in valid_languages:
+                    return Response(
+                        {"error": "Unsupported language"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                profile.language = language
+                profile.save(update_fields=['language'])
+                logger.info(f"Updated language preference for user {request.user.username} to {language}")
 
             serializer = UserProfileSerializer(profile, context={"request": request})
             return Response(serializer.data, status=status.HTTP_200_OK)
@@ -509,45 +522,71 @@ class FriendProfileDetailView(APIView):
 
     def get(self, request, friend_id):
         try:
-            # Get the friend's profile
-            friend_profile = get_object_or_404(Profile, id=friend_id)
+            # Get the profile
+            profile_to_view = get_object_or_404(Profile, id=friend_id)
             
-            # Check if they are friends
+            # Check if they are friends (only for showing friend-specific data)
             friendship_exists = Friendship.objects.filter(
-                (Q(from_profile=request.user.profile, to_profile=friend_profile) |
-                 Q(from_profile=friend_profile, to_profile=request.user.profile)),
+                (Q(from_profile=request.user.profile, to_profile=profile_to_view) |
+                 Q(from_profile=profile_to_view, to_profile=request.user.profile)),
                 status='accepted'
             ).exists()
 
-            if not friendship_exists:
-                return Response(
-                    {"error": "Not authorized to view this profile"},
-                    status=status.HTTP_403_FORBIDDEN
+            # Prepare the response data with basic profile information
+            response_data = UserProfileSerializer(profile_to_view, context={'request': request}).data
+            
+            # Only include friends data if they are friends
+            if friendship_exists:
+                # Get profile's friends
+                friend_friendships = Friendship.objects.filter(
+                    (Q(from_profile=profile_to_view) | Q(to_profile=profile_to_view)),
+                    status='accepted'
                 )
 
-            # Get friend's friends
-            friend_friendships = Friendship.objects.filter(
-                (Q(from_profile=friend_profile) | Q(to_profile=friend_profile)),
-                status='accepted'
-            )
+                friends = []
+                for friendship in friend_friendships:
+                    if friendship.from_profile == profile_to_view:
+                        friends.append(friendship.to_profile)
+                    else:
+                        friends.append(friendship.from_profile)
 
-            friends = []
-            for friendship in friend_friendships:
-                if friendship.from_profile == friend_profile:
-                    friends.append(friendship.to_profile)
-                else:
-                    friends.append(friendship.from_profile)
-
-            # Prepare the response data
-            response_data = UserProfileSerializer(friend_profile, context={'request': request}).data
-            response_data['friends'] = UserProfileSerializer(friends, many=True, context={'request': request}).data
-            response_data['friends_count'] = len(friends)
+                response_data['friends'] = UserProfileSerializer(friends, many=True, context={'request': request}).data
+                response_data['friends_count'] = len(friends)
+            else:
+                # For non-friends, provide empty friends list
+                response_data['friends'] = []
+                response_data['friends_count'] = 0
 
             return Response(response_data)
 
         except Exception as e:
-            logger.error(f"Error fetching friend profile: {str(e)}")
+            logger.error(f"Error fetching profile: {str(e)}")
             return Response(
                 {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class GetDisplayNameView(APIView):
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, username):
+        try:
+            user = User.objects.get(username=username)
+            profile = Profile.objects.get(user=user)
+            return Response({'display_name': profile.display_name})
+        except User.DoesNotExist:
+            return Response(
+                {'error': 'User not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Profile.DoesNotExist:
+            return Response(
+                {'error': 'Profile not found'}, 
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )

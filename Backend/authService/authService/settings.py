@@ -86,9 +86,9 @@ AUTH_USER_MODEL = 'auth.User'  # Use Django's built-in User model
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.environ.get('DB_NAME', 'auth_db'),
-        'USER': os.environ.get('DB_USER', 'postgres'),
-        'PASSWORD': os.environ.get('DB_PASSWORD', 'postgres'),
+        'NAME': os.environ.get('DB_NAME', 'auth_dbname'),
+        'USER': os.environ.get('DB_USER', 'auth_dbuser'),
+        'PASSWORD': os.environ.get('DB_PASSWORD', 'auth_dbpass'),
         'HOST': os.environ.get('DB_HOST', 'auth_db'),
         'PORT': os.environ.get('DB_PORT', '5432'),
     }
