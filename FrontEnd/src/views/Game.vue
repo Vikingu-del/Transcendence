@@ -116,6 +116,7 @@ export default defineComponent({
 	},
 
 	setup(props, { emit }) {
+
 		const initLocalStorage = (gameId: string) => {
 			const gameKey = `pong_game_${gameId}`;
 			const storedGame = localStorage.getItem(gameKey);
@@ -169,6 +170,33 @@ export default defineComponent({
 
 		const CANVAS_WIDTH = 800;
 		const CANVAS_HEIGHT = 400;
+
+		const canvasWidth = ref(CANVAS_WIDTH);
+		const canvasHeight = ref(CANVAS_HEIGHT);
+
+		const updateCanvasSize = () => {
+			if (!gameCanvas.value) return;
+		
+			const container = gameCanvas.value.parentElement;
+			if (!container) return;
+
+			gameCanvas.value.width = canvasWidth.value;
+			gameCanvas.value.height = canvasHeight.value;
+		};
+		let resizeObserver: ResizeObserver | null = null;
+
+		resizeObserver = new ResizeObserver(updateCanvasSize);
+
+		onMounted(() => {
+			if (gameCanvas.value) {
+				resizeObserver.observe(gameCanvas.value.parentElement!);
+			}
+		});
+
+		onUnmounted(() => {
+			resizeObserver.disconnect();
+		});
+
 		const INITIAL_BALL_SPEED = 3;
 		const PADDLE_SPEED = 40;
 		const BALL_RADIUS = 8; 
@@ -407,8 +435,8 @@ export default defineComponent({
 			ctx.value.strokeStyle = '#ffffff';
 			ctx.value.setLineDash([5, 15]);
 			ctx.value.beginPath();
-			ctx.value.moveTo(CANVAS_WIDTH / 2, 0);
-			ctx.value.lineTo(CANVAS_WIDTH / 2, CANVAS_HEIGHT);
+			ctx.value.moveTo(canvasWidth.value / 2, 0);
+			ctx.value.lineTo(canvasWidth.value / 2, canvasHeight.value);
 			ctx.value.stroke();
 			ctx.value.setLineDash([]);
 
@@ -953,7 +981,7 @@ export default defineComponent({
 			}
 		};
 
-		let resizeObserver: ResizeObserver | null = null;
+	
 
 		const handlePageUnload = (event) => {
 			if (gameSocket.value?.readyState === WebSocket.OPEN) {
@@ -1035,6 +1063,10 @@ export default defineComponent({
 			window.removeEventListener('unload', handlePageUnload);
 		});
 
+		// const handleTouchStart = (event: TouchEvent) => {
+
+		// }
+
 		return {
 			gameCanvas,
 			playerScore,
@@ -1065,11 +1097,23 @@ export default defineComponent({
   max-width: 1200px;
   min-width: 450px;
   height: 75vh;
-  min-height: 500px; /* Add minimum height */
+  min-height: 400px; /* Add minimum height */
   display: flex;
   flex-direction: column;
   box-shadow: 2px 2px 30px #03a670;
   position: relative; /* Add this */
+}
+
+
+canvas {
+    background: #000000;
+    border-radius: 4px;
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: contain;
+    margin: auto;
+    image-rendering: pixelated;
+    box-shadow: 0 0 20px rgba(3, 166, 112, 0.2);
 }
 
 @media (max-width: 600px) {
@@ -1097,14 +1141,26 @@ export default defineComponent({
 	 canvas {
     transform: rotate(90deg);
     transform-origin: center;
-    width: 80dvh; 
-    height: 80dvw;
+    width: 80dvh !important; 
+    height: 80dvw !important;
     position: absolute;
     top: 50%;
     left: 50%;
     margin: 0;
     translate: -50% -50%;  
   	}
+
+	.game-info {
+		position: absolute;
+		top: 1rem;
+		left: 0;
+		right: 0;
+		display: flex;
+		justify-content: center;
+		z-index: 1;
+		/* transform: rotate(90deg); */
+	}
+
 }
 
 .game-header {
@@ -1133,17 +1189,6 @@ export default defineComponent({
   position: relative;
   background: #1a1a1a;
   min-height: 0;
-}
-
-canvas {
-    background: #000000;
-    border-radius: 4px;
-    width: 800px !important;
-    height: 400px !important;
-    object-fit: contain;
-    margin: auto;
-    image-rendering: pixelated;
-    box-shadow: 0 0 20px rgba(3, 166, 112, 0.2);
 }
 
 .game-info {
