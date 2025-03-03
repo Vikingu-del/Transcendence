@@ -68,11 +68,9 @@ function initNotificationSocket() {
   try {
     const token = localStorage.getItem('token')
     if (!token || !isAuthenticated.value) return
-    
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsHost = window.location.host
     const wsUrl = `${wsProtocol}//${wsHost}/ws/notification/?token=${encodeURIComponent(token)}`
-    
     console.log('Connecting to notification socket:', wsUrl)
     notificationSocket.value = new WebSocket(wsUrl)
     
