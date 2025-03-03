@@ -1,130 +1,165 @@
 <template>
-  <div class="form-container">
-    <h2>{{ t('login.title') }}</h2>
-    <form @submit.prevent="login">
-      <div class="form-group">
-        <label for="username">{{ t('login.username') }}</label>
-        <input id="username" v-model="username" type="text" :placeholder="t('login.enterUsername')" required />
-      </div>
-      <div class="form-group">
-        <label for="password">{{ t('login.password') }}</label>
-        <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
-      </div>
-      <button type="submit" class="submit-btn" :disabled="loading">
-        {{ loading ? this.t('login.loading') : this.t('login.title') }}
-      </button>
-    </form>
-    <p v-if="error" class="message error">{{ error }}</p>
-    <!-- <form v-if="tfa" @submit.prevent="verifyTFA"> // for walid
-      <label for="ottp">Username</label> // for walid
-        <input id="ottp" v-model="username" type="digit" placeholder="Enter the code" required /> // for walid
-    </form>>   //for walid -->  
-  </div>
-</template>
-
-<script>
-import router from '@/router';
-import { auth } from '@/utils/auth';
-import { useI18n } from 'vue-i18n';
-
-export default {
-  setup() {
-    const { t } = useI18n();
-    return { t };
-  },
-  data() {
-    return {
-      username: '',
-      password: '',
-      error: '',
-      loading: false,
-      redirect: null,
-      // tfa: true, for walid
-    };
-  },
+	<div class="form-container">
+	  <h2>{{ t('login.title') }}</h2>
+	  <h2 v-if="showGenerateQRCodeButton"><b>Please enter username</b></h2>
+	  <form @submit.prevent="login">
+		<div class="form-group">
+		  <label for="username">{{ t('login.username') }}</label>
+		  <input id="username" v-model="username" type="text" :placeholder="t('login.enterUsername')" required />
+		</div>
+		<div class="form-group" v-if="!hidePassword">
+		  <label for="password">{{ t('login.password') }}</label>
+		  <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
+		</div>
+		<div class="form-group" v-if="!hideOTP">
+		  <label for="otp">OTP</label>
+		  <input id="otp" v-model="otp" placeholder="Please enter your OTP" required>
+		</div>
+		<button v-if="!hideSubmitButton" type="submit" class="submit-btn" :disabled="loading">
+		  {{ loading ? this.t('login.loading') : this.t('login.title') }}
+		</button>
+		<a href="#" @click.prevent="generateQRCode" class="forgot-password-link">Get new authenticator QR Code</a>
+	  </form>
+	  <p v-if="error" class="message error">{{ error }}</p>
+	  <div v-if="showQRCode">
+		  <img :src="qrCode">
+	  </div>
+	  <button v-if="showGenerateQRCodeButton" class="submit-btn" @click="hideQRCode">Done</button>
+	</div>
+  </template>
   
-  created() {
-    // Get redirect path from query params if it exists
-    this.redirect = this.$route.query.redirect || '/profile';
-  },
-
-  methods: {
-    // async verifyTFA() { // for walid
-    //   try {
-    //       const response = await fetch('/api/auth/login/', {
-    //           method: 'POST',
-    //           headers: { 
-    //               'Content-Type': 'application/json',
-    //               'Accept': 'application/json'
-    //           },
-    //           body: JSON.stringify({
-    //               username: this.username,
-    //               password: this.password
-    //           })
-    //       });
-    //       await router.push('/profile');
-    //     } catch (error) {
-    //       console.error('Login error:', error);
-    //       this.error = 'Network error occurred';
-    //       this.password = '';
-    //     } finally {
-    //       this.loading = false;
-    //     }  
-    // },
-    async login() {
-      if (this.loading) return;
-      this.loading = true;
-      this.error = '';
-      
-      try {
-          const response = await fetch('/api/auth/login/', {
-              method: 'POST',
-              headers: { 
-                  'Content-Type': 'application/json',
-                  'Accept': 'application/json'
-              },
-              body: JSON.stringify({
-                  username: this.username,
-                  password: this.password
-              })
-          });
-
-          const data = await response.json();
-
-          if (response.ok && data.token) {
-              await this.$store.dispatch('loginAction', {
-                accessToken: data.token,
-                refreshToken: data.refresh
-              });
-              
-              this.password = '';
-              await this.$nextTick();
-              
-              const redirectPath = this.redirect || '/profile';
-              await this.$router.push(redirectPath);
-              // tfa = true;
-          } else {
-              this.error = this.ct('login.error.Login failed');
-              this.password = '';
-          }
-      } catch (error) {
-          console.error('Login error:', error);
-          this.error = this.t('login.errors.Network error occurred');
-          this.password = '';
-      } finally {
-          this.loading = false;
-      }
-    },
-
-    resetForm() {
-      this.username = '';
-      this.password = '';
-      this.error = '';
-      this.loading = false;
-    }
-  }
-};
-</script>
+  <script>
+  import router from '@/router';
+  import { auth } from '@/utils/auth';
+  import { useI18n } from 'vue-i18n';
+  
+  export default {
+	setup() {
+	  const { t } = useI18n();
+	  return { t };
+	},
+	data() {
+	  return {
+		username: '',
+		password: '',
+		error: '',
+		loading: false,
+		redirect: null,
+		tfa: true,
+		otp: '',
+		showQRCode: false,
+		qrCode: '',
+		hidePassword: false,
+		hideOTP: false,
+		hideSubmitButton: false,
+		showGenerateQRCodeButton: false,
+	  };
+	},
+	
+	created() {
+	  // Get redirect path from query params if it exists
+	  this.redirect = this.$route.query.redirect || '/profile';
+	},
+  
+	methods: {
+	  async login() {
+		if (this.loading) return;
+		this.loading = true;
+		this.error = '';
+		
+		try {
+			const response = await fetch('/api/auth/login/', {
+				method: 'POST',
+				headers: { 
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: JSON.stringify({
+					username: this.username,
+					password: this.password,
+					otp: this.otp
+				})
+			});
+  
+			const data = await response.json();
+  
+			if (response.ok && data.token) {
+				await this.$store.dispatch('loginAction', {
+				  accessToken: data.token,
+				  refreshToken: data.refresh
+				});
+				
+				this.password = '';
+				await this.$nextTick();
+				
+				const redirectPath = this.redirect || '/profile';
+				await this.$router.push(redirectPath);
+			} else {
+				this.error = this.ct('login.error.Login failed');
+				this.password = '';
+			}
+		} catch (error) {
+			console.error('Login error:', error);
+			this.error = this.t('login.errors.Network error occurred');
+			this.password = '';
+		} finally {
+			this.loading = false;
+		}
+	  },
+  
+	  async generateQRCode(){
+		  this.hidePassword = true;
+		  this.hideOTP = true;
+		  this.hideSubmitButton = true;
+		  this.showGenerateQRCodeButton = true;
+		  try{
+			  const response = await fetch('/api/auth/generate_qrcode/', {
+				  method: 'POST',
+				  headers: {
+					  'Content-Type': 'application/json',
+					  'Accept': 'application/json'
+				  },
+				  body: JSON.stringify({
+					  username: this.username
+				  })
+			  });
+  
+			  const data = await response.json();
+			  if (response.ok){
+				  this.showQRCode = true;
+				  this.qrCode = data.qr_code;
+			  } else {
+				  this.error = data.error || 'QR code generation failed';
+			  }
+		  } catch (error) {
+			  console.error('QR code generation error: ', error);
+			  this.error = 'Network error occured';
+		  }
+	  },
+  
+	  hideQRCode() {
+		  this.showQRCode = false;
+		  this.hidePassword = false;
+		  this.hideOTP = false;
+		  this.hideSubmitButton = false;
+		  this.showGenerateQRCodeButton = false;
+	  },
+  
+	  resetForm() {
+		this.username = '';
+		this.error = '';
+		this.loading = false;
+		this.otp = '',
+		this.showQRCode = false;
+		this.qrCode = '';
+		this.showQRCode = false;
+		this.hidePassword = false;
+		this.hideOTP = false;
+		this.hideSubmitButton = false;
+	  }
+	}
+  };
+  </script>
 
 <style scoped>
 .form-container {
