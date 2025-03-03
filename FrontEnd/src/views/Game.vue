@@ -1063,9 +1063,36 @@ export default defineComponent({
 			window.removeEventListener('unload', handlePageUnload);
 		});
 
-		// const handleTouchStart = (event: TouchEvent) => {
+		const handleTouchStart = (event: TouchEvent) => {
+			if (!gameCanvas.value) return;
+			const rect = gameCanvas.value.getBoundingClientRect();
+			const touchX = event.touches[0].clientX - rect.left;
 
-		// }
+			const screenMid = rect.width / 2;
+			if (touchX < screenMid){
+				pressedKeys.value.add('ArrowDown');
+			} else {
+				pressedKeys.value.add('ArrowUp');
+			}
+		};
+
+		const handleTouchEnd = () => {
+			pressedKeys.value.clear();
+		};
+
+		onMounted(() => {
+			if (gameCanvas.value) {
+				gameCanvas.value.addEventListener('touchstart', handleTouchStart);
+				gameCanvas.value.addEventListener('touchend', handleTouchEnd);
+			}
+		});
+
+		onUnmounted(() => {
+			if (gameCanvas.value) {
+				gameCanvas.value.removeEventListener('touchstart', handleTouchStart);
+				gameCanvas.value.removeEventListener('touchend', handleTouchEnd);
+			}
+		});
 
 		return {
 			gameCanvas,
