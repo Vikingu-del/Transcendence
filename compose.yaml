@@ -1,25 +1,4 @@
 services:
-
-  # swagger:
-  #   container_name: swagger
-  #   build:
-  #     context: ./Swagger
-  #     dockerfile: Dockerfile
-  #   environment:
-  #     URLS_PRIMARY_NAME: "UserService" # Default API to display in Swagger UI
-  #     URLS: '[{ "url": "/doc/ApiGateway.yaml", "name": "ApiGateway" }, 
-  #        { "url": "/doc/UserService.yaml", "name": "UserService" },
-  #        { "url": "/doc/Security.yaml", "name": "Security" },
-  #        { "url": "/doc/Database.yaml", "name": "Database" },
-  #        { "url": "/doc/FrontEnd.yaml", "name": "FrontEnd" }]'
-  #   volumes:
-  #     - ./docs/openapi:/usr/share/nginx/html/doc # Mount local OpenAPI specs
-  #   ports:
-  #     - "8080:8080"  # Swagger UI available at localhost:8080
-  #   restart: always
-  #   networks:
-  #     backtier:
-
   vault:
     container_name: vault
     build:
@@ -31,6 +10,7 @@ services:
       - "8200:8200"
     networks:
       - backtier
+      - devops
     environment:
       - VAULT_ADDR=http://vault:8200
     volumes:
@@ -47,6 +27,8 @@ services:
       - approle_game_db:/vault/approle/game_db
       - approle_notification_db:/vault/approle/notification_db
       - approle_notification:/vault/approle/notification
+      - approle_elasticsearch:/vault/approle/elasticsearch
+      - approle_grafana:/vault/approle/grafana
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -63,6 +45,7 @@ services:
       - ./Security/VaultSecrets/secrets/.env
     networks:
       - backtier
+      - devops
     depends_on:
       vault:
         condition: service_healthy
@@ -80,6 +63,8 @@ services:
       - approle_game_db:/vault/approle/game_db
       - approle_notification_db:/vault/approle/notification_db
       - approle_notification:/vault/approle/notification
+      - approle_elasticsearch:/vault/approle/elasticsearch
+      - approle_grafana:/vault/approle/grafana
 
   user:
     container_name: user
@@ -378,6 +363,7 @@ services:
     networks:
       - backtier
       - frontier
+      - devops
 
   frontend:
     container_name: frontend
@@ -397,7 +383,170 @@ services:
     networks:
       - frontier
 
- 
+  elasticsearch:
+    build:
+      context: ./elk/elasticsearch
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - ES_JAVA_OPTS=-Xmx1g -Xms1g
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - approle_elasticsearch:/vault/approle/elasticsearch:ro
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+    networks:
+      - devops
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "-u", "elastic:changeme", "http://localhost:9200/_cluster/health?pretty"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.17.0
+    container_name: logstash
+    restart: unless-stopped
+    volumes:
+      - ./elk/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - ./elk/logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
+      - ./elk/logstash/pipeline:/usr/share/logstash/pipeline:ro
+    environment:
+      - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
+      - LS_JAVA_OPTS=-Xmx1g -Xms1g
+      - ELASTIC_USERNAME=elastic
+      - ELASTIC_PASSWORD=changeme
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    networks:
+      - devops
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.17.0
+    container_name: kibana
+    restart: unless-stopped
+    volumes:
+      - ./elk/kibana/config/:/usr/share/kibana/config:ro
+    environment:
+      - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_user
+      - ELASTICSEARCH_PASSWORD=kibana_password
+    ports:
+      - "5601:5601"
+    networks:
+      - devops
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.17.0
+    container_name: filebeat
+    user: root
+    command: -e --strict.perms=false
+    restart: unless-stopped
+    volumes:
+      - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    environment:
+      ELASTICSEARCH_HOST_PORT: http://elasticsearch:9200
+      KIBANA_HOST_PORT: http://localhost:5601
+      ELASTIC_USERNAME: elastic
+      ELASTIC_PASSWORD: changeme
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - devops
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: always
+    networks:
+      - devops
+    depends_on:
+      - node-exporter
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100"
+    restart: always
+    networks:
+      - devops
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  grafana:
+    build:
+      context: ./monitoring/grafana
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - devops
+    volumes:
+      - approle_grafana:/vault/approle/grafana:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
+
+
+  cAdvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    networks:
+      - devops
+    volumes:
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /:/rootfs:ro
+      - /dev/disk/:/dev/disk:ro
+    restart: always
+
+  postgres_exporter:
+    image: wrouesnel/postgres_exporter
+    container_name: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://user_dbuser:user_dbpass@user_db:5432/user_dbname?sslmode=disable"
+    ports:
+      - "9187:9187"
+    
+    depends_on:
+      - user_db
+    networks:
+      - backtier
+      - devops
 
 volumes:
   vault_data:
@@ -405,7 +554,7 @@ volumes:
   approle_user:
   approle_user_db:
   approle_gateway:
-  user_media:
+  approle_elasticsearch:
   user_static:
   game_db_data:
   user_db_data:
@@ -417,10 +566,14 @@ volumes:
   approle_chat_db:
   approle_auth:
   approle_auth_db:
+  approle_grafana:
   redis_data:
   approle_notification:
   approle_notification_db:
   notification_db_data:
+  elasticsearch-data:
+  prometheus-data:
+  user_media:
 
 networks:
   user_network:
@@ -431,3 +584,6 @@ networks:
   frontier:
     driver: bridge
     name: frontier
+  devops:
+    driver: bridge
+    name: devops
