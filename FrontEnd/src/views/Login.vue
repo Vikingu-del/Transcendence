@@ -1,20 +1,21 @@
 <template>
   <div class="form-container">
     <h2>{{ t('login.title') }}</h2>
+	<h2 v-if="showGenerateQRCodeButton"><b>Please enter username</b></h2>
     <form @submit.prevent="login">
       <div class="form-group">
         <label for="username">{{ t('login.username') }}</label>
         <input id="username" v-model="username" type="text" :placeholder="t('login.enterUsername')" required />
       </div>
-      <div class="form-group">
+      <div class="form-group" v-if="!hidePassword">
         <label for="password">{{ t('login.password') }}</label>
         <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
       </div>
-	  <div class="form-group">
+	  <div class="form-group" v-if="!hideOTP">
 		<label for="otp">OTP</label>
 		<input id="otp" v-model="otp" placeholder="Please enter your OTP" required>
 	  </div>
-      <button type="submit" class="submit-btn" :disabled="loading">
+      <button v-if="!hideSubmitButton" type="submit" class="submit-btn" :disabled="loading">
         {{ loading ? this.t('login.loading') : this.t('login.title') }}
       </button>
 	  <a href="#" @click.prevent="generateQRCode" class="forgot-password-link">Get new authenticator QR Code</a>
@@ -23,13 +24,13 @@
 	<div v-if="showQRCode">
 		<img :src="qrCode">
 	</div>
+	<button v-if="showGenerateQRCodeButton" class="submit-btn" @click="hideQRCode">Done</button>
   </div>
 </template>
 
 <script>
 import router from '@/router';
 import { auth } from '@/utils/auth';
-// import { faL } from '@fortawesome/free-solid-svg-icons';
 import { useI18n } from 'vue-i18n';
 
 export default {
@@ -47,7 +48,11 @@ export default {
       tfa: true,
 	  otp: '',
 	  showQRCode: false,
-	  qrCode: ''
+	  qrCode: '',
+	  hidePassword: false,
+	  hideOTP: false,
+	  hideSubmitButton: false,
+	  showGenerateQRCodeButton: false,
     };
   },
   
@@ -88,9 +93,7 @@ export default {
               await this.$nextTick();
               
               const redirectPath = this.redirect || '/profile';
-              console.log('Redirecting to:', redirectPath);
               await this.$router.push(redirectPath);
-              // tfa = true;
           } else {
               this.error = this.ct('login.error.Login failed');
               this.password = '';
@@ -105,6 +108,10 @@ export default {
     },
 
 	async generateQRCode(){
+		this.hidePassword = true;
+		this.hideOTP = true;
+		this.hideSubmitButton = true;
+		this.showGenerateQRCodeButton = true;
 		try{
 			const response = await fetch('/api/auth/generate_qrcode/', {
 				method: 'POST',
@@ -130,14 +137,25 @@ export default {
 		}
 	},
 
+	hideQRCode() {
+		this.showQRCode = false;
+		this.hidePassword = false;
+		this.hideOTP = false;
+		this.hideSubmitButton = false;
+		this.showGenerateQRCodeButton = false;
+	},
+
     resetForm() {
       this.username = '';
-    //   this.password = '';
       this.error = '';
       this.loading = false;
 	  this.otp = '',
 	  this.showQRCode = false;
 	  this.qrCode = '';
+	  this.showQRCode = false;
+	  this.hidePassword = false;
+	  this.hideOTP = false;
+	  this.hideSubmitButton = false;
     }
   }
 };

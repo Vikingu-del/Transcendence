@@ -124,15 +124,12 @@ export default {
         const authData = await authResponse.json();
 
         if (authResponse.ok) {
-			this.message = 'Registration successful! Redirecting to login...';
-			this.messageType = 'success';
 			
 			// Clear sensitive data
 			this.password = '';
 			this.passwordConfirm = '';
 			this.showQRCode = true;
 			this.qrCode = authData.qr_code;
-			this.isRegistrationSuccessful = true;
           // Delay redirect to show success message
         } else {
           console.log('Cause: ', authData.details);
@@ -156,6 +153,9 @@ export default {
       }
     },
 	redirectToLogin(){
+		this.message = 'Registration successful! Redirecting to login...';
+		this.messageType = 'success';
+		this.isRegistrationSuccessful = true;
 		setTimeout(() => {
 			this.$router.push('/login');
 		}, 1500);
