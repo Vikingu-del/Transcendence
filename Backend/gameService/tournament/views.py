@@ -11,39 +11,6 @@ import logging
 logger = logging.getLogger(__name__)
 User = get_user_model()
 
-# class EnrollmentCheckView(generics.RetrieveAPIView):
-#     authentication_classes = [JWTAuthentication]
-#     permission_classes = [IsAuthenticated]
-
-#     def get(self, request, *args, **kwargs):
-#         try:
-#             if not request.user.is_authenticated:
-#                 return Response(
-#                     {'error': 'Authentication required'},
-#                     status=status.HTTP_401_UNAUTHORIZED
-#                 )
-
-#             logger.debug(f"Request user: {request.user}")
-#             logger.debug(f"Request auth: {request.auth}")
-            
-#             user = request.user
-#             tournament = Tournament.objects.filter(
-#                 status="waiting", 
-#                 is_active=True
-#             ).first()
-            
-#             if not tournament:
-#                 return Response({'enrolled': False})
-            
-#             enrolled = tournament.players.filter(id=user.id).exists()
-#             return Response({'enrolled': enrolled})
-            
-#         except Exception as e:
-#             logger.error(f"Error in check_enrollment: {str(e)}")
-#             return Response(
-#                 {'error': str(e)},
-#                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-#             )
 class EnrollmentCheckView(generics.RetrieveAPIView):
     authentication_classes = [JWTAuthentication]
     permission_classes = [IsAuthenticated]
@@ -138,7 +105,6 @@ class TournamentEnrollView(generics.CreateAPIView):
                 )
             
             success = tournament.enroll_player(user)
-            
             if success:
                 return Response({
                     'enrolled': True,
@@ -232,14 +198,14 @@ class TournamentBracketView(generics.RetrieveAPIView):
                     match_data['player1'] = {
                         'id': match.player1.id,
                         'username': match.player1.username,
-                        'display_name': match.player1.username
+                        'display_name': match.player1.profile.display_name if hasattr(match.player1, 'profile') else match.player1.username
                     }
                 
                 if match.player2:
                     match_data['player2'] = {
                         'id': match.player2.id,
                         'username': match.player2.username,
-                        'display_name': match.player2.username
+                        'display_name': match.player2.profile.display_name if hasattr(match.player2, 'profile') else match.player2.username
                     }
                 
                 # Add to appropriate round

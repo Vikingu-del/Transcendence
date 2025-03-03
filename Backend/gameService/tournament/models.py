@@ -119,14 +119,12 @@ class Tournament(models.Model):
         return self.players.filter(id=user.id).exists()
 
     def enroll_player(self, user):
-        if self.is_player_enrolled(user):
+        if self.players.count() >= self.max_players or self.players.filter(id=user.id).exists():
             return False
-        if self.players.count() < self.max_players:
-            self.players.add(user)
-            if self.players.count() == self.max_players:
-                self.start_tournament()
-            return True
-        return False
+        self.players.add(user)
+        if self.players.count() == self.max_players and self.status == "waiting":
+            self.start_tournament()
+        return True
 
 class TournamentMatch(models.Model):
     MATCH_STATUS_CHOICES = [

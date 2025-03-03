@@ -1,19 +1,10 @@
 <template>
-  <!-- <div class="tournament-container">
-    <div v-if="!isEnrolled" class="tournament-prompt">
-      <p class="question">New Tournament Starting Soon. Wanna Join?</p>
-      <div class="button-group">
-        <button class="btn btn-yes" @click="handleYes">Yes</button>
-        <button class="btn btn-no" @click="handleNo">No</button>
-      </div>
-    </div> -->
     <div class="tournament-container">
-        <!-- Show enrollment prompt only if not enrolled and can enroll -->
+        <!-- Yes button here -->
         <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
           <p class="question">New Tournament Starting Soon. Wanna Join?</p>
           <div class="button-group">
             <button class="btn btn-yes" @click="handleYes">Yes</button>
-            <button class="btn btn-no" @click="handleNo">No</button>
           </div>
         </div>
 
@@ -41,7 +32,7 @@
             <li v-for="player in connectedPlayers" 
                 :key="player.id"
                 :class="{ 'current-player': player.id === currentUserId }">
-              {{ formattedPlayerName(player) }}
+              {{ player.display_name }}
               <span v-if="player.id === currentUserId">(You)</span>
             </li>
           </ul>
@@ -74,7 +65,7 @@
                       :src="match.player1.avatar_url" 
                       class="player-avatar"
                       alt="Player avatar">
-                  <span class="player-name">{{ formattedPlayerName(match.player1) }}</span>
+                  <span class="player-name">{{ match.player1.display_name }}</span>
                 </div>
               </div>
               <div class="vs">VS</div>
@@ -85,7 +76,7 @@
                       :src="match.player2.avatar_url" 
                       class="player-avatar"
                       alt="Player avatar">
-                  <span class="player-name">{{ formattedPlayerName(match.player2) }}</span>
+                  <span class="player-name">{{ match.player2.display_name }}</span>
                 </div>
               </div>
               
@@ -112,12 +103,12 @@
             <h4>Final Match</h4>
             <div class="player"
                 :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
-              {{ tournamentData.final.player1?.username || 'TBD' }}
+              {{ tournamentData.final.player1?.display_name || 'TBD' }}
             </div>
             <div class="vs">VS</div>
             <div class="player"
                 :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player2?.id }">
-              {{ tournamentData.final.player2?.username || 'TBD' }}
+              {{ tournamentData.final.player2?.display_name || 'TBD' }}
             </div>
             
             <!-- Display final match score if completed -->
@@ -153,12 +144,9 @@
         </div>
       </div>
     </div>
-
-  <!-- WebSocket connection status -->
-  <!-- WebSocket connection status -->
   <Teleport to="body" v-if="showGame">
     <Game 
-      :opponent="currentMatch.opponent.username"
+      :opponent="currentMatch.opponent.display_name"
       :opponentId="currentMatch.opponent.id"
       :gameId="currentMatch.gameId"
       :isHost="isHost"
@@ -168,7 +156,6 @@
       @gameOver="handleGameOver"
     />
   </Teleport>
-
   <div v-if="gameInviteNotification" class="game-invite-banner">
     <div class="game-invite-content">
       <p class="game-invite-text">
@@ -180,27 +167,21 @@
       </div>
     </div>
   </div>
-
 </template>
-
-
 <script>
-
 import Game from './Game.vue'; 
 import { inject } from 'vue';
 import Friends from './Friends.vue'; // Import Friends component to reuse methods
-
 export default {
   name: 'Tournament',
-
   components: {
     Game,
     Friends // Register Friends component
   },
-
   data() {
     return {
       profile: null,
+      userDisplayName: '',
       isEnrolled: false,
       tournamentStatus: 'waiting',
       currentPlayers: 0,
@@ -211,7 +192,6 @@ export default {
       currentUserId: null,
       canEnroll: false,
       enrollmentMessage: '',
-
       // WebSocket connection
       tournamentSocket: null,
       wsConnected: false,
@@ -219,7 +199,6 @@ export default {
       maxReconnectAttempts: 5,
       reconnectionTimeout: null,
       connectedPlayers: [],
-
       // Game state
       tournamentData: {
         semi_finals: [],
@@ -241,11 +220,12 @@ export default {
       return !!this.getToken; // Changed from this.token to this.getToken
     },
     formattedPlayerName() {
-    return (player) => {
-      return player.display_name || player.username;
-    }
-  }
+      return (player) => {
+        return player.display_name;
+      }
+    },
   },
+
   async created() {
     try {
       // Check authentication first
@@ -253,14 +233,11 @@ export default {
         this.$router.push('/login');
         return;
       }
-
       // First fetch profile
       await this.fetchProfile();
-      
       // Only check enrollment after profile is loaded
       if (this.profile && this.profile.id) {
         await this.checkEnrollment();
-        
         // If enrolled, fetch tournament status and connect to WebSocket
         if (this.isEnrolled) {
           await this.fetchTournamentStatus();
@@ -286,60 +263,101 @@ export default {
     window.addEventListener('tournament:gameComplete', this.handleGameCompleteEvent);
   },  
   methods: {
-
     handleGameCompleteEvent(event) {
-  console.log('Tournament received game complete event:', event.detail);
-  
-  // Only process if we have tournament data and active match
-  if (this.tournamentSocket?.readyState === WebSocket.OPEN && 
-      this.currentMatch && event.detail.tournamentId) {
+        console.log('Tournament received game complete event:', event.detail);
+        
+        // Only process if we have tournament data and active match
+        if (this.tournamentSocket?.readyState === WebSocket.OPEN && 
+            this.currentMatch && event.detail.tournamentId) {
+          
+          // Find the proper match data in tournamentData
+          const matchId = this.currentMatch.match_id;
+          let matchData = null;
+          
+          if (matchId.startsWith('semi_')) {
+            const semiIndex = parseInt(matchId.split('_')[1]);
+            matchData = this.tournamentData?.semi_finals?.[semiIndex];
+          } else if (matchId === 'final') {
+            matchData = this.tournamentData?.final;
+          }
+          
+          if (!matchData) {
+            console.error('Cannot find match data for', matchId);
+            return;
+          }
+          
+          // Use the player IDs from the match data
+          const player1Id = matchData.player1?.id;
+          const player2Id = matchData.player2?.id;
+          
+          // Format the match result data
+          const matchResult = {
+            type: 'match_complete',
+            match_id: matchId,
+            winner_id: event.detail.winnerId,
+            player1_id: player1Id ? parseInt(player1Id) : null,
+            player2_id: player2Id ? parseInt(player2Id) : null,
+            final_score: {
+              player1: event.detail.playerScore,
+              player2: event.detail.opponentScore
+            },
+            tournament_id: parseInt(this.tournamentId)
+          };
+          
+          console.log('Sending match complete to tournament:', matchResult);
+          this.tournamentSocket.send(JSON.stringify(matchResult));
+          
+          // Clear current match
+          this.currentMatch = null;
+          
+          // Add a timeout to fetch updated tournament bracket
+          setTimeout(() => {
+            this.fetchTournamentBracket();
+          }, 1000);
+        }
+    },
+
+    async updatePlayerDisplayNames() {
+      if (!this.connectedPlayers.length) return;
     
-    // Find the proper match data in tournamentData
-    const matchId = this.currentMatch.match_id;
-    let matchData = null;
-    
-    if (matchId.startsWith('semi_')) {
-      const semiIndex = parseInt(matchId.split('_')[1]);
-      matchData = this.tournamentData?.semi_finals?.[semiIndex];
-    } else if (matchId === 'final') {
-      matchData = this.tournamentData?.final;
-    }
-    
-    if (!matchData) {
-      console.error('Cannot find match data for', matchId);
-      return;
-    }
-    
-    // Use the player IDs from the match data
-    const player1Id = matchData.player1?.id;
-    const player2Id = matchData.player2?.id;
-    
-    // Format the match result data
-    const matchResult = {
-      type: 'match_complete',
-      match_id: matchId,
-      winner_id: event.detail.winnerId,
-      player1_id: player1Id ? parseInt(player1Id) : null,
-      player2_id: player2Id ? parseInt(player2Id) : null,
-      final_score: {
-        player1: event.detail.playerScore,
-        player2: event.detail.opponentScore
-      },
-      tournament_id: parseInt(this.tournamentId)
-    };
-    
-    console.log('Sending match complete to tournament:', matchResult);
-    this.tournamentSocket.send(JSON.stringify(matchResult));
-    
-    // Clear current match
-    this.currentMatch = null;
-    
-    // Add a timeout to fetch updated tournament bracket
-    setTimeout(() => {
-      this.fetchTournamentBracket();
-    }, 1000);
-  }
-},
+      const token = this.getToken;
+      if (!token) return;
+      
+      // Create a map of player IDs to their index in the array
+      const playerIndexMap = {};
+      this.connectedPlayers.forEach((player, index) => {
+        playerIndexMap[player.id] = index;
+      });
+      
+      // Fetch display names for all players without one
+      for (const player of this.connectedPlayers) {
+        if (!player.display_name) {
+          try {
+            const response = await fetch(`/api/user/profile/${player.id}/`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              // Update the player in the array (Vue will react to this change)
+              const index = playerIndexMap[player.id];
+              if (index !== undefined) {
+                this.connectedPlayers[index] = {
+                  ...player,
+                  display_name: data.display_name || player.display_name
+                };
+              }
+            }
+          } catch (error) {
+            console.error(`Error fetching profile for player ${player.id}:`, error);
+          }
+        }
+      }
+    },
+
     async fetchProfile() {
       try {
         const token = this.getToken;
@@ -391,7 +409,7 @@ export default {
               const profile = await response.json();
               return {
                 ...player,
-                display_name: profile.display_name || player.username
+                display_name: profile.display_name
               };
             }
           } catch (error) {
@@ -488,7 +506,6 @@ export default {
       try {
         const token = this.getToken;
         if (!token) throw new Error('No auth token found');
-
         const response = await fetch('/api/tournament/enroll/', {
           method: 'POST',
           headers: {
@@ -496,24 +513,25 @@ export default {
             'Content-Type': 'application/json'
           }
         });
-        
         if (!response.ok) {
           const errorText = await response.text();
           throw new Error(errorText);
         }
-
         const data = await response.json();
         if (data.enrolled) {
+          console.log('Data after enrollment: ', data);
           this.isEnrolled = true;
           this.tournamentId = data.tournament_id;
-          await this.fetchTournamentStatus();
+          this.tournamentStatus = data.status
+          this.currentPlayers = data.players;
+          this.maxPlayers = data.max_players
           this.connectWebSocket();
         }
-      } catch (error) {
-        console.error('Error enrolling in tournament:', error);
-        if (error.message.includes('token_not_valid')) {
-          this.$router.push('/login');
+        else {
+          this.enrollmentMessage = data.reason;
         }
+      } catch (error) {
+        console.error( error);
       }
     },
 
@@ -527,6 +545,7 @@ export default {
             this.connectedPlayers = data.players;
             this.currentPlayers = data.total_players;
             if (data.message) this.lastMessage = data.message;
+            this.updatePlayerDisplayNames();
 
             // Check if tournament is starting
             if (data.tournament_status === 'starting') {
@@ -798,8 +817,8 @@ export default {
           game_id: gameId,
           sender_id: this.currentUserId,
           recipient_id: opponent.id,
-          sender_name: this.profile.display_name || this.profile.username,
-          recipient_name: opponent.display_name || opponent.username,
+          sender_name: this.profile.display_name,
+          recipient_name: opponent.display_name,
           match_id: match.match_id,
           tournament_id: this.tournamentId  // Add tournament ID
         };
@@ -809,7 +828,7 @@ export default {
         const sent = this.notificationService.sendNotification(notificationData);
   
         if (sent) {
-          this.showStatus(`Game invite sent to ${opponent.username}`, {}, 'success');
+          this.showStatus(`Game invite sent to ${opponent.display_name}`, {}, 'success');
         } else {
           throw new Error('Failed to send notification');
         }
@@ -827,14 +846,14 @@ export default {
         // Handle game window
         if (this.globalGame) {
           console.log('Opening game window for host:', {
-            opponent: opponent.display_name || opponent.username,
+            opponent: opponent.display_name,
             gameId: gameId,
             isHost: true,
             matchId: match.match_id,
             tournamentId: this.tournamentId
           });
           this.globalGame.openGame({
-            opponent: opponent.display_name || opponent.username,
+            opponent: opponent.display_name,
             opponentId: opponentId,
             gameId: gameId,
             isHost: true,
@@ -950,13 +969,13 @@ export default {
             sender_id: parseInt(this.currentUserId),
             recipient_id: parseInt(match.opponent.id),
             sender_name: this.profile.display_name || 'User',
-            recipient_name: match.opponent.username
+            recipient_name: match.opponent.display_name
           };
 
           const sent = this.notificationService.sendNotification(inviteData);
 
           if (sent) {
-            this.showStatus(`Game invite sent to ${match.opponent.username}`, {}, 'success');
+            this.showStatus(`Game invite sent to ${match.opponent.display_name}`, {}, 'success');
           } else {
             throw new Error('Failed to send notification');
           }
@@ -1088,10 +1107,10 @@ export default {
       }
     },
 
-    // Helper method to find player ID from username
-    findPlayerId(username) {
+    // Helper method to find player ID from display_name
+    findPlayerId(display_name) {
       // Search in connected players
-      const player = this.connectedPlayers.find(p => p.username === username);
+      const player = this.connectedPlayers.find(p => p.display_name === display_name);
       return player ? player.id : null;
     },
 

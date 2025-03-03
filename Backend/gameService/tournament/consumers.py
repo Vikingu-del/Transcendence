@@ -2,8 +2,6 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 import json
 from channels.db import database_sync_to_async
 from .models import Tournament
-import os
-import aiohttp
 import uuid
 
 import logging
@@ -144,18 +142,31 @@ class TournamentConsumer(AsyncWebsocketConsumer):
             tournament = await database_sync_to_async(Tournament.objects.get)(id=self.tournament_id)
             players = await database_sync_to_async(list)(tournament.players.all())
             
-            # Just return basic player info without trying to fetch profiles
-            player_profiles = [{
-                'id': player.id,
-                'username': player.username,
-                'display_name': player.username  # Default to username
-            } for player in players]
+            # Create player profiles with proper display names
+            player_profiles = []
+            for player in players:
+                profile_data = {
+                    'id': player.id,
+                    'username': player.username
+                }
+                
+                # Try to get display name from profile
+                try:
+                    profile = await database_sync_to_async(lambda: player.profile if hasattr(player, 'profile') else None)()
+                    if profile and hasattr(profile, 'display_name'):
+                        display_name = await database_sync_to_async(lambda: profile.display_name)()
+                        profile_data['display_name'] = display_name
+                    else:
+                        profile_data['display_name'] = player.username
+                except Exception:
+                    profile_data['display_name'] = player.username
+                
+                player_profiles.append(profile_data)
 
             return {
                 'players': player_profiles,
                 'total_players': len(players)
             }
-
         except Exception as e:
             logger.error(f"Error in get_tournament_players: {str(e)}")
             raise
@@ -170,18 +181,36 @@ class TournamentConsumer(AsyncWebsocketConsumer):
             # Create semi-finals matches with consistent ordering
             semi_finals = []
             for i in range(0, 4, 2):
+                # Get display name for player1
+                player1_display_name = players[i].username
+                try:
+                    profile1 = await database_sync_to_async(lambda: players[i].profile if hasattr(players[i], 'profile') else None)()
+                    if profile1 and hasattr(profile1, 'display_name'):
+                        player1_display_name = await database_sync_to_async(lambda: profile1.display_name)()
+                except Exception:
+                    pass  # Fall back to username
+                    
+                # Get display name for player2
+                player2_display_name = players[i + 1].username
+                try:
+                    profile2 = await database_sync_to_async(lambda: players[i + 1].profile if hasattr(players[i + 1], 'profile') else None)()
+                    if profile2 and hasattr(profile2, 'display_name'):
+                        player2_display_name = await database_sync_to_async(lambda: profile2.display_name)()
+                except Exception:
+                    pass  # Fall back to username
+                    
                 semi_finals.append({
                     'match_id': f'semi_{i//2}',
                     'phase': 'semi-final',
                     'player1': {
                         'id': players[i].id,
                         'username': players[i].username,
-                        'display_name': players[i].username  # Default to username
+                        'display_name': player1_display_name  # Use actual display name
                     },
                     'player2': {
                         'id': players[i + 1].id,
                         'username': players[i + 1].username,
-                        'display_name': players[i + 1].username  # Default to username
+                        'display_name': player2_display_name  # Use actual display name
                     },
                     'status': 'pending',
                     'winner': None,
