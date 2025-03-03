@@ -131,7 +131,6 @@ export default defineComponent({
 		};
 
 		const handlePlayerDecline = () => {
-			console.log('Host detected player decline, closing game');
 			emit('close');
 		};
 
@@ -154,7 +153,6 @@ export default defineComponent({
 		// At the start of your setup function
 		// Add new reactive refs
 		const isLocalHost = ref<boolean>(props.isHost);
-		console.log('isLocalHost value IN REF:', isLocalHost.value);
 		const isWaiting = ref<boolean>(props.isHost);
 		const gameStarted = ref<boolean>(false);
 		const gameAccepted = ref<boolean>(false);
@@ -514,10 +512,8 @@ export default defineComponent({
 
 		const checkGameOver = () => {
 			const { score } = gameState.value;
-			console.log('Checking game over - Current scores:', score[0], score[1]);
 			
 			if (score[0] >= 15 || score[1] >= 15) {
-				console.log('Game over condition met');
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
 				
@@ -535,7 +531,6 @@ export default defineComponent({
 					game_id: props.gameId 
 				};
 				
-				console.log('Sending game end data:', gameEndData);
 				
 				if (gameSocket.value?.readyState === WebSocket.OPEN) {
 					gameSocket.value.send(JSON.stringify(gameEndData));
@@ -546,13 +541,7 @@ export default defineComponent({
 
 		const saveGameResult = async (player1Score: number, player2Score: number) => {
 			try {
-				console.log('Saving game result:', {
-					player1Score,
-					player2Score,
-					gameId: props.gameId,
-					winnerId: player1Score > player2Score ? props.userId : props.opponentId
-				});
-
+				
 				const response = await fetch(`/pong/game/${props.gameId}/save/`, {
 				method: 'POST',
 				headers: {
@@ -566,7 +555,6 @@ export default defineComponent({
 				})
 				});
 				const data = await response.json();
-				// console.log('Match result saved!', data);
 			} catch (error) {
 				console.error('Error saving game result:', error);
 			}
@@ -619,7 +607,6 @@ export default defineComponent({
 				const token = localStorage.getItem('token');
 				const wsUrl = `${wsProtocol}//${wsHost}/ws/game/${props.gameId}/?token=${token}`;
 				
-				console.log('Connecting to WebSocket:', wsUrl);
 				
 				if (gameSocket.value) {
 					gameSocket.value.close();
@@ -632,7 +619,6 @@ export default defineComponent({
         		const maxRetries = 3;
 
 				gameSocket.value.onopen = () => {
-					console.log('Game WebSocket connected');
 					retryCount = 0; // Reset retry count on successful connection
 					
 					// Send initial join message
@@ -648,11 +634,9 @@ export default defineComponent({
 				gameSocket.value.onmessage = (event) => {
 					try {
 						const data = JSON.parse(event.data);
-						console.log('Game message received:', data);
 						
 						// Add this special handler for decline messages
 						if (data.type === 'player_declined') {
-						console.log('Received player_declined message through game socket');
 						handlePlayerDecline();
 						return;
 						}
@@ -669,15 +653,12 @@ export default defineComponent({
 				};
 				
 				gameSocket.value.onclose = (event) => {
-					console.log('Game WebSocket closed:', event);
 					
 					// Only attempt to reconnect if the game is still active
 					if (gameStarted.value && retryCount < maxRetries) {
-						console.log(`Attempting to reconnect (${retryCount + 1}/${maxRetries})...`);
 						retryCount++;
 						setTimeout(initializeGameSocket, 1000 * retryCount);
 					} else if (retryCount >= maxRetries) {
-						console.log('Max reconnection attempts reached');
 						emit('connectionLost');
 					}
 				};
@@ -709,9 +690,6 @@ export default defineComponent({
 						cancelAnimationFrame(animationFrame.value);
 						gameStarted.value = false;
 						showEndGame.value = true;
-
-						// Log the received data for debugging
-						console.log('Received game end data:', data);
 
 						if (data.reason === 'disconnect') {
 							// Handle disconnect case
@@ -801,16 +779,13 @@ export default defineComponent({
 
 		const startGame = () => {
 			if (!gameSocket.value || gameSocket.value.readyState !== WebSocket.OPEN) {
-				console.error('WebSocket not connected');
 				return;
 			}
 
 			if (isLocalHost.value) {
-				console.log('Host starting game...');
 				
 				// Initialize game first
 				if (!initGame()) {
-					console.error('Failed to initialize game');
 					return;
 				}
 
@@ -856,11 +831,6 @@ export default defineComponent({
 				gameStarted.value = false;
 				showEndGame.value = true;
 
-				console.log('Game over with state:', {
-					opponentId: props.opponentId,
-					userId: props.userId,
-					isHost: isLocalHost.value
-				});
 
 
 				if (data.reason === 'disconnect') {
@@ -1008,15 +978,8 @@ export default defineComponent({
 				await new Promise(resolve => setTimeout(resolve, 100));
 				
 				if (!gameCanvas.value) {
-					console.error('Canvas ref not found after mount');
 					return;
 				}
-
-				// console.log('Canvas element found:', {
-				// 	element: gameCanvas.value,
-				// 	width: gameCanvas.value.width,
-				// 	height: gameCanvas.value.height
-				// });
 
 				// Initialize game components
 				initGame();
@@ -1028,7 +991,6 @@ export default defineComponent({
    				window.addEventListener('unload', handlePageUnload);
 
 				if (ctx.value && gameCanvas.value) {
-					console.log('Game components initialized successfully');
 					initializeGameSocket();
 					window.addEventListener('keydown', handleKeyDown);
 				} else {

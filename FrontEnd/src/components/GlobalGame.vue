@@ -40,15 +40,7 @@
   
       // Method to open game
       const openGame = (gameData) => {
-        console.log('GlobalGame: Opening game with data:', {
-          opponent: gameData.opponent,
-          opponentId: gameData.opponentId,
-          gameId: gameData.gameId,
-          isHost: gameData.isHost,
-          userId: userId.value,
-          tournamentId: gameData.tournamentId
-        });
-        
+                
         opponent.value = gameData.opponent;
         opponentId.value = parseInt(gameData.opponentId);
         gameId.value = gameData.gameId;
@@ -59,16 +51,13 @@
       
       // Method to close game
       const closeGame = () => {
-        console.log('GlobalGame: Closing game window');
         showGameWindow.value = false;
         gameId.value = '';
         opponent.value = '';
         tournamentId.value = null;
-        console.log('Game window closed, new status:', showGameWindow.value);
       };
 
       const handleGameOver = (result) => {
-        console.log('GlobalGame: Game over event received:', result);
         
         // Emit the event globally for Tournament component
         if (eventBus) {

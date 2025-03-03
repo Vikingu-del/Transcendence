@@ -112,7 +112,6 @@ export default {
             this.$router.push('/login');
           }, 1500);
         } else {
-          console.log('Cause: ', authData.details);
           // Handle auth service error
           if (authData.non_field_errors) {
             this.errors = Array.isArray(authData.non_field_errors) 

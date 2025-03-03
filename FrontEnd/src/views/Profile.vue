@@ -155,7 +155,6 @@ export default {
   async created() {
     try {
       const token = localStorage.getItem('token');
-      console.log('Initial token:', token);
       
       if (!token) {
         await this.$router.push('/login');
@@ -218,7 +217,6 @@ export default {
     async fetchProfile() {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching profile with token:', token);
 
         if (!token) {
           throw new Error('No auth token found');
@@ -318,7 +316,6 @@ export default {
           this.profile.match_history = matchHistory;
         }
         
-        console.log('Fetched match history with display names:', matchHistory);
       } catch (error) {
         console.error('Error fetching match history:', error);
       }
@@ -327,7 +324,6 @@ export default {
     async onFileChange(e) {
       try {
         const token = localStorage.getItem('token');
-        console.log('Fetching profile with token:', token);
 
         if (!token) {
           throw new Error('No auth token found');
@@ -483,7 +479,6 @@ export default {
     },
 
     buildAvatarUrl(avatarPath) {
-      console.log('Building avatar URL:', avatarPath);
       // If no avatar path or it's the default avatar path
       if (!avatarPath || avatarPath.includes('default.png')) {
         return this.defaultAvatarUrl;

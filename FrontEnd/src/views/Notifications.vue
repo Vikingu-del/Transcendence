@@ -74,7 +74,6 @@ export default {
           return;
         }
         
-        console.log('Fetching notifications with token:', token.substring(0, 10) + '...');
         
         const response = await fetch('/api/notification/', {
           headers: { 
@@ -83,7 +82,6 @@ export default {
           }
         });
         
-        console.log('Response status:', response.status);
         
         if (!response.ok) {
           const errorText = await response.text();
@@ -92,7 +90,6 @@ export default {
         }
         
         const data = await response.json();
-        console.log('Notification data received:', data);
         
         this.notifications = data;
         this.loading = false;
@@ -170,7 +167,6 @@ export default {
     },
     
     formatNotificationMessage(notification) {
-      console.log('Formatting notification:', notification);
       const senderName = notification.sender_name || 
                    (notification.content && notification.content.sender_name) || 
                    'Someone';

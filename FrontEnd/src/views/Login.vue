@@ -101,7 +101,6 @@ export default {
               await this.$nextTick();
               
               const redirectPath = this.redirect || '/profile';
-              console.log('Redirecting to:', redirectPath);
               await this.$router.push(redirectPath);
               // tfa = true;
           } else {
