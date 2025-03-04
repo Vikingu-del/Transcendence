@@ -1,6 +1,0 @@
-
-
-1. Role of NGINX
-Reverse Proxy: NGINX is often used as a reverse proxy server that can handle requests coming from clients and forward them to the appropriate backend services (in your case, Django applications). This setup can help improve response times, manage load, and provide a single entry point for your APIs.
-Load Balancing: NGINX can distribute incoming traffic across multiple backend servers, which can be beneficial if you're scaling your services or need to manage high traffic.
-SSL Termination: NGINX can handle HTTPS connections, which offloads the SSL processing from your backend applications, allowing them to focus on serving requests.
