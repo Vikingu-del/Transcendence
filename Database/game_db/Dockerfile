@@ -1,5 +1,7 @@
 FROM postgres:latest
 
+USER root
+
 RUN apt-get update && apt-get install -y curl bash unzip jq
 
 # Install Vault CLI

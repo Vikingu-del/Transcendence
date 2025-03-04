@@ -7,6 +7,8 @@ ENV PYTHONUNBUFFERED 1
 
 WORKDIR /app
 
+USER root
+
 # Install netcat
 RUN apt-get update && apt-get install -y netcat-openbsd && apt-get install -y curl bash unzip jq
 
