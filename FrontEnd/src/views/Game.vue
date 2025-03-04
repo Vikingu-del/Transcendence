@@ -513,7 +513,7 @@ export default defineComponent({
 		const checkGameOver = () => {
 			const { score } = gameState.value;
 			
-			if (score[0] >= 15 || score[1] >= 15) {
+			if (score[0] >= 3 || score[1] >= 3) {
 				cancelAnimationFrame(animationFrame.value);
 				showNewGameButton.value = true;
 				

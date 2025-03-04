@@ -117,6 +117,8 @@
 	  async register() {
 		try {
 		  // 1. Register with auth service
+		  this.message = "Successfully Registered. Please scan the QR code.";
+		  this.messageType = 'success';
 		  const authResponse = await fetch('/api/auth/register/', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },

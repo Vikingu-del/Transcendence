@@ -4,7 +4,8 @@
 *.crt
 
 # Other common ignores
-.env
+#ignore gitignore
+*.env
 node_modules/
 __pycache__/
 *.pyc
