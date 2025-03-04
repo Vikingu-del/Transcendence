@@ -17,6 +17,8 @@ RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_am
     unzip vault.zip && mv vault /usr/local/bin/ && rm vault.zip
 
 RUN chmod +x /custom-entrypoint.sh
+COPY config/healthcheck.sh /usr/local/bin/healthcheck.sh
+RUN chmod +x /usr/local/bin/healthcheck.sh
 
 USER elasticsearch
 

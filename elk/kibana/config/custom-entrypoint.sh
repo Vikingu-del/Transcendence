@@ -2,8 +2,8 @@
 set -e
 
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/elasticsearch/role_id"
-SECRET_ID_FILE="/vault/approle/elasticsearch/secret_id"
+ROLE_ID_FILE="/vault/approle/kibana/role_id"
+SECRET_ID_FILE="/vault/approle/kibana/secret_id"
 
 # Check credentials exist
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
@@ -32,15 +32,14 @@ echo "✅ Successfully authenticated with Vault"
 
 # Get secrets
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/elasticsearch)
+    $VAULT_ADDR/v1/secret/data/kibana)
 RESPONSE_JSON=$(echo $VAULT_RESPONSE | jq -r .data.data)
 echo "VAULT_RESPONSE: $RESPONSE_JSON"
 
 # Export variables
-export ELASTIC_USERNAME=$(echo $VAULT_RESPONSE | jq -r .data.data.ELASTIC_USERNAME)
-export ELASTIC_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.ELASTIC_PASSWORD)
 export ELASTICSEARCH_USERNAME=$(echo $VAULT_RESPONSE | jq -r .data.data.ELASTICSEARCH_USERNAME)
 export ELASTICSEARCH_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.ELASTICSEARCH_PASSWORD)
-/usr/share/elasticsearch/bin/elasticsearch-users useradd $ELASTICSEARCH_USERNAME -p $ELASTICSEARCH_PASSWORD -r kibana_system
 
-exec "/usr/local/bin/docker-entrypoint.sh"
+exec /usr/local/bin/kibana-docker
+
+exec "$@"

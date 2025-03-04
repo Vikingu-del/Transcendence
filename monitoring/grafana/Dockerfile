@@ -3,8 +3,9 @@ FROM grafana/grafana:latest
 USER root
 
 # Copy custom config files
-RUN mkdir -p /etc/grafana/provisioning /etc/grafana/dashboards
-COPY provisioning/ /etc/grafana/provisioning/
+RUN mkdir -p /etc/grafana/provisioning/dashboards /etc/grafana/provisioning/datasources
+COPY provisioning/dashboard.yaml /etc/grafana/provisioning/dashboards/dashboard.yaml
+COPY provisioning/datasources.yml /etc/grafana/provisioning/datasources/datasources.yml
 COPY dashboards/ /var/lib/grafana/dashboards/
 # Create Kibana user using elasticsearch-users tool
 COPY config/custom-entrypoint.sh /custom-entrypoint.sh

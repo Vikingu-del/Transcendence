@@ -29,6 +29,9 @@ services:
       - approle_notification:/vault/approle/notification
       - approle_elasticsearch:/vault/approle/elasticsearch
       - approle_grafana:/vault/approle/grafana
+      - approle_logstash:/vault/approle/logstash
+      - approle_kibana:/vault/approle/kibana
+      - approle_filebeat:/vault/approle/filebeat
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -65,6 +68,9 @@ services:
       - approle_notification:/vault/approle/notification
       - approle_elasticsearch:/vault/approle/elasticsearch
       - approle_grafana:/vault/approle/grafana
+      - approle_logstash:/vault/approle/logstash
+      - approle_kibana:/vault/approle/kibana
+      - approle_filebeat:/vault/approle/filebeat
 
   user:
     container_name: user
@@ -235,7 +241,6 @@ services:
     networks:
       - backtier
     
-
   game:
     container_name: game
     build:
@@ -284,7 +289,6 @@ services:
       - game_db_data:/var/lib/postgresql/data
     networks:
       - backtier
-
 
   notification:
     container_name: notification
@@ -406,43 +410,44 @@ services:
     networks:
       - devops
     healthcheck:
-      test: ["CMD", "curl", "-sf", "-u", "elastic:changeme", "http://localhost:9200/_cluster/health?pretty"]
+      test: ["CMD", "curl", "-s", "http://localhost:9200"]
       interval: 30s
       timeout: 10s
       retries: 5
+      start_period: 40s
 
   logstash:
-    image: docker.elastic.co/logstash/logstash:8.17.0
+    build: 
+      context: ./elk/logstash
     container_name: logstash
     restart: unless-stopped
-    volumes:
-      - ./elk/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
-      - ./elk/logstash/config/pipelines.yml:/usr/share/logstash/config/pipelines.yml:ro
-      - ./elk/logstash/pipeline:/usr/share/logstash/pipeline:ro
     environment:
       - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
       - LS_JAVA_OPTS=-Xmx1g -Xms1g
-      - ELASTIC_USERNAME=elastic
-      - ELASTIC_PASSWORD=changeme
     ports:
       - "5044:5044"
       - "9600:9600"
     networks:
       - devops
+    volumes:
+      - approle_logstash:/vault/approle/logstash:ro
     depends_on:
       elasticsearch:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
 
   kibana:
-    image: docker.elastic.co/kibana/kibana:8.17.0
+    build:
+      context: ./elk/kibana
     container_name: kibana
     restart: unless-stopped
     volumes:
-      - ./elk/kibana/config/:/usr/share/kibana/config:ro
+      - approle_kibana:/vault/approle/kibana:ro
     environment:
       - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
-      - ELASTICSEARCH_USERNAME=kibana_user
-      - ELASTICSEARCH_PASSWORD=kibana_password
     ports:
       - "5601:5601"
     networks:
@@ -450,25 +455,32 @@ services:
     depends_on:
       elasticsearch:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
 
   filebeat:
-    image: docker.elastic.co/beats/filebeat:8.17.0
+    build: 
+      context: ./elk/filebeat
     container_name: filebeat
     user: root
     command: -e --strict.perms=false
     restart: unless-stopped
     volumes:
-      - ./elk/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - approle_filebeat:/vault/approle/filebeat:ro 
     environment:
       ELASTICSEARCH_HOST_PORT: http://elasticsearch:9200
       KIBANA_HOST_PORT: http://localhost:5601
-      ELASTIC_USERNAME: elastic
-      ELASTIC_PASSWORD: changeme
     depends_on:
       elasticsearch:
         condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
     networks:
       - devops
 
@@ -549,17 +561,10 @@ services:
       - devops
 
 volumes:
-  vault_data:
-  vault_token:
   approle_user:
   approle_user_db:
   approle_gateway:
   approle_elasticsearch:
-  user_static:
-  game_db_data:
-  user_db_data:
-  chat_db_data:
-  auth_db_data:
   approle_game:
   approle_game_db:
   approle_chat:
@@ -567,9 +572,19 @@ volumes:
   approle_auth:
   approle_auth_db:
   approle_grafana:
-  redis_data:
+  approle_logstash:
   approle_notification:
   approle_notification_db:
+  approle_kibana:
+  approle_filebeat:
+  vault_data:
+  vault_token:
+  user_static:
+  game_db_data:
+  user_db_data:
+  chat_db_data:
+  auth_db_data:
+  redis_data:
   notification_db_data:
   elasticsearch-data:
   prometheus-data:
