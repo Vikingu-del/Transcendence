@@ -32,8 +32,6 @@ APP_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_USER)
 APP_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_PASSWORD)
 APP_DB=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_NAME)
 
-# Debug output (remove in production)
-echo "Debug: APP_USER=$APP_USER APP_DB=$APP_DB"
 
 # Validate credentials
 if [ -z "$APP_USER" ] || [ "$APP_USER" = "null" ] || \

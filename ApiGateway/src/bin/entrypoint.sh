@@ -74,7 +74,7 @@ MODSEC_CONFIG=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
     $VAULT_ADDR/v1/secret/data/gateway | jq -r .data.data) 
 
 # Debugging: Print the raw response from Vault
-echo "Raw Vault response: $MODSEC_CONFIG"
+# echo "Raw Vault response: $MODSEC_CONFIG"
 
 for key in $(echo $MODSEC_CONFIG | jq -r "keys[]"); do
     value=$(echo $MODSEC_CONFIG | jq -r --arg key "$key" '.[$key]')

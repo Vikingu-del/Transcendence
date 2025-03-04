@@ -37,12 +37,6 @@ export DB_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_NAME)
 export DB_HOST=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_HOST)
 export DB_PORT=$(echo $VAULT_RESPONSE | jq -r .data.data.AUTH_DB_PORT)
 
-echo "DB_USER: $DB_USER"
-echo "DB_PASSWORD: $DB_PASSWORD"
-echo "DB_NAME: $DB_NAME"
-echo "DB_HOST: $DB_HOST"
-echo "DB_PORT: $DB_PORT"
-
 # Wait for PostgreSQL
 MAX_RETRIES=30
 count=0
