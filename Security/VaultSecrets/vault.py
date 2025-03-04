@@ -166,6 +166,29 @@ secrets_to_store_gateway = {
     "CURRENT_HOST": env_vars.get("CURRENT_HOST"),
 }
 
+secrets_to_store_elasticsearch = {
+    "ELASTIC_USERNAME": env_vars.get("ELASTIC_USERNAME"),
+    "ELASTIC_PASSWORD": env_vars.get("ELASTIC_PASSWORD"),
+    "ELASTICSEARCH_USERNAME": env_vars.get("ELASTICSEARCH_USERNAME"),
+    "ELASTICSEARCH_PASSWORD": env_vars.get("ELASTICSEARCH_PASSWORD"),
+}
+
+secrets_to_store_grafana = {
+    "GF_SECURITY_ADMIN_USER": env_vars.get("GF_SECURITY_ADMIN_USER"),
+    "GF_SECURITY_ADMIN_PASSWORD": env_vars.get("GF_SECURITY_ADMIN_PASSWORD"),
+}
+
+secrets_to_store_logstash = {
+    "ELASTIC_USERNAME": env_vars.get("ELASTIC_USERNAME"),
+    "ELASTIC_PASSWORD": env_vars.get("ELASTIC_PASSWORD"),
+}
+
+secrets_to_store_kibana = {
+    "ELASTICSEARCH_USERNAME": env_vars.get("ELASTICSEARCH_USERNAME"),
+    "ELASTICSEARCH_PASSWORD": env_vars.get("ELASTICSEARCH_PASSWORD"),
+}
+
+
 write_secret_to_vault("gateway", secrets_to_store_gateway)
 write_secret_to_vault("user_db", secrets_to_store_user)
 write_secret_to_vault("user", secrets_to_store_user)
@@ -177,10 +200,15 @@ write_secret_to_vault("game", secrets_to_store_game)
 write_secret_to_vault("game_db", secrets_to_store_game)
 write_secret_to_vault("notification", secrets_to_store_notification)
 write_secret_to_vault("notification_db", secrets_to_store_notification)
+write_secret_to_vault("elasticsearch", secrets_to_store_elasticsearch)
+write_secret_to_vault("logstash", secrets_to_store_logstash)
+write_secret_to_vault("grafana", secrets_to_store_grafana)
+write_secret_to_vault("kibana", secrets_to_store_kibana)
+write_secret_to_vault("filebeat", secrets_to_store_logstash)
 
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db', 'notification', 'notification_db']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db', 'notification', 'notification_db', 'elasticsearch', 'grafana', 'logstash', 'kibana', 'filebeat']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

@@ -1,25 +1,4 @@
 services:
-
-  # swagger:
-  #   container_name: swagger
-  #   build:
-  #     context: ./Swagger
-  #     dockerfile: Dockerfile
-  #   environment:
-  #     URLS_PRIMARY_NAME: "UserService" # Default API to display in Swagger UI
-  #     URLS: '[{ "url": "/doc/ApiGateway.yaml", "name": "ApiGateway" }, 
-  #        { "url": "/doc/UserService.yaml", "name": "UserService" },
-  #        { "url": "/doc/Security.yaml", "name": "Security" },
-  #        { "url": "/doc/Database.yaml", "name": "Database" },
-  #        { "url": "/doc/FrontEnd.yaml", "name": "FrontEnd" }]'
-  #   volumes:
-  #     - ./docs/openapi:/usr/share/nginx/html/doc # Mount local OpenAPI specs
-  #   ports:
-  #     - "8080:8080"  # Swagger UI available at localhost:8080
-  #   restart: always
-  #   networks:
-  #     backtier:
-
   vault:
     container_name: vault
     build:
@@ -31,6 +10,7 @@ services:
       - "8200:8200"
     networks:
       - backtier
+      - devops
     environment:
       - VAULT_ADDR=http://vault:8200
     volumes:
@@ -47,6 +27,11 @@ services:
       - approle_game_db:/vault/approle/game_db
       - approle_notification_db:/vault/approle/notification_db
       - approle_notification:/vault/approle/notification
+      - approle_elasticsearch:/vault/approle/elasticsearch
+      - approle_grafana:/vault/approle/grafana
+      - approle_logstash:/vault/approle/logstash
+      - approle_kibana:/vault/approle/kibana
+      - approle_filebeat:/vault/approle/filebeat
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -63,6 +48,7 @@ services:
       - ./Security/VaultSecrets/secrets/.env
     networks:
       - backtier
+      - devops
     depends_on:
       vault:
         condition: service_healthy
@@ -80,6 +66,11 @@ services:
       - approle_game_db:/vault/approle/game_db
       - approle_notification_db:/vault/approle/notification_db
       - approle_notification:/vault/approle/notification
+      - approle_elasticsearch:/vault/approle/elasticsearch
+      - approle_grafana:/vault/approle/grafana
+      - approle_logstash:/vault/approle/logstash
+      - approle_kibana:/vault/approle/kibana
+      - approle_filebeat:/vault/approle/filebeat
 
   user:
     container_name: user
@@ -93,10 +84,6 @@ services:
       - approle_user:/vault/approle/user:ro
       - user_static:/app/static
       - user_media:/app/media
-    environment:
-      - DJANGO_SETTINGS_MODULE=userService.settings
-      - AUTH_SERVICE_URL=http://auth:8001
-      - INTERNAL_API_KEY=your-secure-key-here
     depends_on:
       vault:
         condition: service_started
@@ -144,7 +131,6 @@ services:
       - user_static:/app/static
       - user_media:/app/media
     environment:
-      - DJANGO_SETTINGS_MODULE=chatService.settings
       - API_PREFIX=/api/chat
       - REDIS_URL=redis://redis:6379/0
     depends_on:
@@ -211,9 +197,7 @@ services:
       - ./Backend/authService:/app
       - approle_auth:/vault/approle/auth:ro
     environment:
-      - DJANGO_SETTINGS_MODULE=authService.settings
       - USER_SERVICE_URL=http://user:8000  # For service communication
-      - INTERNAL_API_KEY=your-secure-key-here #AddddDDDED IVAN
     depends_on:
       vault:
         condition: service_started
@@ -250,7 +234,6 @@ services:
     networks:
       - backtier
     
-
   game:
     container_name: game
     build:
@@ -262,10 +245,8 @@ services:
       - ./Backend/gameService:/app
       - approle_game:/vault/approle/game:ro
     environment:
-      - DJANGO_SETTINGS_MODULE=gameService.settings
       - USER_SERVICE_URL=http://gateway/user
       - AUTH_SERVICE_URL=http://gateway/auth
-      - INTERNAL_API_KEY=your-secure-key-here
     depends_on:
       vault:
         condition: service_started
@@ -300,7 +281,6 @@ services:
     networks:
       - backtier
 
-
   notification:
     container_name: notification
     build:
@@ -312,10 +292,8 @@ services:
       - ./Backend/notificationService:/app
       - approle_notification:/vault/approle/notification:ro
     environment:
-      - DJANGO_SETTINGS_MODULE=notificationService.settings
       - USER_SERVICE_URL=http://gateway/user
       - AUTH_SERVICE_URL=http://gateway/auth
-      - INTERNAL_API_KEY=your-secure-key-here
     depends_on:
       vault:
         condition: service_started
@@ -369,15 +347,13 @@ services:
       - approle_gateway:/vault/approle/gateway:ro
       - ./ApiGateway/config/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
       - ./ApiGateway/config/modsecurity:/etc/nginx/templates/modsecurity:ro
-      - ./ApiGateway/ssl:/etc/nginx/ssl:ro # Mount SSL certificates
+      - ./ApiGateway/ssl:/etc/nginx/ssl:ro
       - user_static:/app/static
       - user_media:/app/media
-    # environment:
-    #   - NGINX_HOST=${NGINX_HOST:-10.12.12.5}
-    #   - NGINX_PORT=${NGINX_PORT:-443}
     networks:
       - backtier
       - frontier
+      - devops
 
   frontend:
     container_name: frontend
@@ -385,42 +361,218 @@ services:
       context: ./FrontEnd
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"  # Vite's default dev server port
+      - "5173:5173"
     volumes:
       - ./FrontEnd:/app
-      - /app/node_modules # Preserve node_modules from container
+      - /app/node_modules
     environment:
       - NODE_ENV=development
-      # - VITE_HOST=0.0.0.0
-      # - VITE_API_URL=${NGINX_HOST:-10.12.12.5}
     command: npm run dev -- --host
     networks:
       - frontier
 
- 
+  elasticsearch:
+    build:
+      context: ./elk/elasticsearch
+    container_name: elasticsearch
+    restart: unless-stopped
+    environment:
+      - ES_JAVA_OPTS=-Xmx1g -Xms1g
+      - discovery.type=single-node
+      - xpack.security.enabled=true
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - approle_elasticsearch:/vault/approle/elasticsearch:ro
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    depends_on:
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+    networks:
+      - devops
+    healthcheck:
+      test: ["CMD", "curl", "-s", "http://localhost:9200"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+  logstash:
+    build: 
+      context: ./elk/logstash
+    container_name: logstash
+    restart: unless-stopped
+    environment:
+      - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
+      - LS_JAVA_OPTS=-Xmx1g -Xms1g
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    networks:
+      - devops
+    volumes:
+      - approle_logstash:/vault/approle/logstash:ro
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+
+  kibana:
+    build:
+      context: ./elk/kibana
+    container_name: kibana
+    restart: unless-stopped
+    volumes:
+      - approle_kibana:/vault/approle/kibana:ro
+    environment:
+      - ELASTICSEARCH_HOST_PORT=http://elasticsearch:9200
+    ports:
+      - "5601:5601"
+    networks:
+      - devops
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+
+  filebeat:
+    build: 
+      context: ./elk/filebeat
+    container_name: filebeat
+    user: root
+    command: -e --strict.perms=false
+    restart: unless-stopped
+    volumes:
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - approle_filebeat:/vault/approle/filebeat:ro 
+    environment:
+      ELASTICSEARCH_HOST_PORT: http://elasticsearch:9200
+      KIBANA_HOST_PORT: http://localhost:5601
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets:
+        condition: service_completed_successfully
+    networks:
+      - devops
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    restart: always
+    networks:
+      - devops
+    depends_on:
+      - node-exporter
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    ports:
+      - "9100"
+    restart: always
+    networks:
+      - devops
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+
+  grafana:
+    build:
+      context: ./monitoring/grafana
+    container_name: grafana
+    restart: always
+    ports:
+      - "3000:3000"
+    networks:
+      - devops
+    volumes:
+      - approle_grafana:/vault/approle/grafana:ro
+    depends_on:
+      prometheus:
+        condition: service_started
+      vault_secrets:
+        condition: service_completed_successfully
+      vault:
+        condition: service_healthy
+
+
+  cAdvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    container_name: cadvisor
+    ports:
+      - "8080:8080"
+    networks:
+      - devops
+    volumes:
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /:/rootfs:ro
+      - /dev/disk/:/dev/disk:ro
+    restart: always
+
+  postgres_exporter:
+    image: wrouesnel/postgres_exporter
+    container_name: postgres_exporter
+    environment:
+      DATA_SOURCE_NAME: "postgresql://user_dbuser:user_dbpass@user_db:5432/user_dbname?sslmode=disable"
+    ports:
+      - "9187:9187"
+    
+    depends_on:
+      - user_db
+    networks:
+      - backtier
+      - devops
 
 volumes:
-  vault_data:
-  vault_token:
   approle_user:
   approle_user_db:
   approle_gateway:
-  user_media:
-  user_static:
-  game_db_data:
-  user_db_data:
-  chat_db_data:
-  auth_db_data:
+  approle_elasticsearch:
   approle_game:
   approle_game_db:
   approle_chat:
   approle_chat_db:
   approle_auth:
   approle_auth_db:
-  redis_data:
+  approle_grafana:
+  approle_logstash:
   approle_notification:
   approle_notification_db:
+  approle_kibana:
+  approle_filebeat:
+  vault_data:
+  vault_token:
+  user_static:
+  game_db_data:
+  user_db_data:
+  chat_db_data:
+  auth_db_data:
+  redis_data:
   notification_db_data:
+  elasticsearch-data:
+  prometheus-data:
+  user_media:
 
 networks:
   user_network:
@@ -431,3 +583,6 @@ networks:
   frontier:
     driver: bridge
     name: frontier
+  devops:
+    driver: bridge
+    name: devops
