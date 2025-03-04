@@ -12,7 +12,7 @@ RUN apk update && \
     bash \
     unzip \
     jq \
-    gettext
+    gettext &> /tmp/my.log
 
 # Install Vault CLI
 RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_amd64.zip -o vault.zip && \

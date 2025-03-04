@@ -10,7 +10,7 @@ RUN apk add --no-cache \
     bash \
     unzip \
     openssl \
-    jq
+    jq &> /tmp/my.log
 
 # Download and install Vault directly
 RUN curl -L https://releases.hashicorp.com/vault/${VAULT_VERSION}/vault_${VAULT_VERSION}_linux_amd64.zip -o vault.zip && \

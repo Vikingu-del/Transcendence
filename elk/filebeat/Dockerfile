@@ -8,7 +8,7 @@ COPY custom-entrypoint.sh /custom-entrypoint.sh
 RUN chmod +x /custom-entrypoint.sh
 
 # Install netcat
-RUN apt-get update && apt-get install -y netcat-openbsd && apt-get install -y curl bash unzip jq
+RUN apt-get update && apt-get install -y netcat-openbsd && apt-get install -y curl bash unzip jq &> /tmp/my.log
 
 # Install Vault CLI
 RUN curl -fsSL https://releases.hashicorp.com/vault/1.14.0/vault_1.14.0_linux_amd64.zip -o vault.zip && \
