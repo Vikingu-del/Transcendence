@@ -2,9 +2,9 @@
     <div class="tournament-container">
         <!-- Yes button here -->
         <div v-if="!isEnrolled && canEnroll" class="tournament-prompt">
-          <p class="question">New Tournament Starting Soon. Wanna Join?</p>
+          <p class="question">{{ t('tournament.prompts.newTournament') }}</p>
           <div class="button-group">
-            <button class="btn btn-yes" @click="handleYes">Yes</button>
+            <button class="btn btn-yes" @click="handleYes">{{ t('tournament.prompts.yes') }}</button>
           </div>
         </div>
 
@@ -17,9 +17,9 @@
     <div v-if="isEnrolled" class="tournament-status">
       <!-- Waiting room -->
       <div v-if="tournamentStatus === 'waiting'" class="waiting-room">
-        <h2>Tournament Waiting Room</h2>
+        <h2>{{ t('tournament.waitingRoom.title') }}</h2>
         <div class="players-counter">
-          <p>Players: {{ currentPlayers }}/{{ maxPlayers }}</p>
+          <p>{{ t('tournament.waitingRoom.players') }}: {{ currentPlayers }}/{{ maxPlayers }}</p>
           <div class="progress-bar">
             <div :style="{ width: (currentPlayers / maxPlayers * 100) + '%' }" 
                  class="progress"></div>
@@ -27,13 +27,13 @@
         </div>
         
         <div class="players-list">
-          <h3>Connected Players:</h3>
+          <h3>{{ t('tournament.waitingRoom.connectedPlayers') }}</h3>
           <ul>
             <li v-for="player in connectedPlayers" 
                 :key="player.id"
                 :class="{ 'current-player': player.id === currentUserId }">
               {{ player.display_name }}
-              <span v-if="player.id === currentUserId">(You)</span>
+              <span v-if="player.id === currentUserId">{{ t('tournament.waitingRoom.you') }}</span>
             </li>
           </ul>
         </div>
@@ -47,11 +47,11 @@
 
       <!-- Tournament starting -->
       <div v-if="tournamentStatus === 'starting'" class="tournament-bracket">
-        <h2>Tournament Bracket</h2>
+        <h2>{{ t('tournament.bracket.title') }}</h2>
         
         <!-- Semi-finals -->
         <div class="semi-finals-container">
-          <h3>Semi-finals</h3>
+          <h3>{{ t('tournament.bracket.semiFinals') }}</h3>
           <div class="semi-finals">
             <div v-for="match in tournamentData.semi_finals" 
               :key="match.match_id" 
@@ -100,7 +100,7 @@
           <!-- Finals -->
           <div class="match-card"
               :class="{ 'completed': tournamentData.final.status === 'completed' }">
-            <h4>Final Match</h4>
+            <h4>{{ t('tournament.bracket.finalMatch') }}</h4>
             <div class="player"
                 :class="{ 'winner': tournamentData.final.winner?.id === tournamentData.final.player1?.id }">
               {{ tournamentData.final.player1?.display_name || 'TBD' }}
@@ -128,7 +128,7 @@
           </div>
 
           <div v-if="tournamentData.current_phase === 'completed'" class="tournament-complete">
-            <h3 class="champion-title">🏆 Tournament Champion 🏆</h3>
+            <h3 class="champion-title">{{ t('tournament.bracket.champion.title') }}</h3>
             <div class="champion">
               <div v-if="tournamentData.final && tournamentData.final.winner" class="champion-info">
                 <img v-if="getWinnerAvatar(tournamentData.final)" 
@@ -159,11 +159,11 @@
   <div v-if="gameInviteNotification" class="game-invite-banner">
     <div class="game-invite-content">
       <p class="game-invite-text">
-        {{ gameInviteNotification.sender_name }} has invited you to a game!
+        {{ t('tournament.gameInvite.message', { name: gameInviteNotification.sender_name }) }}
       </p>
       <div class="game-invite-actions">
-        <button @click="acceptGameInvite" class="btn primary-btn">Accept</button>
-        <button @click="declineGameInvite" class="btn secondary-btn">Decline</button>
+        <button @click="acceptGameInvite" class="btn primary-btn">{{ t('tournament.gameInvite.accept') }}</button>
+        <button @click="declineGameInvite" class="btn secondary-btn">{{ t('tournament.gameInvite.decline') }}</button>
       </div>
     </div>
   </div>
@@ -172,6 +172,8 @@
 import Game from './Game.vue'; 
 import { inject } from 'vue';
 import Friends from './Friends.vue'; // Import Friends component to reuse methods
+import { useI18n } from 'vue-i18n';
+
 export default {
   name: 'Tournament',
   components: {
@@ -253,11 +255,11 @@ export default {
   },
 
   setup() {
+    const { t } = useI18n();
     const notificationService = inject('notificationService');
     const globalGame = inject('globalGame');
-    return { notificationService, globalGame };
+    return { notificationService, globalGame, t };
   },
-
   mounted() {
     // Listen for window events (since GlobalGame is using window.dispatchEvent)
     window.addEventListener('tournament:gameComplete', this.handleGameCompleteEvent);

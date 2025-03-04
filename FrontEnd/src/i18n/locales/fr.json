@@ -54,7 +54,9 @@
         "login": "Connexion",
         "register": "S'inscrire",
         "profile": "Profil",
-        "friends": "Amis"
+        "friends": "Amis",
+        "tournament": "Tournoi",
+        "notifications": "Notifications"
       },
       "login": {
         "title": "Connexion",
@@ -64,9 +66,18 @@
         "loading": "Connexion en cours...",
         "enterUsername": "Entrez votre nom d'utilisateur",
         "enterPassword": "Entrez votre mot de passe",
+        "enterUsernameQR": "Veuillez entrer votre nom d'utilisateur",
+        "enterOTP": "Veuillez entrer votre code OTP",
+        "otp": "OTP",
+        "getNewQR": "Obtenir un nouveau code QR d'authentification",
+        "qrCodeAlt": "Code QR d'authentification",
+        "done": "Terminé",
         "errors": {
       "Login failed": "Échec de la connexion",
-      "Network error occurred": "Erreur de réseau survenue"
+      "Network error occurred": "Erreur de réseau survenue",
+      "qrGeneration": "Échec de la génération du code QR",
+      "network": "Erreur de réseau survenue",
+      "loginFailed": "Échec de la connexion"
     }
       },
       "register": {
@@ -85,7 +96,9 @@
         "success": "Inscription réussie ! Redirection vers la connexion...",
         "messages": {
         "Registration failed": "L'inscription a échoué",
-        "Registration successful! Redirecting to login...": "Inscription réussie ! Redirection vers la connexion..."
+        "Registration successful! Redirecting to login...": "Inscription réussie ! Redirection vers la connexion...",
+        "QRCode": "Utilisez l'application Google ou Microsoft Authenticator pour scanner ce code QR",
+        "QRDone": "Terminé"
         }
       },
       "friends": {
@@ -99,7 +112,12 @@
         "displayName": "Nom d'affichage",
         "sendMessage": "Envoyer",
         "typeMessage": "Tapez votre message...",
-        "chatWith": "Chat avec {name}"
+        "chatWith": "Chat avec {name}",
+        "requests": "Demandes d'amis",
+        "find": "Rechercher des amis",
+        "noPending": "Aucune demande d'ami en attente",
+        "matchHistory": "Historique des matchs",
+        "noMatch": "Aucun match joué"
       },
       "home": {
     "title": "Bienvenue sur Transcendence",
@@ -107,6 +125,7 @@
   },
     "profile": {
       "title": "Profil",
+      "matchVs": "Vous contre",
       "avatar": {
         "altText": "Photo de profil",
         "change": "Changer l'avatar",
@@ -118,6 +137,7 @@
         "placeholder": "Entrez le nom d'affichage"
       },
       "search": {
+        "chat": "Chat",
         "placeholder": "Rechercher des profils...",
         "searching": "Recherche en cours...",
         "noResults": "Aucun utilisateur trouvé",
@@ -131,9 +151,14 @@
         "unblock": "Débloquer l'utilisateur",
         "accept": "Accepter",
         "decline": "Refuser",
-        "pending": "Demande en attente"
+        "pending": "Demande en attente",
+        "invite": "vous a invité à jouer !"
       },
       "status": {
+        "avatarUpdated": "Avatar mis à jour avec succès",
+      "avatarDeleted": "Avatar supprimé avec succès",
+      "displayNameUpdated": "Nom d'affichage mis à jour avec succès",
+      "displayNameExists": "Ce nom d'affichage existe déjà",
         "online": "En ligne",
         "offline": "Hors ligne"
       },
@@ -142,7 +167,10 @@
         "close": "Fermer"
       },
       "errors": {
-      "displayName": "Nom d'affichage invalide"
+      "displayName": "Nom d'affichage invalide",
+      "avatarUpload": "Échec du téléchargement de l'avatar",
+      "avatarDelete": "Échec de la suppression de l'avatar",
+      "updateProfile": "Échec de la mise à jour du profil"
     }
     },
     "errors": {
@@ -150,5 +178,121 @@
       "Username already exists": "Le nom d'utilisateur existe déjà",
       "Invalid username format": "Format de nom d'utilisateur invalide",
       "Password too weak": "Mot de passe trop faible"
+    },
+    "game": {
+    "gameWith": "Partie avec ",
+    "close": "Fermer",
+    "waiting": "En attente d'un joueur...",
+    "accept": "Partie Acceptée !",
+    "pAgainst": "Joue contre :",
+    "start": "Commencer la partie",
+    "waitingH": "En attente du démarrage par l'hôte...",
+    "gameOver": "Partie Terminée !",
+    "returnMenu": "Retour au Menu",
+    "finalScore": "Score Final :",
+    "inviteToPlay": "Inviter à Jouer"
+  },
+  "common": {
+    "loading": "Chargement..."
+  },
+  "tournament": {
+    "prompts": {
+      "newTournament": "Nouveau Tournoi Bientôt. Voulez-vous Participer ?",
+      "yes": "Oui"
+    },
+    "waitingRoom": {
+      "title": "Salle d'Attente du Tournoi",
+      "players": "Joueurs",
+      "connectedPlayers": "Joueurs Connectés :",
+      "you": "(Vous)"
+    },
+    "bracket": {
+      "title": "Tableau du Tournoi",
+      "semiFinals": "Demi-finales",
+      "semiFinalPrefix": "Demi-Finale",
+      "finalMatch": "Match Final",
+      "vs": "CONTRE",
+      "tbd": "À Déterminer",
+      "finalScore": "Score Final :",
+      "startMatch": "Commencer le Match",
+      "startFinal": "Commencer la Finale",
+      "champion": {
+        "title": "🏆 Champion du Tournoi 🏆",
+        "unknown": "Inconnu"
+      }
+    },
+    "status": {
+      "completed": "Tournoi terminé !",
+      "semifinalsComplete": "Demi-finales terminées ! Le match final est prêt.",
+      "finalReady": "Vous êtes en finale ! Cliquez pour commencer quand vous êtes prêt.",
+      "inviteSent": "Invitation de jeu envoyée à {name}",
+      "startError": "Échec du démarrage du match",
+      "inviteError": "Échec de l'envoi de l'invitation"
+    },
+    "gameInvite": {
+      "message": "{name} vous a invité à jouer !",
+      "accept": "Accepter",
+      "decline": "Refuser"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "actions": {
+      "markAllRead": "Tout marquer comme lu",
+      "retry": "Réessayer"
+    },
+    "states": {
+      "loading": "Chargement des notifications...",
+      "empty": "Aucune notification à afficher",
+      "error": "Échec du chargement des notifications. Veuillez réessayer."
+    },
+    "time": {
+      "today": "Aujourd'hui à",
+      "yesterday": "Hier à",
+      "at": "à"
+    },
+    "messages": {
+      "friendRequest": "{name} vous a envoyé une demande d'ami",
+      "friendAccepted": "{name} a accepté votre demande d'ami",
+      "friendDeclined": "{name} a refusé votre demande d'ami",
+      "friendRemoved": "{name} vous a retiré de ses amis",
+      "gameInvite": "{name} vous a invité à jouer",
+      "gameAccepted": "{name} a accepté votre invitation de jeu",
+      "gameDeclined": "{name} a refusé votre invitation de jeu",
+      "chatMessage": "Nouveau message de {name}",
+      "default": "Nouvelle notification"
+    }
+  },
+  "localTournament": {
+    "title": "Créer un Tournoi Local",
+    "players": {
+      "player1": "Joueur 1 :",
+      "player2": "Joueur 2 :",
+      "player3": "Joueur 3 :",
+      "player4": "Joueur 4 :",
+      "enterName": "Entrez le nom du joueur"
+    },
+    "actions": {
+      "create": "Créer le Tournoi",
+      "startMatch": "Commencer le Match",
+      "close": "Fermer",
+      "returnToTournament": "Retour au Tournoi"
+    },
+    "bracket": {
+      "title": "Tableau du Tournoi",
+      "semiFinal": "Demi-Finale {number}",
+      "vs": "CONTRE"
+    },
+    "game": {
+      "title": "{player1} contre {player2}",
+      "over": "Partie Terminée !",
+      "winner": "{player} gagne !",
+      "finalScore": "Score Final : {score1} - {score2}"
+    },
+    "errors": {
+      "createFailed": "Échec de la création du tournoi",
+      "startMatchFailed": "Erreur lors du démarrage du match",
+      "canvasNotFound": "Élément canvas introuvable"
+    }
+  }
 }

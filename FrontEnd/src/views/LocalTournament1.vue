@@ -1,32 +1,32 @@
 <template>
   <div class="form-container" v-if="!matches.length">
-    <h2>Create Local Tournament</h2>
+    <h2>{{ t('localTournament.title') }}</h2>
     <form @submit.prevent="createTournament">
       <div class="form-group">
-        <label for="player1">Player 1:</label>
-        <input type="text" v-model="player1" id="player1" required />
+        <label for="player1">{{ t('localTournament.players.player1') }}</label>
+        <input type="text" v-model="player1" id="player1" :placeholder="t('localTournament.players.enterName')" required />
       </div>
       <div class="form-group">
-        <label for="player2">Player 2:</label>
-        <input type="text" v-model="player2" id="player2" required />
+        <label for="player2">{{ t('localTournament.players.player2') }}</label>
+        <input type="text" v-model="player2" id="player2" :placeholder="t('localTournament.players.enterName')" required />
       </div>
       <div class="form-group">
-        <label for="player3">Player 3:</label>
-        <input type="text" v-model="player3" id="player3" required />
+        <label for="player3">{{ t('localTournament.players.player3') }}</label>
+        <input type="text" v-model="player3" id="player3" :placeholder="t('localTournament.players.enterName')" required />
       </div>
       <div class="form-group">
-        <label for="player4">Player 4:</label>
-        <input type="text" v-model="player4" id="player4" required />
+        <label for="player4">{{ t('localTournament.players.player4') }}</label>
+        <input type="text" v-model="player4" id="player4" :placeholder="t('localTournament.players.enterName')" required />
       </div>
-      <button type="submit" class="submit-btn">Create Tournament</button>
+      <button type="submit" class="submit-btn">{{ t('localTournament.actions.create') }}</button>
     </form>
   </div>
   <div v-else class="tournament-bracket">
-    <h2>Tournament Bracket</h2>
+    <h2>{{ t('localTournament.bracket.title') }}</h2>
     <div class="matches-container">
       <div v-for="(match, index) in matches" :key="index" class="match-card">
         <div class="match-header">
-          <h3>Semi Final {{ index + 1 }}</h3>
+          <h3>{{ t('localTournament.bracket.semiFinal', { number: index + 1 }) }}</h3>
         </div>
         <div class="match-content">
           <div class="player">{{ match[`semi_final_${index + 1}`].player1 }}</div>
@@ -35,7 +35,7 @@
         </div>
         <div class="match-footer">
           <button class="start-match-btn" @click="startMatch(index)">
-            Start Match
+            {{ t('localTournament.actions.startMatch') }}
           </button>
         </div>
       </div>
@@ -47,9 +47,12 @@
       <div class="game-container">
         <div class="game-header">
           <h4 class="game-title">
-            {{ currentMatch?.player1 }} vs {{ currentMatch?.player2 }}
+            {{ t('localTournament.game.title', {
+              player1: currentMatch?.player1,
+              player2: currentMatch?.player2
+            }) }}
           </h4>
-          <button @click="closeMatch" class="btn secondary-btn">Close</button>
+          <button @click="closeMatch" class="btn secondary-btn">{{ t('localTournament.actions.close') }}</button>
         </div>
         
         <div class="game-content">
@@ -61,17 +64,22 @@
           ></canvas>
 
           <div v-if="isGameOver" class="game-end-screen">
-            <h2>Game Over!</h2>
+            <h2>{{ t('localTournament.game.over') }}</h2>
             <p class="win-message">
-              {{ gameState.paddles.player1.score > gameState.paddles.player2.score 
-                ? currentMatch?.player1 
-                : currentMatch?.player2 }} wins!
+              {{ t('localTournament.game.winner', {
+                player: gameState.paddles.player1.score > gameState.paddles.player2.score 
+                  ? currentMatch?.player1 
+                  : currentMatch?.player2
+              }) }}
             </p>
             <p class="score-message">
-              Final Score: {{ gameState.paddles.player1.score }} - {{ gameState.paddles.player2.score }}
+              {{ t('localTournament.game.finalScore', {
+                score1: gameState.paddles.player1.score,
+                score2: gameState.paddles.player2.score
+              }) }}
             </p>
             <button @click="closeMatch" class="btn primary-btn">
-              Return to Tournament
+              {{ t('localTournament.actions.returnToTournament') }}
             </button>
           </div>
         </div>
@@ -84,6 +92,7 @@
 import { ref, computed, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import PongGame from './Game.vue'
+import { useI18n } from 'vue-i18n'
 
 
 const player1 = ref('')
@@ -92,6 +101,7 @@ const player3 = ref('')
 const player4 = ref('')
 const matches = ref([])
 const router = useRouter()
+const { t } = useI18n()
 
 const getToken = computed(() => {
   return localStorage.getItem('token');
@@ -126,10 +136,10 @@ const createTournament = async () => {
       const data = await response.json()
       matches.value = data.matches
     } else {
-      console.error('Failed to create tournament')
+      console.error(t('localTournament.errors.createFailed'))
     }
   } catch (error) {
-    console.error('Error creating tournament:', error)
+    console.error(t('localTournament.errors.createFailed'), error)
   }
 }
 
@@ -383,11 +393,11 @@ const startMatch = (matchIndex) => {
         lastFrameTime.value = performance.now()
         gameLoop()
       } else {
-        console.error('Canvas element not found')
+        console.error(t('localTournament.errors.canvasNotFound'))
       }
     })
   } catch (error) {
-    console.error('Error starting match:', error)
+    console.error(t('localTournament.errors.startMatchFailed'), error)
   }
 }
 

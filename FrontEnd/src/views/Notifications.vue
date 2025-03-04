@@ -1,25 +1,25 @@
 <template>
   <div class="notifications-container">
-    <h1 class="notifications-title">Notifications</h1>
+    <h1 class="notifications-title">{{ t('notifications.title') }}</h1>
 
     <div class="notification-actions">
       <button @click="markAllAsRead" class="mark-all-btn">
-        Mark all as read
+        {{ t('notifications.actions.markAllRead') }}
       </button>
     </div>
 
     <div class="notification-list">
       <div v-if="loading" class="loading">
-        <span>Loading notifications...</span>
+        <span>{{ t('notifications.states.loading') }}</span>
       </div>
 
       <div v-else-if="error" class="error">
         <p>{{ error }}</p>
-        <button @click="fetchNotifications" class="retry-btn">Retry</button>
+        <button @click="fetchNotifications" class="retry-btn">{{ t('notifications.actions.retry') }}</button>
       </div>
 
       <div v-else-if="notifications.length === 0" class="empty-state">
-        <p>No notifications to display</p>
+        <p>{{ t('notifications.states.empty') }}</p>
       </div>
 
       <div v-else>
@@ -41,6 +41,8 @@
 
 <script>
 import { inject } from 'vue';
+import { useI18n } from 'vue-i18n';
+
 export default {
   name: 'Notifications',
   
@@ -55,7 +57,8 @@ export default {
 
   setup() {
     const notificationService = inject('notificationService');
-    return { notificationService };
+    const { t } = useI18n();
+    return { notificationService, t };
   },
   
   created() {

@@ -5,19 +5,19 @@
         @click="activeTab = 'friends'"
         :class="['tab-btn', { active: activeTab === 'friends' }]"
       >
-        Friends ({{ profile.friends?.length || 0 }})
+      {{ t('friends.title') }} ({{ profile.friends?.length || 0 }})
       </button>
       <button 
         @click="activeTab = 'requests'"
         :class="['tab-btn', { active: activeTab === 'requests', 'highlight': incomingFriendRequests.length > 0 }]"
       >
-        Friend Requests ({{ incomingFriendRequests.length }})
+      {{ t('friends.requests') }} ({{ incomingFriendRequests.length }})
       </button>
       <button 
         @click="activeTab = 'search'"
         :class="['tab-btn', { active: activeTab === 'search' }]"
       >
-        Find Friends
+      {{ t('friends.find') }}
       </button>
     </div>
 
@@ -35,12 +35,12 @@
           </div>
           <span class="profile-name">{{ friend.display_name }}</span>
           <div class="friend-actions">
-            <button @click="showFriendInfo(friend)" class="btn primary-btn">Info</button>
-            <button @click="removeFriend(friend.id)" class="btn secondary-btn">Remove</button>
+            <button @click="showFriendInfo(friend)" class="btn primary-btn">{{ t('friends.info') }}</button>
+            <button @click="removeFriend(friend.id)" class="btn secondary-btn">{{ t('friends.remove') }}</button>
           </div>
         </div>
       </div>
-      <p v-else class="no-content">No friends yet</p>
+      <p v-else class="no-content">{{ t('friends.noFriends') }}</p>
     </div>
 
     <!-- Friend Requests Section -->
@@ -60,18 +60,18 @@
               @click="acceptFriendRequest(request)" 
               class="btn primary-btn"
             >
-              Accept
+            {{ t('profile.friends.accept') }}
             </button>
             <button 
               @click="declineFriendRequest(request)" 
               class="btn secondary-btn"
             >
-              Decline
+            {{ t('profile.friends.decline') }}
             </button>
           </div>
         </div>
       </div>
-      <p v-else class="no-content">No pending friend requests</p>
+      <p v-else class="no-content">{{ t('friends.noPending') }}</p>
     </div>
 
     <!-- Search Section -->
@@ -80,13 +80,13 @@
         <input 
           v-model="searchQuery" 
           @input="searchProfiles" 
-          placeholder="Search for users..." 
+          :placeholder="t('profile.search.placeholder')" 
           class="search-input"
         />
       </div>
 
       <div v-if="isSearching" class="loading">
-        <span>Searching...</span>
+        <span>{{ t('profile.search.searching') }}</span>
       </div>
       
       <div v-else-if="searchError" class="error-message">
@@ -110,20 +110,20 @@
               @click="sendFriendRequest(profile.id)" 
               class="btn primary-btn"
             >
-              Add Friend
+            {{ t('profile.friends.add') }}
             </button>
             <button 
               v-else-if="isFriend(profile)" 
               @click="removeFriend(profile.id)" 
               class="btn secondary-btn"
             >
-              Remove Friend
+            {{ t('profile.friends.remove') }}
             </button>
             <span 
               v-else-if="profile.friend_request_status === 'pending'" 
               class="status-text"
             >
-              Request Pending
+            {{ t('profile.friends.pending') }}
             </span>
 
             <!-- Block/Unblock button -->
@@ -132,19 +132,19 @@
               @click="blockUser(profile.id)" 
               class="btn secondary-btn"
             >
-              Block
+            {{ t('profile.friends.block') }}
             </button>
             <button 
               v-else-if="isBlocked(profile)"
               @click="unblockUser(profile.id)" 
               class="btn primary-btn"
             >
-              Unblock
+            {{ t('profile.friends.unblock') }}
             </button>
           </div>
         </div>
       </div>
-      <p v-else-if="searchQuery" class="no-content">No users found</p>
+      <p v-else-if="searchQuery" class="no-content">{{ t('profile.search.noResults') }}</p>
     </div>
     <div v-if="statusMessage":class="['status-message', statusMessage.type]">
       {{ statusMessage.text }}
@@ -155,8 +155,8 @@
       <div v-if="showFriendProfile && selectedFriend" class="overlay">
         <div class="friend-profile-modal">
           <div class="friend-profile-header">
-            <h3 class="profile-title">Profile Information</h3>
-            <button @click="showFriendProfile = false" class="btn secondary-btn">Close</button>
+            <h3 class="profile-title">{{ t('friends.profileInfo') }}</h3>
+            <button @click="showFriendProfile = false" class="btn secondary-btn">{{ t('profile.actions.close') }}</button>
           </div>
 
           <div class="profile-details">
@@ -173,7 +173,7 @@
             </div>
 
             <div class="detail-group">
-              <h5>Display Name</h5>
+              <h5>{{ t('friends.displayName') }}</h5>
               <p>{{ selectedFriend.display_name }}</p>
             </div>
 
@@ -192,15 +192,15 @@
                     <span class="friend-mini-name">{{ friend.display_name }}</span>
                   </div>
                 </div>
-                <p v-else class="no-content">No friends yet</p>
+                <p v-else class="no-content">{{ t('friends.noFriends') }}</p>
               </div>
             </div>
 
             <div class="detail-group match-history-group">
-              <h3 class="match-history-title">Match History</h3>
+              <h3 class="match-history-title">{{ t('friends.matchHistory') }}</h3>
               
               <div v-if="!selectedFriend.match_history || selectedFriend.match_history.length === 0" class="no-matches">
-                No matches played yet
+                Should be: {{ t('friends.noMatch') }}
               </div>
               
               <ul v-else class="match-list">
@@ -216,7 +216,7 @@
           </div>
 
           <div class="friend-profile-footer">
-            <button @click="startChat(selectedFriend)" class="btn primary-btn">Chat</button>
+            <button @click="startChat(selectedFriend)" class="btn primary-btn">{{ t('profile.search.chat') }}</button>
           </div>
         </div>
       </div>
@@ -234,12 +234,12 @@
               :class="{ 'btn-disabled': !selectedFriend.is_online }"
             >
               <i class="game-icon"></i>
-              {{ selectedFriend.is_online ? 'Invite to Play' : 'Friend Offline' }}
+              {{ selectedFriend.is_online ? t('game.inviteToPlay') : t('profile.status.offline') }}
             </button>
             
-            <h4 class="chat-title">Chat with {{ activeChat }}</h4>
+            <h4 class="chat-title">{{ t('friends.chatWith') }}{{ activeChat }}</h4>
             
-            <button @click="closeChat" class="btn secondary-btn">Close</button>
+            <button @click="closeChat" class="btn secondary-btn">{{ t('profile.actions.close') }}</button>
           </div>
           <div class="chat-messages" ref="chatMessages">
             <div v-for="message in messages" 
@@ -276,10 +276,10 @@
             <input 
               v-model="newMessage" 
               @keyup.enter="sendMessage" 
-              placeholder="Type your message..."
+              :placeholder="t('friends.typeMessage')"
               class="chat-input-field"
             />
-            <button @click="sendMessage" class="btn primary-btn">Send</button>
+            <button @click="sendMessage" class="btn primary-btn">{{ t('friends.sendMessage') }}</button>
           </div>
         </div>
       </div>
@@ -325,6 +325,8 @@
 <script>
 import PongGame from './Game.vue';
 import { inject, ref } from 'vue';
+import { useI18n } from 'vue-i18n';
+
 
 export default {
   name: 'Friends',
@@ -400,9 +402,10 @@ export default {
   },
 
   setup() {
+    const { t } = useI18n();
     const notificationService = inject('notificationService');
     const globalGame = inject('globalGame');
-    return { notificationService, globalGame };
+    return { notificationService, globalGame, t };
   },
 
   computed: {
