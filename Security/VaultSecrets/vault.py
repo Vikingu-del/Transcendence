@@ -188,6 +188,10 @@ secrets_to_store_kibana = {
     "ELASTICSEARCH_PASSWORD": env_vars.get("ELASTICSEARCH_PASSWORD"),
 }
 
+secrets_to_store_postgres_exporter = {
+    "DATA_SOURCE_NAME": env_vars.get("DATA_SOURCE_NAME"),
+}
+
 
 write_secret_to_vault("gateway", secrets_to_store_gateway)
 write_secret_to_vault("user_db", secrets_to_store_user)
@@ -205,10 +209,11 @@ write_secret_to_vault("logstash", secrets_to_store_logstash)
 write_secret_to_vault("grafana", secrets_to_store_grafana)
 write_secret_to_vault("kibana", secrets_to_store_kibana)
 write_secret_to_vault("filebeat", secrets_to_store_logstash)
+write_secret_to_vault("postgres_exporter", secrets_to_store_postgres_exporter)
 
 
 # Generate AppRoles for services
-services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db', 'notification', 'notification_db', 'elasticsearch', 'grafana', 'logstash', 'kibana', 'filebeat']
+services = ['user_db', 'gateway', 'user', 'chat_db', 'chat', 'auth', 'auth_db', 'game', 'game_db', 'notification', 'notification_db', 'elasticsearch', 'grafana', 'logstash', 'kibana', 'filebeat', 'postgres_exporter']
 for service in services:
     role_id, secret_id = create_approle(
         role_name=service, 

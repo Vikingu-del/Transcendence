@@ -22,10 +22,6 @@ VAULT_TOKEN=$(curl -s --request POST \
 
 if [ -z "$VAULT_TOKEN" ] || [ "$VAULT_TOKEN" = "null" ]; then
     echo "❌ Failed to authenticate with Vault"
-    echo "Role ID: $ROLE_ID"
-    echo "Response: $(curl -s --request POST \
-        --data "{\"role_id\":\"$ROLE_ID\",\"secret_id\":\"$SECRET_ID\"}" \
-        $VAULT_ADDR/v1/auth/approle/login)"
     exit 1
 fi
 echo "✅ Successfully authenticated with Vault"
@@ -33,8 +29,6 @@ echo "✅ Successfully authenticated with Vault"
 # Get secrets
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
     $VAULT_ADDR/v1/secret/data/kibana)
-RESPONSE_JSON=$(echo $VAULT_RESPONSE | jq -r .data.data)
-echo "VAULT_RESPONSE: $RESPONSE_JSON"
 
 # Export variables
 export ELASTICSEARCH_USERNAME=$(echo $VAULT_RESPONSE | jq -r .data.data.ELASTICSEARCH_USERNAME)

@@ -32,6 +32,7 @@ services:
       - approle_logstash:/vault/approle/logstash
       - approle_kibana:/vault/approle/kibana
       - approle_filebeat:/vault/approle/filebeat
+      - approle_postgres_exporter:/vault/approle/postgres_exporter
     healthcheck:
       test: ["CMD", "vault", "status", "-address=http://localhost:8200"]
       interval: 5s
@@ -71,6 +72,7 @@ services:
       - approle_logstash:/vault/approle/logstash
       - approle_kibana:/vault/approle/kibana
       - approle_filebeat:/vault/approle/filebeat
+      - approle_postgres_exporter:/vault/approle/postgres_exporter
 
   user:
     container_name: user
@@ -343,6 +345,8 @@ services:
       - frontend
       - chat
       - auth
+      - kibana
+      - grafana
     volumes:
       - approle_gateway:/vault/approle/gateway:ro
       - ./ApiGateway/config/nginx/nginx.conf.template:/etc/nginx/templates/nginx.conf.template:ro
@@ -531,15 +535,20 @@ services:
     restart: always
 
   postgres_exporter:
-    image: wrouesnel/postgres_exporter
+    build: 
+      context: ./monitoring/postgres_exporter
     container_name: postgres_exporter
-    environment:
-      DATA_SOURCE_NAME: "postgresql://user_dbuser:user_dbpass@user_db:5432/user_dbname?sslmode=disable"
     ports:
       - "9187:9187"
-    
     depends_on:
-      - user_db
+      user_db:
+        condition: service_healthy
+      vault:
+        condition: service_healthy
+      vault_secrets: 
+        condition: service_completed_successfully
+    volumes:
+      - approle_postgres_exporter:/vault/approle/postgres_exporter:ro
     networks:
       - backtier
       - devops
@@ -561,6 +570,7 @@ volumes:
   approle_notification_db:
   approle_kibana:
   approle_filebeat:
+  approle_postgres_exporter:
   vault_data:
   vault_token:
   user_static:

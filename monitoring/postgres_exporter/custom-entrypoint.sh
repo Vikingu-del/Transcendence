@@ -2,8 +2,8 @@
 set -e
 
 VAULT_ADDR="http://vault:8200"
-ROLE_ID_FILE="/vault/approle/grafana/role_id"
-SECRET_ID_FILE="/vault/approle/grafana/secret_id"
+ROLE_ID_FILE="/vault/approle/postgres_exporter/role_id"
+SECRET_ID_FILE="/vault/approle/postgres_exporter/secret_id"
 
 # Check credentials exist
 if [ ! -f "$ROLE_ID_FILE" ] || [ ! -f "$SECRET_ID_FILE" ]; then
@@ -28,10 +28,9 @@ echo "✅ Successfully authenticated with Vault"
 
 # Get secrets
 VAULT_RESPONSE=$(curl -s --header "X-Vault-Token: $VAULT_TOKEN" \
-    $VAULT_ADDR/v1/secret/data/grafana)
-
+    $VAULT_ADDR/v1/secret/data/postgres_exporter
+)
 # Export variables
-export GF_SECURITY_ADMIN_USER=$(echo $VAULT_RESPONSE | jq -r .data.data.GF_SECURITY_ADMIN_USER)
-export GF_SECURITY_ADMIN_PASSWORD=$(echo $VAULT_RESPONSE | jq -r .data.data.GF_SECURITY_ADMIN_PASSWORD)
+export DATA_SOURCE_NAME=$(echo $VAULT_RESPONSE | jq -r .data.data.DATA_SOURCE_NAME)
 
-exec /run.sh
+exec postgres_exporter "$@"
