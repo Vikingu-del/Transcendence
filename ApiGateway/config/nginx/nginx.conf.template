@@ -300,15 +300,6 @@ http {
             error_log /var/log/nginx/tournament-ws-error.log debug;
         }
 
-        # Vault proxy (internal only)
-        location /vault/ {
-            proxy_pass http://vault:8200;
-            proxy_http_version 1.1;
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            deny all;
-        }
-
         # Error handlers
         location @auth_down {
             return 502 '{"error": "Auth service unavailable", "status": 502}';
@@ -318,6 +309,120 @@ http {
         location @chat_down {
             return 502 '{"error": "Chat service unavailable", "status": 502}';
             add_header Content-Type application/json always;
+        }
+
+        location @notification_down {
+            return 502 '{"error": "Notification service unavailable", "status": 502}';
+            add_header Content-Type application/json always;
+        }
+
+        location @game_down {
+            return 502 '{"error": "Game service unavailable", "status": 502}';
+            add_header Content-Type application/json always;
+        }
+
+        location @user_down {
+            return 502 '{"error": "User service unavailable", "status": 502}';
+            add_header Content-Type application/json always;
+        }
+    }
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name vault;
+        return 301 https://$host$request_uri;
+    }
+
+    # Add this server block after your existing server blocks
+    server {
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        server_name vault;
+
+        # Use the same SSL certificates
+        ssl_certificate /tmp/nginx/ssl/nginx-selfsigned.crt;
+        ssl_certificate_key /tmp/nginx/ssl/nginx-selfsigned.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        
+        # Direct proxy to Vault without path manipulation
+        location / {
+            proxy_pass http://vault:8200/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name grafana;
+        return 301 https://$host$request_uri;
+    }
+
+    # Add this server block after your existing server blocks
+    server {
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        server_name grafana;
+
+        # Use the same SSL certificates
+        ssl_certificate /tmp/nginx/ssl/nginx-selfsigned.crt;
+        ssl_certificate_key /tmp/nginx/ssl/nginx-selfsigned.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        
+        # Direct proxy to Vault without path manipulation
+        location / {
+            proxy_pass http://grafana:3000/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    server {
+        listen 80;
+        listen [::]:80;
+        server_name kibana;
+        return 301 https://$host$request_uri;
+    }
+
+    # Add this server block after your existing server blocks
+    server {
+        listen 443 ssl;
+        listen [::]:443 ssl;
+        server_name kibana;
+
+        # Use the same SSL certificates
+        ssl_certificate /tmp/nginx/ssl/nginx-selfsigned.crt;
+        ssl_certificate_key /tmp/nginx/ssl/nginx-selfsigned.key;
+        ssl_protocols TLSv1.2 TLSv1.3;
+        ssl_ciphers HIGH:!aNULL:!MD5;
+        
+        # Direct proxy to Vault without path manipulation
+        location / {
+            proxy_pass http://kibana:3000/;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
         }
     }
 }
