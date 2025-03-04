@@ -12,19 +12,19 @@
 		  <input id="password" v-model="password" type="password" :placeholder="t('login.enterPassword')" required />
 		</div>
 		<div class="form-group" v-if="!hideOTP">
-		  <label for="otp">OTP</label>
-		  <input id="otp" v-model="otp" placeholder="Please enter your OTP" required>
+		  <label for="otp">{{ t('login.otp') }}</label>
+		  <input id="otp" v-model="otp" :placeholder="t('login.enterOTP')" required>
 		</div>
 		<button v-if="!hideSubmitButton" type="submit" class="submit-btn" :disabled="loading">
-		  {{ loading ? this.t('login.loading') : this.t('login.title') }}
+			{{ loading ? t('login.loading') : t('login.submit') }}
 		</button>
-		<a href="#" @click.prevent="generateQRCode" class="forgot-password-link">Get new authenticator QR Code</a>
+		<a href="#" @click.prevent="generateQRCode" class="forgot-password-link">{{ t('login.getNewQR') }}</a>
 	  </form>
 	  <p v-if="error" class="message error">{{ error }}</p>
 	  <div v-if="showQRCode">
-		  <img :src="qrCode">
+		  <img :src="qrCode" :alt="t('login.qrCodeAlt')">
 	  </div>
-	  <button v-if="showGenerateQRCodeButton" class="submit-btn" @click="hideQRCode">Done</button>
+	  <button v-if="showGenerateQRCodeButton" class="submit-btn" @click="hideQRCode">{{ t('login.done') }}</button>
 	</div>
   </template>
   

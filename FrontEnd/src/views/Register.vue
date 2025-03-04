@@ -1,15 +1,15 @@
 <template>
 	<div class="form-container">
 	  <div v-if="!isRegistrationSuccessful">
-		<h2>Register</h2>
+		<h2>{{ t('register.title') }}</h2>
 		<form @submit.prevent="register">
 		  <div class="form-group">
-			<label for="username">Username</label>
+			<label for="username">{{ t('register.username') }}</label>
 			<input 
 			  id="username" 
 			  v-model="username" 
 			  type="text" 
-			  placeholder="Enter username" 
+			  :placeholder="t('register.usernamePlaceholder')"
 			  required 
 			  :disabled="loading"
 			/>
@@ -26,36 +26,36 @@
 			  />
 		  </div>
 		  <div class="form-group">
-			<label for="password">Password</label>
+			<label for="password">{{ t('register.password') }}</label>
 			<input 
 			  id="password" 
 			  v-model="password" 
 			  type="password" 
-			  placeholder="Enter password" 
+			  :placeholder="t('register.passwordPlaceholder')"
 			  required 
 			  :disabled="loading"
 			/>
 		  </div>
 		  <div class="form-group">
-			<label for="passwordConfirm">Confirm Password</label>
+			<label for="passwordConfirm">{{ t('register.confirmPassword') }}</label>
 			<input 
 			  id="passwordConfirm" 
 			  v-model="passwordConfirm" 
 			  type="password" 
-			  placeholder="Confirm password" 
+			  :placeholder="t('register.confirmPasswordPlaceholder')" 
 			  required 
 			  :disabled="loading"
 			/>
 		  </div>
 		  <button type="submit" class="submit-btn" :disabled="loading">
-			{{ loading ? 'Registering...' : 'Register' }}
+			{{ loading ? this.t('register.loading') : this.t('register.submit') }}
 		  </button>
 		</form>
 	  </div>
   
 	  <div v-else class="success-container">
-		<h2>Registration Successful!</h2>
-		<p>Redirecting to login page...</p>
+		<h2>{{ t('register.successTitle') }}</h2>
+		<p>{{ t('register.redirecting') }}</p>
 		<div class="loader"></div>
 	  </div>
 	  
@@ -65,9 +65,9 @@
 	  </ul>
   
 	  <div v-if="showQRCode">
-		  <h2>Use Google or Microsoft authenticator app to scan this QR code</h2>
+		  <h2>{{ t('register.QRCode') }}</h2>
 		  <img :src="qrCode" alt="2FA QR CODE">
-		  <button type="submit" class="submit-btn" @click="redirectToLogin">Done</button>
+		  <button type="submit" class="submit-btn" @click="redirectToLogin">{{ t('register.QRDone') }}</button>
 	  </div>
   
 	</div>
@@ -77,8 +77,15 @@
   
   import { SERVICE_URLS } from '@/config/services';
   import auth from '@/utils/auth';
+  import { useI18n } from 'vue-i18n';
   
   export default {
+
+	setup() {
+    const { t } = useI18n();
+    return { t };
+  },
+
 	data() {
 	  return {
 		username: '',
@@ -141,7 +148,7 @@
 			} else if (authData.details) {
 			  this.message = authData.details;
 			} else {
-			  this.message = 'Registration failed';
+			  this.message = this.t('register.messages.Registration failed');
 			}
 			this.messageType = 'error';
 		  }
@@ -153,7 +160,7 @@
 		}
 	  },
 	  redirectToLogin(){
-		  this.message = 'Redirecting to login';
+		  this.message = this.t('register.messages.Redirecting');
 		  this.messageType = 'success';
 		  setTimeout(() => {
 			  this.$router.push('/login');

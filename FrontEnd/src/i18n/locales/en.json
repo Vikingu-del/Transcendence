@@ -55,7 +55,8 @@
       "register": "Register",
       "profile": "Profile",
       "friends": "Friends",
-      "tournament": "Tournament"
+      "tournament": "Tournament",
+      "notifications": "Notifications"
     },
     "login": {
       "title": "Login",
@@ -65,9 +66,17 @@
       "loading": "Logging in...",
       "enterUsername": "Enter username",
       "enterPassword": "Enter password",
+      "enterUsernameQR": "Please enter username",
+      "enterOTP": "Please enter your OTP",
+      "otp": "OTP",
+      "getNewQR": "Get new authenticator QR Code",
+      "qrCodeAlt": "Authentication QR Code",
+      "done": "Done",
       "errors": {
-        "Login failed": "Login failed",
-        "Network error occurred": "Network error occurred"
+      "qrGeneration": "QR code generation failed",
+      "network": "Network error occurred",
+      "loginFailed": "Login failed",
+      "Network error occurred": "Network error occurred"
       }
     },
     "register": {
@@ -85,12 +94,16 @@
       "redirecting": "Redirecting to login page...",
       "messages": {
       "Registration failed": "Registration failed",
-      "Registration successful! Redirecting to login...": "Registration successful! Redirecting to login..."
+      "Redirecting": "Redirecting to login...",
+      "QRCode": "Use Google or Microsoft authenticator app to scan this QR code",
+      "QRDone": "Done"
     },
       "success": "Registration successful! Redirecting to login..."
     },
     "friends": {
       "title": "Friends",
+      "requests": "Friend Requests",
+      "find": "Find Friends",
       "noFriends": "No friends yet",
       "info": "Info",
       "remove": "Remove",
@@ -100,7 +113,11 @@
       "displayName": "Display Name",
       "sendMessage": "Send",
       "typeMessage": "Type your message...",
-      "chatWith": "Chat with {name}"
+      "chatWith": "Chat with ",
+      "noPending": "No pending friend requests",
+      "matchHistory": "Match History",
+      "noMatch": "No matches played yet"
+      
     },
     "home": {
     "title": "Welcome to Transcendence",
@@ -108,6 +125,7 @@
   },
     "profile": {
       "title": "Profile",
+      "matchVs": "You vs",
       "avatar": {
         "altText": "Profile Picture",
         "change": "Change Avatar",
@@ -122,28 +140,36 @@
         "placeholder": "Search profiles...",
         "searching": "Searching...",
         "noResults": "No users found",
-        "error": "Search failed"
+        "error": "Search failed",
+        "chat": "Chat"
       },
       "friends": {
-        "requests": "Incoming Friend Requests",
         "add": "Add Friend",
         "remove": "Remove Friend",
         "block": "Block",
         "unblock": "Unblock User",
         "accept": "Accept",
         "decline": "Decline",
-        "pending": "Request Pending"
+        "pending": "Request Pending",
+        "invite": "has invited you to play a game!"
       },
       "status": {
         "online": "Online",
-        "offline": "Offline"
+        "offline": "Friend Offline",
+        "avatarUpdated": "Avatar updated successfully",
+        "avatarDeleted": "Avatar deleted successfully",
+        "displayNameUpdated": "Display name updated successfully",
+        "displayNameExists": "Display name already exists"
       },
       "actions": {
         "logout": "Logout",
         "close": "Close"
       },
       "errors": {
-      "displayName": "Invalid display name"
+      "displayName": "Invalid display name",
+      "avatarUpload": "Failed to upload avatar",
+      "avatarDelete": "Failed to delete avatar",
+      "updateProfile": "Failed to update profile"
     }
     },
     "errors": {
@@ -151,6 +177,122 @@
       "Username already exists": "Username already exists",
       "Invalid username format": "Invalid username format",
       "Password too weak": "Password too weak"
+    },
+    "game": {
+      "gameWith": "Game with ",
+      "close": "Close",
+      "waiting": "Waiting for player to join...",
+      "accept": "Game Accepted!",
+      "pAgainst": "Playing against:",
+      "start": "Start Game",
+      "waitingH": "Waiting for host to start the game...",
+      "gameOver": "Game Over!",
+      "returnMenu": "Return to Menu",
+      "finalScore": "Final Score:",
+      "inviteToPlay": "Invite to Play"
+    },
+    "common": {
+    "loading": "Loading..."
+  },
+  "tournament": {
+    "prompts": {
+      "newTournament": "New Tournament Starting Soon. Wanna Join?",
+      "yes": "Yes"
+    },
+    "waitingRoom": {
+      "title": "Tournament Waiting Room",
+      "players": "Players",
+      "connectedPlayers": "Connected Players:",
+      "you": "(You)"
+    },
+    "bracket": {
+      "title": "Tournament Bracket",
+      "semiFinals": "Semi-finals",
+      "semiFinalPrefix": "Semi-Final",
+      "finalMatch": "Final Match",
+      "vs": "VS",
+      "tbd": "TBD",
+      "finalScore": "Final Score:",
+      "startMatch": "Start Match",
+      "startFinal": "Start Final Match",
+      "champion": {
+        "title": "🏆 Tournament Champion 🏆",
+        "unknown": "Unknown"
+      }
+    },
+    "status": {
+      "completed": "Tournament completed!",
+      "semifinalsComplete": "Semi-finals completed! Final match is ready.",
+      "finalReady": "You are in the final match! Click to start when ready.",
+      "inviteSent": "Game invite sent to {name}",
+      "startError": "Failed to start match",
+      "inviteError": "Failed to send game invite"
+    },
+    "gameInvite": {
+      "message": "{name} has invited you to a game!",
+      "accept": "Accept",
+      "decline": "Decline"
     }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "actions": {
+      "markAllRead": "Mark all as read",
+      "retry": "Retry"
+    },
+    "states": {
+      "loading": "Loading notifications...",
+      "empty": "No notifications to display",
+      "error": "Failed to load notifications. Please try again."
+    },
+    "time": {
+      "today": "Today at",
+      "yesterday": "Yesterday at",
+      "at": "at"
+    },
+    "messages": {
+      "friendRequest": "{name} sent you a friend request",
+      "friendAccepted": "{name} accepted your friend request",
+      "friendDeclined": "{name} declined your friend request",
+      "friendRemoved": "{name} removed you from their friends",
+      "gameInvite": "{name} invited you to play a game",
+      "gameAccepted": "{name} accepted your game invitation",
+      "gameDeclined": "{name} declined your game invitation",
+      "chatMessage": "New message from {name}",
+      "default": "New notification"
+    }
+  },
+  "localTournament": {
+    "title": "Create Local Tournament",
+    "players": {
+      "player1": "Player 1:",
+      "player2": "Player 2:",
+      "player3": "Player 3:",
+      "player4": "Player 4:",
+      "enterName": "Enter player name"
+    },
+    "actions": {
+      "create": "Create Tournament",
+      "startMatch": "Start Match",
+      "close": "Close",
+      "returnToTournament": "Return to Tournament"
+    },
+    "bracket": {
+      "title": "Tournament Bracket",
+      "semiFinal": "Semi Final {number}",
+      "vs": "VS"
+    },
+    "game": {
+      "title": "{player1} vs {player2}",
+      "over": "Game Over!",
+      "winner": "{player} wins!",
+      "finalScore": "Final Score: {score1} - {score2}"
+    },
+    "errors": {
+      "createFailed": "Failed to create tournament",
+      "startMatchFailed": "Error starting match",
+      "canvasNotFound": "Canvas element not found"
+    }
+  }
 }
   

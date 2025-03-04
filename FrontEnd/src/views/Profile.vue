@@ -9,19 +9,19 @@
             :src="buildAvatarUrl(profile.avatar)"
             @error="handleAvatarError"
             class="profile-picture"
-            alt="Profile Picture"
+            :alt="t('profile.avatar.altText')"
             :key="profile.avatar"
         />
 
         <div class="avatar-actions">
           <input type="file" @change="onFileChange" class="file-input" id="avatar-upload" />
-          <label for="avatar-upload" class="btn primary-btn">Change Avatar</label>
+          <label for="avatar-upload" class="btn primary-btn">{{ t('profile.avatar.change') }}</label>
           <button 
             v-if="!isDefaultAvatar" 
             @click="deleteAvatar" 
             class="btn secondary-btn"
           >
-            Delete Avatar
+          {{ t('profile.avatar.delete') }}
           </button>
         </div>
       </div>
@@ -43,16 +43,16 @@
             :disabled="isUpdateDisabled"
             :class="{ 'enabled-btn': !isUpdateDisabled }"
           >
-            Update Profile
+          {{ t('profile.update.profile') }}
           </button>
         </form>
       </div>
       <!-- Match History -->
       <div class="match-history" v-if="profile">
-          <h3>Match History</h3>
+          <h3>{{ t('friends.matchHistory') }}</h3>
           
           <div v-if="!profile.match_history || profile.match_history.length === 0" class="no-matches">
-            No matches played yet
+            {{ t('friends.noMatch') }}
           </div>
           
           <ul v-else class="match-list">
@@ -60,7 +60,7 @@
             :class="['match-item', match.result.toLowerCase()]">
             <div class="match-result">{{ match.result }}</div>
             <div class="match-score">{{ match.score }}</div>
-            <div class="match-opponent">You vs {{ match.opponentDisplayName || match.opponent }}</div>
+            <div class="match-opponent">{{ t('profile.matchVs') }} {{ match.opponentDisplayName || match.opponent }}</div>
           </li>
         </ul>
       </div>
@@ -74,12 +74,12 @@
     </div>
   
     <!-- Loading and Error States -->
-    <div v-if="loading">Loading...</div>
+    <div v-if="loading">{{ t('common.loading') }}</div>
     <div v-if="error" class="error">{{ error }}</div>
     
     <!-- Logout Button -->
     <nav>
-      <button @click="logout" class="btn secondary-btn">Logout</button>
+      <button @click="logout" class="btn secondary-btn">{{ t('profile.actions.logout') }}</button>
     </nav>
   </div>
 </template>
@@ -87,10 +87,16 @@
 <script>
 import axios from '@/plugins/axios';
 import { mapGetters } from 'vuex';
+import { useI18n } from 'vue-i18n';
 
 export default {
   name: 'Profile',
   
+  setup() {
+    const { t } = useI18n();
+    return { t };
+  },
+
   data() {
     return {
       // Profile Data

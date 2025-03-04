@@ -591,7 +591,7 @@ provide('globalGame', globalGame);
         <RouterLink v-if="isAuthenticated" to="/friends">{{ t('nav.friends') }}</RouterLink>
         <RouterLink v-if="isAuthenticated"to="/local-tournament">{{ t('nav.tournament') }}</RouterLink>
         <RouterLink v-if="isAuthenticated" to="/notifications">
-          Notifications
+          {{ t('nav.notifications') }}
           <span v-if="unreadNotificationCount > 0" class="notification-badge">
             {{ unreadNotificationCount }}
           </span>
@@ -613,11 +613,11 @@ provide('globalGame', globalGame);
     <div v-if="gameInviteNotification" class="game-invite-banner">
       <div class="game-invite-content">
         <div class="game-invite-text">
-          {{ gameInviteNotification.sender }} has invited you to play a game!
+          {{ gameInviteNotification.sender }} {{ t('profile.friends.invite') }}
         </div>
         <div class="game-invite-actions">
-          <button @click="acceptGameInvite" class="game-btn accept-btn">Accept</button>
-          <button @click="declineGameInvite" class="game-btn decline-btn">Decline</button>
+          <button @click="acceptGameInvite" class="game-btn accept-btn">{{ t('profile.friends.accept') }}</button>
+          <button @click="declineGameInvite" class="game-btn decline-btn">{{ t('profile.friends.decline') }}</button>
         </div>
       </div>
     </div>

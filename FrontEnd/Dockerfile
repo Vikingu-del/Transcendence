@@ -4,8 +4,8 @@ WORKDIR /app
 
 COPY package*.json ./
 RUN npm install
-RUN npm install vue-i18n@next --save
-
+RUN npm install vue-i18n@next
+RUN npm install vue-i18n@9 @intlify/unplugin-vue-i18n
 
 COPY . .
 
